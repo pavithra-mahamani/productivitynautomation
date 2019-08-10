@@ -54,10 +54,15 @@ check_for_hang()
    ELAPSED=$(( $(date -d "$CURRENT_DATE" "+%s") - $(date -d "$LAST_LOG_DATE" "+%s") ))
  fi
  HANG_PERIOD_SECS=`expr ${HANG_PERIOD} \* 60`
- if [ $ELAPSED -gt $HANG_PERIOD_SECS ]; then
-	echo "Status: Hang for $ELAPSED secs"
+ if [ "$OS" = "Darwin" ]; then
+    ELAPSED_PTIME="`gdate -d@${ELAPSED} -u +%H:%M:%S`"
  else
-	echo "Status: NO hang for $HANG_PERIOD mins/$HANG_PERIOD_SECS secs"
+    ELAPSED_PTIME="`date -d@${ELAPSED} -u +%H:%M:%S`"
+ fi
+ if [ $ELAPSED -gt $HANG_PERIOD_SECS ]; then   
+	echo "Status: Hang for ${ELAPSED_PTIME}" 
+ else
+	echo "Status: NO hang for $HANG_PERIOD mins/$HANG_PERIOD_SECS secs, since ${ELAPSED_PTIME}"
  fi
 
 }
