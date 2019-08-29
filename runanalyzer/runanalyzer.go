@@ -38,23 +38,54 @@ type TotalCycleTime struct {
 	Totaltime int64
 }
 
+const url = "http://172.23.109.245:8093/query/service"
+
 func main() {
 	fmt.Println("*** Helper Tool ***")
-	action := flag.String("action", "lastaborted", "Enter action value. \n-action lastaborted 6.5.0-4106 6.5.0-4059 6.5.0-4000  : to get the aborted jobs common across last 3 builds\n-action totalduration 6.5.0-4106  : to get the total time duration for a build cyle")
+	action := flag.String("action", "usage", usage())
 	flag.Parse()
 
 	if *action == "lastaborted" {
 		lastabortedjobs()
 	} else if *action == "totalduration" {
 		fmt.Println("Total duration: ", gettotalbuildcycleduration(os.Args[3]))
-	} else {
-		fmt.Println("Usage: " + os.Args[0] + " -h")
+	} else if *action == "runquery" {
+		fmt.Println("Query Result: ", runquery(os.Args[3]))
+	} else if *action == "usage" {
+		fmt.Println(usage())
 	}
 }
 
-func gettotalbuildcycleduration(buildN string) string {
-	url := "http://172.23.109.245:8093/query/service"
+func usage() string {
+	fileName, _ := os.Executable()
+	return "Usage: " + fileName + " -h | --help \nEnter action value. \n" +
+		"-action lastaborted 6.5.0-4106 6.5.0-4059 6.5.0-4000  : to get the aborted jobs common across last 3 builds\n" +
+		"-action totalduration 6.5.0-4106  : to get the total time duration for a build cyle\n" +
+		"-action runquery 'select * from server where lower(`os`)=\"centos\" and `build`=\"6.5.0-4106\"' : to run a given query statement"
+}
+func runquery(qry string) string {
+	//url := "http://172.23.109.245:8093/query/service"
+	fmt.Println("ACTION: runquery")
+	fmt.Println("query=" + qry)
+	localFileName := "qryresult.json"
+	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
+		panic(err)
+	}
 
+	resultFile, err := os.Open(localFileName)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer resultFile.Close()
+
+	byteValue, _ := ioutil.ReadAll(resultFile)
+	return string(byteValue)
+}
+
+func gettotalbuildcycleduration(buildN string) string {
+	fmt.Println("action: totalduration")
+
+	//url := "http://172.23.109.245:8093/query/service"
 	qry := "select sum(duration) as totaltime from server b where lower(b.os)=\"centos\" and b.`build`=\"" + buildN + "\""
 	fmt.Println("query=" + qry)
 	localFileName := "duration.json"
@@ -92,6 +123,7 @@ func gettotalbuildcycleduration(buildN string) string {
 }
 
 func lastabortedjobs() {
+	fmt.Println("action: lastaborted")
 	var build1 string
 	var build2 string
 	var build3 string
@@ -104,7 +136,7 @@ func lastabortedjobs() {
 		build3 = os.Args[5]
 	}
 
-	url := "http://172.23.109.245:8093/query/service"
+	//url := "http://172.23.109.245:8093/query/service"
 	qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os)=\"centos\" and b.result=\"ABORTED\" and b.`build`=\"" + build1 + "\" and b.name in (select raw a.name from server a where lower(a.os)=\"centos\" and a.result=\"ABORTED\" and a.`build`=\"" + build2 + "\" intersect select raw name from server where lower(os)=\"centos\" and result=\"ABORTED\" and `build`=\"" + build3 + "\" intersect select raw name from server where lower(os)=\"centos\" and result=\"ABORTED\" and `build`=\"" + build1 + "\")"
 	fmt.Println("query=" + qry)
 	localFileName := "result.json"
