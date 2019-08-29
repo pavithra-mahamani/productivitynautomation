@@ -5,9 +5,11 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"os"
 )
@@ -25,7 +27,71 @@ type N1QLResult struct {
 	URLbuild int64
 }
 
+// TotalCycleTimeQryResult type
+type TotalCycleTimeQryResult struct {
+	Status  string
+	Results []TotalCycleTime
+}
+
+// TotalCycleTime type
+type TotalCycleTime struct {
+	Totaltime int64
+}
+
 func main() {
+	fmt.Println("*** Helper Tool ***")
+	action := flag.String("action", "lastaborted", "Enter action value. \n-action lastaborted 6.5.0-4106 6.5.0-4059 6.5.0-4000  : to get the aborted jobs common across last 3 builds\n-action totalduration 6.5.0-4106  : to get the total time duration for a build cyle")
+	flag.Parse()
+
+	if *action == "lastaborted" {
+		lastabortedjobs()
+	} else if *action == "totalduration" {
+		fmt.Println("Total duration: ", gettotalbuildcycleduration(os.Args[3]))
+	} else {
+		fmt.Println("Usage: " + os.Args[0] + " -h")
+	}
+}
+
+func gettotalbuildcycleduration(buildN string) string {
+	url := "http://172.23.109.245:8093/query/service"
+
+	qry := "select sum(duration) as totaltime from server b where lower(b.os)=\"centos\" and b.`build`=\"" + buildN + "\""
+	fmt.Println("query=" + qry)
+	localFileName := "duration.json"
+	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
+		panic(err)
+	}
+
+	resultFile, err := os.Open(localFileName)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer resultFile.Close()
+
+	byteValue, _ := ioutil.ReadAll(resultFile)
+
+	var result TotalCycleTimeQryResult
+
+	err = json.Unmarshal(byteValue, &result)
+	var ttime string
+	if result.Status == "success" {
+		fmt.Println("Total time in millis: ", result.Results[0].Totaltime)
+
+		hours := math.Floor(float64(result.Results[0].Totaltime) / 1000 / 60 / 60)
+		secs := result.Results[0].Totaltime % (1000 * 60 * 60)
+		mins := math.Floor(float64(secs) / 60 / 1000)
+		secs = result.Results[0].Totaltime * 1000 % 60
+		fmt.Printf("%02d hrs : %02d mins :%02d secs", int64(hours), int64(mins), int64(secs))
+		//ttime = string(hours) + ": " + string(mins) + ": " + string(secs)
+	} else {
+		fmt.Println("Status: Failed")
+	}
+
+	return ttime
+
+}
+
+func lastabortedjobs() {
 	var build1 string
 	var build2 string
 	var build3 string
@@ -33,9 +99,9 @@ func main() {
 		fmt.Println("Enter the last 3 builds and first being the latest.")
 		os.Exit(1)
 	} else {
-		build1 = os.Args[1]
-		build2 = os.Args[2]
-		build3 = os.Args[3]
+		build1 = os.Args[3]
+		build2 = os.Args[4]
+		build3 = os.Args[5]
 	}
 
 	url := "http://172.23.109.245:8093/query/service"
