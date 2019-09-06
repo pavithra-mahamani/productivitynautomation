@@ -12,6 +12,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"strings"
 )
 
 // N1QLQryResult type
@@ -161,7 +162,8 @@ func lastabortedjobs() {
 		fmt.Println("Count: ", len(result.Results))
 		for i := 0; i < len(result.Results); i++ {
 			//fmt.Println((i + 1), result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
-			fmt.Println(result.Results[i].Aname, "\t", result.Results[i].JURL, "\t", result.Results[i].URLbuild)
+			fmt.Println(strings.TrimSpace(result.Results[i].Aname), "\t", strings.TrimSpace(result.Results[i].JURL), "\t",
+				result.Results[i].URLbuild)
 		}
 
 	} else {
