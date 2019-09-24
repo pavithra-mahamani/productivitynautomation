@@ -36,13 +36,14 @@ if [ ! -d $WORK_DIR ]; then
   mkdir -p $WORK_DIR
 fi
 
+INDEX=1
 while IFS= read -r line
 do
   TS_NAME="`echo $line|xargs|cut -f1 -d','|tr -dc '[[:print:]]'`"
   JOB_URL="`echo $line|xargs|cut -f2 -d','|tr -dc '[[:print:]]'`"
   BUILD="`echo $line|xargs|cut -f3 -d','|tr -dc '[[:print:]]'`"
 
-  echo "TS_NAME=${TS_NAME}, JOB_URL=${JOB_URL}, BUILD=${BUILD};"
+  echo "${INDEX}. TS_NAME=${TS_NAME}, JOB_URL=${JOB_URL}, BUILD=${BUILD};"
   echo "--Getting ${JOB_URL}/${BUILD} ..."
   JOB_DIR=$WORK_DIR/${TS_NAME}_${BUILD}
   if [ ! -d ${JOB_DIR} ]; then
@@ -52,6 +53,7 @@ do
   JOB_FILE=$JOB_DIR/jobinfo.json
   RESULT_FILE=$JOB_DIR/testresult.json
   LOG_FILE=$JOB_DIR/consoleText.txt
+  ARCHIVE_ZIP_FILE=$JOB_DIR/archive.zip
 
   # Download job config.xml
   curl -s -u ${JENKINS_USER}:${JENKINS_TOKEN} -o ${CONFIG_FILE} ${JOB_URL}/config.xml
@@ -68,7 +70,11 @@ do
   #echo curl -s -u ${JENKINS_USER}:${JENKINS_TOKEN} -o ${LOG_FILE} ${JOB_URL}/${BUILD}/consoleText
   curl -s -u ${JENKINS_USER}:${JENKINS_TOKEN} -o ${LOG_FILE} ${JOB_URL}/${BUILD}/consoleText
 
+  #Download build artifacts
+  curl -s -u ${JENKINS_USER}:${JENKINS_TOKEN} -o ${ARCHIVE_ZIP_FILE} ${JOB_URL}/${BUILD}/artifact/*zip*/archive.zip
+
   echo "Check artifacts at $JOB_DIR "
   echo " "
+  INDEX=`expr $INDEX + 1`
 done < $JOBS
 echo "Done! "

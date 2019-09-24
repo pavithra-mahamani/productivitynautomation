@@ -7,7 +7,7 @@
 clean()
 {
   if [ -d $WORKSPACE/cbws ]; then
-     rm -rf $WORKSPACE/cbws
+     rm -rf $WORKSPACE/cbws/*
   fi  
 }
 repo_sync()
@@ -32,6 +32,7 @@ build_analytics()
     cmake -D CB_DOWNLOAD_JAVA=1 -D CB_DOWNLOAD_DEPS=1 ..
     cd ..
 
+    cp -R $HOME/ClusterTestBase.java ./analytics/cbas/cbas-server/src/test/java/com/couchbase/analytics/test/common/ClusterTestBase.java
     make -j8 || make
     echo ##### end make ####
 
@@ -67,6 +68,7 @@ run_scanner()
 run_sca()
 {
    ~/sonar-scanner/bin/sonar-scanner -Dsonar.projectKey=analytics   -Dsonar.sources=.   -Dsonar.host.url=http://172.23.105.131:9000   -Dsonar.login=5517d08da769a1fccd8551e6b4431d03baafd005 -Dsonar.java.binaries=$HOME/.m2 -Dsonar.inclusions=**/*.java,**/*.go
+  #./sonar-scanner -Dsonar.projectKey=samplejacoco -Dsonar.host.url=http://172.23.105.131:9000 -Dsonar.login=5517d08da769a1fccd8551e6b4431d03baafd005 -Dsonar.coverage.jacoco.xmlReportPaths=/Users/jagadeshmunta/jacocoreports/jacoco.xml -Dsonar.sources=. -Dsonar.inclusions=**/*.java,**/*.go -Dsonar.java.binaries=$HOME/.m2
 }
 
 all()
@@ -74,7 +76,7 @@ all()
     #REPO=$WORKSPACE/.repository
     #REPO=$HOME/.m2
     export WORKSPACE=$HOME
-    #clean
+    clean
     repo_sync
     build_analytics $HOME/.m2
 }

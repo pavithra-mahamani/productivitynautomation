@@ -48,6 +48,8 @@ func main() {
 
 	if *action == "lastaborted" {
 		lastabortedjobs()
+	} else if *action == "savejoblogs" {
+		savejoblogs()
 	} else if *action == "totalduration" {
 		fmt.Println("Total duration: ", gettotalbuildcycleduration(os.Args[3]))
 	} else if *action == "runquery" {
@@ -61,6 +63,7 @@ func usage() string {
 	fileName, _ := os.Executable()
 	return "Usage: " + fileName + " -h | --help \nEnter action value. \n" +
 		"-action lastaborted 6.5.0-4106 6.5.0-4059 6.5.0-4000  : to get the aborted jobs common across last 3 builds\n" +
+		"-action savejoblogs 6.5.0-4106  : to get the jenkins logs for a given build\n" +
 		"-action totalduration 6.5.0-4106  : to get the total time duration for a build cyle\n" +
 		"-action runquery 'select * from server where lower(`os`)=\"centos\" and `build`=\"6.5.0-4106\"' : to run a given query statement"
 }
@@ -121,6 +124,50 @@ func gettotalbuildcycleduration(buildN string) string {
 
 	return ttime
 
+}
+
+func savejoblogs() {
+	fmt.Println("action: savejoblogs")
+	var build1 string
+	if len(os.Args) < 2 {
+		fmt.Println("Enter the build to save the jenkins job logs.")
+		os.Exit(1)
+	} else {
+		build1 = os.Args[3]
+	}
+
+	//url := "http://172.23.109.245:8093/query/service"
+	qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os)=\"centos\" and b.`build`=\"" + build1 + "\""
+	fmt.Println("query=" + qry)
+	localFileName := "result.json"
+	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
+		panic(err)
+	}
+
+	resultFile, err := os.Open(localFileName)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer resultFile.Close()
+
+	byteValue, _ := ioutil.ReadAll(resultFile)
+
+	var result N1QLQryResult
+
+	err = json.Unmarshal(byteValue, &result)
+	//fmt.Println("Status=" + result.Status)
+	//fmt.Println(err)
+	if result.Status == "success" {
+		fmt.Println("Count: ", len(result.Results))
+		for i := 0; i < len(result.Results); i++ {
+			//fmt.Println((i + 1), result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
+			fmt.Println(strings.TrimSpace(result.Results[i].Aname), "\t", strings.TrimSpace(result.Results[i].JURL), "\t",
+				result.Results[i].URLbuild)
+		}
+
+	} else {
+		fmt.Println("Status: Failed")
+	}
 }
 
 func lastabortedjobs() {
