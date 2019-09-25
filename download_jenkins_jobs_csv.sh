@@ -45,9 +45,11 @@ do
 
   echo "${INDEX}. TS_NAME=${TS_NAME}, JOB_URL=${JOB_URL}, BUILD=${BUILD};"
   echo "--Getting ${JOB_URL}/${BUILD} ..."
-  JOB_DIR=$WORK_DIR/${TS_NAME}_${BUILD}
+  #JOB_DIR=$WORK_DIR/${TS_NAME}_${BUILD}
+  JOB_NAME="`echo $JOB_URL|rev|cut -f2 -d'/'|rev`"
+  JOB_DIR=$WORK_DIR/${JOB_NAME}/${BUILD}
   if [ ! -d ${JOB_DIR} ]; then
-     mkdir $JOB_DIR
+     mkdir -p $JOB_DIR
   fi
   CONFIG_FILE=$JOB_DIR/config.xml
   JOB_FILE=$JOB_DIR/jobinfo.json
@@ -55,7 +57,15 @@ do
   LOG_FILE=$JOB_DIR/consoleText.txt
   ARCHIVE_ZIP_FILE=$JOB_DIR/archive.zip
 
+  JENKINS_SERVER_NAME=`echo $JOB_URL|cut -f3 -d'/' |cut -f1 -d'.'|tr '[a-z]' '[A-Z]'`
+  echo $JENKINS_SERVER_NAME
+  USER_VAR="${JENKINS_SERVER_NAME}_JENKINS_USER"
+  TOKEN_VAR="${JENKINS_SERVER_NAME}_JENKINS_TOKEN"
+  JENKINS_USER=${!USER_VAR}
+  JENKINS_TOKEN=${!TOKEN_VAR}
+
   # Download job config.xml
+  #echo curl -s -u ${JENKINS_USER}:${JENKINS_TOKEN} -o ${CONFIG_FILE} ${JOB_URL}/config.xml
   curl -s -u ${JENKINS_USER}:${JENKINS_TOKEN} -o ${CONFIG_FILE} ${JOB_URL}/config.xml
 
   #Download job details and parameters:
