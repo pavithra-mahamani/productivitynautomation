@@ -55,7 +55,7 @@ do
 
   while (( ${BUILD} <= ${BUILD_END} ))
   do
-   echo "...Getting ${JOB_NAME}/${BUILD} ..."
+   echo "${INDEX}...Getting ${JOB_NAME}/${BUILD} ..."
   JOB_DIR=$WORK_DIR/${JOB_NAME}_${BUILD}
   if [ ! -d ${JOB_DIR} ]; then
      mkdir $JOB_DIR
@@ -81,8 +81,12 @@ do
   echo curl -o ${LOG_FILE} ${SERVER}/job/${JOB_NAME}/${BUILD}/consoleText
   curl -s -u ${JENKINS_USER}:${JENKINS_TOKEN} -o ${LOG_FILE} ${SERVER}/job/${JOB_NAME}/${BUILD}/consoleText
 
+  #Download build artifacts
+  curl -s -u ${JENKINS_USER}:${JENKINS_TOKEN} -o ${ARCHIVE_ZIP_FILE} ${JOB_URL}/${BUILD}/artifact/*zip*/archive.zip
+
   echo "Check artifacts at $JOB_DIR "
   BUILD=`expr ${BUILD} + 1`
+  INDEX=`expr $INDEX + 1`
   done
 done
 echo "Done! "

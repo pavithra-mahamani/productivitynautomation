@@ -70,8 +70,8 @@ do
   #echo curl -s -u ${JENKINS_USER}:${JENKINS_TOKEN} -o ${LOG_FILE} ${JOB_URL}/${BUILD}/consoleText
   curl -s -u ${JENKINS_USER}:${JENKINS_TOKEN} -o ${LOG_FILE} ${JOB_URL}/${BUILD}/consoleText
 
-  #Download build artifacts
-  curl -s -u ${JENKINS_USER}:${JENKINS_TOKEN} -o ${ARCHIVE_ZIP_FILE} ${JOB_URL}/${BUILD}/artifact/*zip*/archive.zip
+  #Download build artifacts - skipping for now as this is taking long time
+  #curl -s -u ${JENKINS_USER}:${JENKINS_TOKEN} -o ${ARCHIVE_ZIP_FILE} ${JOB_URL}/${BUILD}/artifact/*zip*/archive.zip
 
   echo "Check artifacts at $JOB_DIR "
   echo " "

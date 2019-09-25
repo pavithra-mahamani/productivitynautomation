@@ -4,6 +4,7 @@ package main
 // jagadesh.munta@couchbase.com
 
 import (
+	"bufio"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -157,13 +158,21 @@ func savejoblogs() {
 	err = json.Unmarshal(byteValue, &result)
 	//fmt.Println("Status=" + result.Status)
 	//fmt.Println(err)
+	f, err := os.Create("all_jobs.csv")
+	defer f.Close()
+
+	w := bufio.NewWriter(f)
+
 	if result.Status == "success" {
 		fmt.Println("Count: ", len(result.Results))
 		for i := 0; i < len(result.Results); i++ {
 			//fmt.Println((i + 1), result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
-			fmt.Println(strings.TrimSpace(result.Results[i].Aname), "\t", strings.TrimSpace(result.Results[i].JURL), "\t",
+			fmt.Print(strings.TrimSpace(result.Results[i].Aname), ",", strings.TrimSpace(result.Results[i].JURL), ",",
+				result.Results[i].URLbuild, "\n")
+			_, err = fmt.Fprintf(w, "%s,%s,%d\n", strings.TrimSpace(result.Results[i].Aname), strings.TrimSpace(result.Results[i].JURL),
 				result.Results[i].URLbuild)
 		}
+		w.Flush()
 
 	} else {
 		fmt.Println("Status: Failed")
@@ -205,13 +214,20 @@ func lastabortedjobs() {
 	err = json.Unmarshal(byteValue, &result)
 	//fmt.Println("Status=" + result.Status)
 	//fmt.Println(err)
+	f, err := os.Create("aborted_jobs.csv")
+	defer f.Close()
+
+	w := bufio.NewWriter(f)
 	if result.Status == "success" {
 		fmt.Println("Count: ", len(result.Results))
 		for i := 0; i < len(result.Results); i++ {
 			//fmt.Println((i + 1), result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
-			fmt.Println(strings.TrimSpace(result.Results[i].Aname), "\t", strings.TrimSpace(result.Results[i].JURL), "\t",
+			fmt.Print(strings.TrimSpace(result.Results[i].Aname), "\t", strings.TrimSpace(result.Results[i].JURL), "\t",
+				result.Results[i].URLbuild)
+			_, err = fmt.Fprintf(w, "%s,%s,%d\n", strings.TrimSpace(result.Results[i].Aname), strings.TrimSpace(result.Results[i].JURL),
 				result.Results[i].URLbuild)
 		}
+		w.Flush()
 
 	} else {
 		fmt.Println("Status: Failed")
