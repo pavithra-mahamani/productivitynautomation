@@ -45,8 +45,21 @@ do
 
   echo "${INDEX}. TS_NAME=${TS_NAME}, JOB_URL=${JOB_URL}, BUILD=${BUILD};"
   echo "--Getting ${JOB_URL}/${BUILD} ..."
+  #check in case aws s3 url
+  IS_AWS_URL="`echo $JOB_URL |egrep '.s3.'`"
+  if [ ! "${IS_AWS_URL}" = "" ]; then
+     echo "Warning: Skipping the non Jenkins or AWS url to download the logs..."
+     echo ""
+     INDEX=`expr $INDEX + 1`
+     continue
+  fi
+
   #JOB_DIR=$WORK_DIR/${TS_NAME}_${BUILD}
   JOB_NAME="`echo $JOB_URL|rev|cut -f2 -d'/'|rev`"
+  if [ "${JOB_NAME}" = "${BUILD}" ]; then
+    JOB_NAME="`echo $JOB_URL|rev|cut -f3 -d'/'|rev`"
+    JOB_URL=${JOB_URL}..
+  fi
   JOB_DIR=$WORK_DIR/${JOB_NAME}/${BUILD}
   if [ ! -d ${JOB_DIR} ]; then
      mkdir -p $JOB_DIR
