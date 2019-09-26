@@ -1,16 +1,17 @@
 #!/bin/bash
 CB_BUILD=${1}
+SCRIPT_PATH=`realpath $0`
 if [ "${CB_BUILD}" = "" ]; then
    echo "*** Save Testrunner jobs Jenkins logs to S3 ***"
-   echo "Usage: $0 CB_BUILD"
+   echo "Usage: $SCRIPT_PATH CB_BUILD"
    exit 1
 fi
 
-if [ ! -d helperscripts ]; then
-  git clone http://github.com/jdmuntacb/helperscripts.git
-  cd helperscripts
-fi
-SCRIPTS_DIR=`pwd`
+#if [ ! -d helperscripts ]; then
+#  git clone http://github.com/jdmuntacb/helperscripts.git
+#  cd helperscripts
+#fi
+SCRIPTS_DIR=`dirname $SCRIPT_PATH`
 mkdir ${CB_BUILD}
 cd ${CB_BUILD}
 echo "-->1) Getting the job Jenkins urls"
