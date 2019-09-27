@@ -1,9 +1,12 @@
 package main
 
-// A simple runanalyzer
+// A simple runanalyzer doing the below actions.
+//
 // 1. list last 3 builds abort jobs
-// 2. Execute a given CB N1QL query
-// 3. Save the jenkins logs to S3. List of jobs can csv or CB server for a build
+// 2. Total duration of a build cycle
+// 3. Execute a given CB N1QL query
+// 4. Save the jenkins logs to S3. List of jobs can csv or CB server for a build
+//
 // jagadesh.munta@couchbase.com
 
 import (
