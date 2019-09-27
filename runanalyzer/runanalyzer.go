@@ -1,19 +1,30 @@
 package main
 
-// A simple last 3 builds abort jobs analyzer
+// A simple runanalyzer
+// 1. list last 3 builds abort jobs
+// 2. Execute a given CB N1QL query
+// 3. Save the jenkins logs to S3. List of jobs can csv or CB server for a build
 // jagadesh.munta@couchbase.com
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"math"
 	"net/http"
 	"os"
+	"os/exec"
+	"path"
+	"strconv"
 	"strings"
+
+	"github.com/magiconair/properties"
 )
 
 // N1QLQryResult type
@@ -42,11 +53,23 @@ type TotalCycleTime struct {
 
 const url = "http://172.23.109.245:8093/query/service"
 
+var cbbuild string
+var src string
+var dest string
+var overwrite string
+
 func main() {
 	fmt.Println("*** Helper Tool ***")
 	action := flag.String("action", "usage", usage())
+	srcInput := flag.String("src", "cbserver", usage())
+	destInput := flag.String("dest", "local", usage())
+	overwriteInput := flag.String("overwrite", "no", usage())
 	flag.Parse()
-
+	dest = *destInput
+	src = *srcInput
+	overwrite = *overwriteInput
+	//fmt.Println("original dest=", dest, "--", *destInput)
+	//time.Sleep(10 * time.Second)
 	if *action == "lastaborted" {
 		lastabortedjobs()
 	} else if *action == "savejoblogs" {
@@ -134,49 +157,79 @@ func savejoblogs() {
 		fmt.Println("Enter the build to save the jenkins job logs.")
 		os.Exit(1)
 	} else {
-		build1 = os.Args[3]
+		build1 = os.Args[len(os.Args)-1]
+		cbbuild = build1
 	}
-
-	//url := "http://172.23.109.245:8093/query/service"
-	qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os)=\"centos\" and b.`build`=\"" + build1 + "\""
-	fmt.Println("query=" + qry)
-	localFileName := "result.json"
-	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
-		panic(err)
-	}
-
-	resultFile, err := os.Open(localFileName)
-	if err != nil {
-		fmt.Println(err)
-	}
-	defer resultFile.Close()
-
-	byteValue, _ := ioutil.ReadAll(resultFile)
-
-	var result N1QLQryResult
-
-	err = json.Unmarshal(byteValue, &result)
-	//fmt.Println("Status=" + result.Status)
-	//fmt.Println(err)
-	f, err := os.Create("all_jobs.csv")
-	defer f.Close()
-
-	w := bufio.NewWriter(f)
-
-	if result.Status == "success" {
-		fmt.Println("Count: ", len(result.Results))
-		for i := 0; i < len(result.Results); i++ {
-			//fmt.Println((i + 1), result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
-			fmt.Print(strings.TrimSpace(result.Results[i].Aname), ",", strings.TrimSpace(result.Results[i].JURL), ",",
-				result.Results[i].URLbuild, "\n")
-			_, err = fmt.Fprintf(w, "%s,%s,%d\n", strings.TrimSpace(result.Results[i].Aname), strings.TrimSpace(result.Results[i].JURL),
-				result.Results[i].URLbuild)
+	var jobCsvFile string
+	if src == "cbserver" {
+		//url := "http://172.23.109.245:8093/query/service"
+		qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os)=\"centos\" and b.`build`=\"" + build1 + "\""
+		fmt.Println("query=" + qry)
+		localFileName := "result.json"
+		if err := executeN1QLStmt(localFileName, url, qry); err != nil {
+			panic(err)
 		}
-		w.Flush()
 
+		resultFile, err := os.Open(localFileName)
+		if err != nil {
+			fmt.Println(err)
+		}
+		defer resultFile.Close()
+
+		byteValue, _ := ioutil.ReadAll(resultFile)
+
+		var result N1QLQryResult
+
+		err = json.Unmarshal(byteValue, &result)
+		//fmt.Println("Status=" + result.Status)
+		//fmt.Println(err)
+		jobCsvFile = "all_jobs.csv"
+		f, err := os.Create(jobCsvFile)
+		defer f.Close()
+
+		w := bufio.NewWriter(f)
+
+		if result.Status == "success" {
+			fmt.Println("Count: ", len(result.Results))
+			for i := 0; i < len(result.Results); i++ {
+				//fmt.Println((i + 1), result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
+				fmt.Print(strings.TrimSpace(result.Results[i].Aname), ",", strings.TrimSpace(result.Results[i].JURL), ",",
+					result.Results[i].URLbuild, "\n")
+				_, err = fmt.Fprintf(w, "%s,%s,%d\n", strings.TrimSpace(result.Results[i].Aname), strings.TrimSpace(result.Results[i].JURL),
+					result.Results[i].URLbuild)
+			}
+			w.Flush()
+			fmt.Println("Count: ", len(result.Results))
+
+		} else {
+			fmt.Println("Status: Failed")
+		}
 	} else {
-		fmt.Println("Status: Failed")
+		jobCsvFile = src
 	}
+
+	// Download the files
+	if !strings.Contains(strings.ToLower(dest), "none") {
+		DownloadJenkinsFiles(jobCsvFile)
+	}
+
+}
+
+// executeCommand ...
+func executeCommand(command string, input string) string {
+	cmdFileWithArgs := strings.Split(command, " ")
+	cmdFile := cmdFileWithArgs[0]
+	cmdArgs := cmdFileWithArgs[1:]
+	cmd := exec.Command(cmdFile, cmdArgs...)
+	cmd.Stdin = strings.NewReader(input)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		//log.Fatal(err)
+		log.Println(err)
+	}
+	return out.String()
 }
 
 func lastabortedjobs() {
@@ -272,4 +325,160 @@ func DownloadFile(localFilePath string, remoteURL string) error {
 	}
 	_, err = io.Copy(out, resp.Body)
 	return err
+}
+
+// DownloadFileWithBasicAuth will download the given url to the given file.
+func DownloadFileWithBasicAuth(localFilePath string, remoteURL string, userName string, pwd string) error {
+	//fmt.Println("Downloading ...", localFilePath, "--", remoteURL, "---", userName, "---", pwd)
+	client := &http.Client{}
+	req, _ := http.NewRequest("GET", remoteURL, nil)
+	//localFilePath := path.Base(req.URL.Path)
+	req.SetBasicAuth(userName, pwd)
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != 200 {
+		log.Println("Warning: ", remoteURL, " not found!")
+		return err
+	}
+	defer resp.Body.Close()
+	out, err := os.Create(localFilePath)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(out, resp.Body)
+	return err
+}
+
+// CSVJob ...
+type CSVJob struct {
+	TestName string
+	JobURL   string
+	BuildID  string
+}
+
+//DownloadJenkinsFiles ...
+func DownloadJenkinsFiles(csvFile string) {
+	props := properties.MustLoadFile("${HOME}/.jenkins_env.properties", properties.UTF8)
+	//jenkinsServer := props.MustGetString("QA_JENKINS_SERVER")
+	//jenkinsUser := props.MustGetString("QA_JENKINS_USER")
+	//jenkinsUserPwd := props.MustGetString("QA_JENKINS_TOKEN")
+
+	lines, err := ReadCsv(csvFile)
+	if err != nil {
+		panic(err)
+	}
+	index := 0
+	for _, line := range lines {
+		data := CSVJob{
+			TestName: line[0],
+			JobURL:   line[1],
+			BuildID:  line[2],
+		}
+		index++
+		fmt.Println("\n" + strconv.Itoa(index) + "/" + strconv.Itoa(len(lines)) + ". " + data.TestName + " " + data.JobURL + " " + data.BuildID)
+		req, _ := http.NewRequest("GET", data.JobURL, nil)
+		JobName := path.Base(req.URL.Path)
+		if JobName == data.BuildID {
+			JobName = path.Base(req.URL.Path + "/..")
+			data.JobURL = data.JobURL + ".."
+		}
+		JobDir := cbbuild + "/" + "jenkins_logs" + "/" + JobName + "/" + data.BuildID
+		err := os.MkdirAll(JobDir, 0755)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		ConfigFile := JobDir + "/" + "config.xml"
+		JobFile := JobDir + "/" + "jobinfo.json"
+		ResultFile := JobDir + "/" + "testresult.json"
+		LogFile := JobDir + "/" + "consoleText.txt"
+		//ArchiveZipFile := JobDir + "/" + "archive.zip"
+
+		URLParts := strings.Split(data.JobURL, "/")
+		jenkinsServer := strings.ToUpper(strings.Split(URLParts[2], ".")[0])
+		//fmt.Println("Jenkins Server: ", jenkinsServer)
+		jenkinsUser := props.MustGetString(jenkinsServer + "_JENKINS_USER")
+		jenkinsUserPwd := props.MustGetString(jenkinsServer + "_JENKINS_TOKEN")
+
+		DownloadFileWithBasicAuth(ConfigFile, data.JobURL+"/config.xml", jenkinsUser, jenkinsUserPwd)
+		DownloadFileWithBasicAuth(JobFile, data.JobURL+data.BuildID+"/api/json?pretty=true", jenkinsUser, jenkinsUserPwd)
+		DownloadFileWithBasicAuth(ResultFile, data.JobURL+data.BuildID+"/testReport/api/json?pretty=true", jenkinsUser, jenkinsUserPwd)
+		DownloadFileWithBasicAuth(LogFile, data.JobURL+data.BuildID+"/consoleText", jenkinsUser, jenkinsUserPwd)
+		//DownloadFileWithBasicAuth(ArchiveZipFile, data.JobURL+data.BuildID+"/artifact/*zip*/archive.zip", jenkinsUser, jenkinsUserPwd)
+
+		// Save in AWS S3
+		if strings.Contains(dest, "s3") {
+			log.Println("Saving to S3 ...")
+			//SaveInAwsS3(ConfigFile)
+			if fileExists(ConfigFile) {
+				SaveInAwsS3(ConfigFile)
+			}
+			if fileExists(JobFile) {
+				SaveInAwsS3(JobFile)
+			}
+			if fileExists(ResultFile) {
+				SaveInAwsS3(ResultFile)
+			}
+			if fileExists(LogFile) {
+				SaveInAwsS3(LogFile)
+			}
+			//SaveInAwsS3(ConfigFile, JobFile, ResultFile, LogFile)
+		}
+	}
+
+}
+
+// fileExists ...
+func fileExists(filename string) bool {
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
+}
+
+// SaveInAwsS3 ...
+func SaveInAwsS3(files ...string) {
+	for i := 0; i < len(files); i++ {
+		if overwrite == "no" {
+			cmd1 := "aws s3 ls " + "s3://cb-logs-qe/" + files[i]
+			//fmt.Println(cmd1)
+			cmd1Out := executeCommand(cmd1, "")
+			//fmt.Println(cmd1, "--"+cmd1Out)
+			fileParts := strings.Split(files[i], "/")
+			fileName := fileParts[len(fileParts)-1]
+			//fmt.Println("fileName=", fileName)
+			if strings.Contains(cmd1Out, fileName) && overwrite == "no" {
+				log.Println("Warning: Upload skip as AWS S3 already contains " + files[i] + " and overwrite=no")
+			} else {
+				cmd := "aws s3 cp " + files[i] + " s3://cb-logs-qe/" + files[i]
+				//fmt.Println("cmd=", cmd)
+				log.Println(executeCommand(cmd, ""))
+			}
+		} else {
+			cmd := "aws s3 cp " + files[i] + " s3://cb-logs-qe/" + files[i]
+			//fmt.Println("cmd=", cmd)
+			log.Println(executeCommand(cmd, ""))
+		}
+	}
+}
+
+// ReadCsv ... read csv file as double dimension array
+func ReadCsv(filename string) ([][]string, error) {
+	// Open CSV file
+	f, err := os.Open(filename)
+	if err != nil {
+		return [][]string{}, err
+	}
+	defer f.Close()
+
+	// Read File into a Variable
+	lines, err := csv.NewReader(f).ReadAll()
+	if err != nil {
+		return [][]string{}, err
+	}
+
+	return lines, nil
 }
