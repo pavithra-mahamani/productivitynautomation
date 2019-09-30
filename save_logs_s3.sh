@@ -15,7 +15,7 @@ SCRIPTS_DIR=`dirname $SCRIPT_PATH`
 mkdir ${CB_BUILD}
 cd ${CB_BUILD}
 echo "-->1) Getting the job Jenkins urls"
-go run $SCRIPTS_DIR/runanalyzer/runanalyzer.go --action savejoblogs ${CB_BUILD}
+go run $SCRIPTS_DIR/runanalyzer/runanalyzer.go --action savejoblogs  --dest none ${CB_BUILD}
 echo "-->2) Download Jenkins logs "
 echo $PWD
 $SCRIPTS_DIR/download_jenkins_jobs_csv.sh all_jobs.csv 
