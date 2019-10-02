@@ -230,7 +230,9 @@ func executeCommand(command string, input string) string {
 	err := cmd.Run()
 	if err != nil {
 		//log.Fatal(err)
-		log.Println(err)
+		if out.String() != "" {
+			log.Println(err)
+		}
 	}
 	return out.String()
 }
@@ -456,15 +458,28 @@ func SaveInAwsS3(files ...string) {
 			if strings.Contains(cmd1Out, fileName) && overwrite == "no" {
 				log.Println("Warning: Upload skip as AWS S3 already contains " + files[i] + " and overwrite=no")
 			} else {
-				cmd := "aws s3 cp " + files[i] + " s3://cb-logs-qe/" + files[i]
-				//fmt.Println("cmd=", cmd)
-				log.Println(executeCommand(cmd, ""))
+				SaveFileToS3(files[i])
 			}
 		} else {
-			cmd := "aws s3 cp " + files[i] + " s3://cb-logs-qe/" + files[i]
-			//fmt.Println("cmd=", cmd)
-			log.Println(executeCommand(cmd, ""))
+			SaveFileToS3(files[i])
 		}
+	}
+}
+
+// SaveFileToS3 ...
+func SaveFileToS3(objectName string) {
+	cmd := "aws s3 cp " + objectName + " s3://cb-logs-qe/" + objectName
+	//fmt.Println("cmd=", cmd)
+	outmesg := executeCommand(cmd, "")
+	if outmesg != "" {
+		log.Println(outmesg)
+	}
+	// read permission
+	cmd = "aws s3api put-object-acl --bucket cb-logs-qe --key " + objectName + " --acl public-read "
+	//fmt.Println("cmd=", cmd)
+	outmesg = executeCommand(cmd, "")
+	if outmesg != "" {
+		log.Println(outmesg)
 	}
 }
 
