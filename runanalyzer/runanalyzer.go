@@ -132,8 +132,17 @@ func runquery(qry string) string {
 func gettotalbuildcycleduration(buildN string) string {
 	fmt.Println("action: totalduration")
 
+	var build1 string
+	if len(os.Args) < 2 {
+		fmt.Println("Enter the build to save the jenkins job logs.")
+		os.Exit(1)
+	} else {
+		build1 = os.Args[len(os.Args)-1]
+		cbbuild = build1
+	}
+
 	//url := "http://172.23.109.245:8093/query/service"
-	qry := "select sum(duration) as totaltime from server b where lower(b.os)=\"" + cbplatform + "\" and b.`build`=\"" + buildN + "\""
+	qry := "select sum(duration) as totaltime from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\""
 	fmt.Println("query=" + qry)
 	localFileName := "duration.json"
 	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
@@ -182,7 +191,7 @@ func savejoblogs() {
 	var jobCsvFile string
 	if src == "cbserver" {
 		//url := "http://172.23.109.245:8093/query/service"
-		qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os)=\"" + cbplatform + "\" and b.`build`=\"" + build1 + "\""
+		qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + build1 + "\""
 		fmt.Println("query=" + qry)
 		localFileName := "result.json"
 		if err := executeN1QLStmt(localFileName, url, qry); err != nil {
@@ -202,7 +211,7 @@ func savejoblogs() {
 		err = json.Unmarshal(byteValue, &result)
 		//fmt.Println("Status=" + result.Status)
 		//fmt.Println(err)
-		jobCsvFile = "all_jobs.csv"
+		jobCsvFile = cbbuild + "_all_jobs.csv"
 		f, err := os.Create(jobCsvFile)
 		defer f.Close()
 
@@ -262,13 +271,14 @@ func lastabortedjobs() {
 		fmt.Println("Enter the last 3 builds and first being the latest.")
 		os.Exit(1)
 	} else {
-		build1 = os.Args[3]
-		build2 = os.Args[4]
-		build3 = os.Args[5]
+		build1 = os.Args[len(os.Args)-3]
+		build2 = os.Args[len(os.Args)-2]
+		build3 = os.Args[len(os.Args)-1]
+		cbbuild = build1
 	}
 
 	//url := "http://172.23.109.245:8093/query/service"
-	qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os)=\"" + cbplatform + "\" and b.result=\"ABORTED\" and b.`build`=\"" + build1 + "\" and b.name in (select raw a.name from server a where lower(a.os)=\"" + cbplatform + "\" and a.result=\"ABORTED\" and a.`build`=\"" + build2 + "\" intersect select raw name from server where lower(os)=\"" + cbplatform + "\" and result=\"ABORTED\" and `build`=\"" + build3 + "\" intersect select raw name from server where lower(os)=\"" + cbplatform + "\" and result=\"ABORTED\" and `build`=\"" + build1 + "\")"
+	qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os) like \"" + cbplatform + "\" and b.result=\"ABORTED\" and b.`build`=\"" + build1 + "\" and b.name in (select raw a.name from server a where lower(a.os) like \"" + cbplatform + "\" and a.result=\"ABORTED\" and a.`build`=\"" + build2 + "\" intersect select raw name from server where lower(os) like \"" + cbplatform + "\" and result=\"ABORTED\" and `build`=\"" + build3 + "\" intersect select raw name from server where lower(os) like \"" + cbplatform + "\" and result=\"ABORTED\" and `build`=\"" + build1 + "\")"
 	fmt.Println("query=" + qry)
 	localFileName := "result.json"
 	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
@@ -501,7 +511,7 @@ func DownloadJenkinsFiles(csvFile string) {
 				// Update URL in CB server
 				if strings.Contains(strings.ToLower(updateURL), "yes") && !strings.Contains(strings.ToLower(data.JobURL), s3bucket) {
 					qry := "update `server` set url='http://" + s3bucket + ".s3-website-us-west-2.amazonaws.com/" +
-						cbbuild + "/" + "jenkins_logs" + "/" + JobName + "/' where lower(os)='" + cbplatform + "' and `build`='" +
+						cbbuild + "/" + "jenkins_logs" + "/" + JobName + "/' where `build`='" +
 						cbbuild + "' and url like '%/" + JobName + "/' and  build_id=" + data.BuildID
 					fmt.Println("CB update in progress with qry= " + qry)
 					if err := executeN1QLPostStmt(url, qry); err != nil {
