@@ -1,0 +1,94 @@
+{
+  "_class" : "hudson.model.FreeStyleBuild",
+  "actions" : [
+    {
+      "_class" : "hudson.model.ParametersAction",
+      "parameters" : [
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "version_number",
+          "value" : "6.5.0-4218"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "cluster",
+          "value" : "/home/jenkins/local.ini"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "host",
+          "value" : "10.3.5.179"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "baseurl",
+          "value" : "http://172.23.120.24/builds/latestbuilds"
+        }
+      ]
+    },
+    {
+      "_class" : "hudson.model.CauseAction",
+      "causes" : [
+        {
+          "_class" : "hudson.model.Cause$RemoteCause",
+          "shortDescription" : "Started by remote host 172.23.107.226",
+          "addr" : "172.23.107.226",
+          "note" : null
+        }
+      ]
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      "_class" : "hudson.tasks.junit.TestResultAction",
+      "failCount" : 0,
+      "skipCount" : 0,
+      "totalCount" : 21,
+      "urlName" : "testReport"
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    }
+  ],
+  "artifacts" : [
+    
+  ],
+  "building" : false,
+  "description" : "6.5.0-4218",
+  "displayName" : "#957",
+  "duration" : 2757614,
+  "estimatedDuration" : 2784086,
+  "executor" : null,
+  "fullDisplayName" : "cen006-p0-forestdb-sanity #957",
+  "id" : "957",
+  "keepLog" : false,
+  "number" : 957,
+  "queueId" : 317118,
+  "result" : "SUCCESS",
+  "timestamp" : 1567764634034,
+  "url" : "http://qa.sc.couchbase.com/job/cen006-p0-forestdb-sanity/957/",
+  "builtOn" : "cen006-dcp-forestdb-sanity",
+  "changeSet" : {
+    "_class" : "hudson.scm.EmptyChangeLogSet",
+    "items" : [
+      
+    ],
+    "kind" : null
+  },
+  "culprits" : [
+    
+  ]
+}

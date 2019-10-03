@@ -1,0 +1,247 @@
+{
+  "_class" : "hudson.model.FreeStyleBuild",
+  "actions" : [
+    {
+      "_class" : "hudson.model.ParametersAction",
+      "parameters" : [
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "confFile",
+          "value" : "entbackuprestore/entbackupmerge.conf"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "iniFile",
+          "value" : "b/resources/8-nodes-template-bkrs.ini"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "version_number",
+          "value" : "6.5.0-4218"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "os",
+          "value" : "centos"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "timeout",
+          "value" : "3600"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "descriptor",
+          "value" : "backup_recovery-merge-Sep-09-16:56:06-6.5.0-4218"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "servers",
+          "value" : "\"172.23.104.241\",\"172.23.105.253\",\"172.23.105.56\",\"172.23.105.59\",\"172.23.105.64\",\"172.23.105.70\",\"172.23.106.244\",\"172.23.106.29\""
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "addPoolServerId",
+          "value" : "None"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "addPoolServers",
+          "value" : "None"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "parameters",
+          "value" : "get-coredumps=False,force_kill_memached=True,verify_unacked_bytes=True"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "component",
+          "value" : "backup_recovery"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "subcomponent",
+          "value" : "merge"
+        },
+        {
+          "_class" : "hudson.model.BooleanParameterValue",
+          "name" : "initNodes",
+          "value" : true
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "installParameters",
+          "value" : "None"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "url",
+          "value" : ""
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "testrunner_tag",
+          "value" : "master"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "branch",
+          "value" : "master"
+        },
+        {
+          "_class" : "org.jvnet.jenkins.plugins.nodelabelparameter.LabelParameterValue",
+          "name" : "slave",
+          "value" : "bkrs"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "owners",
+          "value" : "QE"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "mailing_list",
+          "value" : "arunkumar.senthilnathan@couchbase.com,thuan@couchbase.com"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "vbuckets",
+          "value" : "1024"
+        }
+      ]
+    },
+    {
+      "_class" : "hudson.model.CauseAction",
+      "causes" : [
+        {
+          "_class" : "hudson.model.Cause$RemoteCause",
+          "shortDescription" : "Started by remote host 172.23.107.226",
+          "addr" : "172.23.107.226",
+          "note" : null
+        }
+      ]
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      "_class" : "hudson.plugins.git.util.BuildData",
+      "buildsByBranchName" : {
+        "origin/master" : {
+          "_class" : "hudson.plugins.git.util.Build",
+          "buildNumber" : 161275,
+          "buildResult" : null,
+          "marked" : {
+            "SHA1" : "262dcea97ae326ba11db19e18e16d05c0bedb83f",
+            "branch" : [
+              {
+                "SHA1" : "262dcea97ae326ba11db19e18e16d05c0bedb83f",
+                "name" : "origin/master"
+              }
+            ]
+          },
+          "revision" : {
+            "SHA1" : "262dcea97ae326ba11db19e18e16d05c0bedb83f",
+            "branch" : [
+              {
+                "SHA1" : "262dcea97ae326ba11db19e18e16d05c0bedb83f",
+                "name" : "origin/master"
+              }
+            ]
+          }
+        }
+      },
+      "lastBuiltRevision" : {
+        "SHA1" : "262dcea97ae326ba11db19e18e16d05c0bedb83f",
+        "branch" : [
+          {
+            "SHA1" : "262dcea97ae326ba11db19e18e16d05c0bedb83f",
+            "name" : "origin/master"
+          }
+        ]
+      },
+      "remoteUrls" : [
+        "git://github.com/couchbase/testrunner"
+      ],
+      "scmName" : ""
+    },
+    {
+      "_class" : "hudson.plugins.git.GitTagAction"
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      "_class" : "hudson.tasks.junit.TestResultAction",
+      "failCount" : 23,
+      "skipCount" : 0,
+      "totalCount" : 38,
+      "urlName" : "testReport"
+    },
+    {
+      "_class" : "com.sonyericsson.jenkins.plugins.bfa.model.FailureCauseBuildAction"
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    }
+  ],
+  "artifacts" : [
+    
+  ],
+  "building" : false,
+  "description" : "6.5.0-4218 - backup_recovery merge - centos (58/88)",
+  "displayName" : "#161275",
+  "duration" : 22962269,
+  "estimatedDuration" : 1500983,
+  "executor" : null,
+  "fullDisplayName" : "test_suite_executor #161275",
+  "id" : "161275",
+  "keepLog" : false,
+  "number" : 161275,
+  "queueId" : 320134,
+  "result" : "UNSTABLE",
+  "timestamp" : 1568074389581,
+  "url" : "http://qa.sc.couchbase.com/job/test_suite_executor/161275/",
+  "builtOn" : "slv-s22901",
+  "changeSet" : {
+    "_class" : "hudson.scm.EmptyChangeLogSet",
+    "items" : [
+      
+    ],
+    "kind" : null
+  },
+  "culprits" : [
+    
+  ]
+}

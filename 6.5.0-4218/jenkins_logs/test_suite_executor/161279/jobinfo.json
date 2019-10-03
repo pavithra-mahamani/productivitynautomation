@@ -1,0 +1,241 @@
+{
+  "_class" : "hudson.model.FreeStyleBuild",
+  "actions" : [
+    {
+      "_class" : "hudson.model.ParametersAction",
+      "parameters" : [
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "confFile",
+          "value" : "conf/rebalance/py-rebalance-highops-validate-invalid-snapshotstart.conf"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "iniFile",
+          "value" : "b/resources/7-nodes-template.ini"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "version_number",
+          "value" : "6.5.0-4218"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "os",
+          "value" : "centos"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "timeout",
+          "value" : "1800"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "descriptor",
+          "value" : "nserv-invalid_snap_start_check_ephemeral-Sep-09-18:26:59-6.5.0-4218"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "servers",
+          "value" : "\"172.23.105.84\",\"172.23.106.17\",\"172.23.106.18\",\"172.23.106.19\",\"172.23.106.2\",\"172.23.106.20\",\"172.23.106.221\""
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "addPoolServerId",
+          "value" : "None"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "addPoolServers",
+          "value" : "None"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "parameters",
+          "value" : "get-cbcollect-info=False,bucket_type=ephemeral,flusher_batch_split_trigger=10,items=1000000"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "component",
+          "value" : "nserv"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "subcomponent",
+          "value" : "invalid_snap_start_check_ephemeral"
+        },
+        {
+          "_class" : "hudson.model.BooleanParameterValue",
+          "name" : "initNodes",
+          "value" : true
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "installParameters",
+          "value" : "None"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "url",
+          "value" : ""
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "testrunner_tag",
+          "value" : "master"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "branch",
+          "value" : "master"
+        },
+        {
+          "_class" : "org.jvnet.jenkins.plugins.nodelabelparameter.LabelParameterValue",
+          "name" : "slave",
+          "value" : "P0"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "owners",
+          "value" : "QE"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "mailing_list",
+          "value" : "balakumaran.gopal@couchbase.com"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "vbuckets",
+          "value" : "1024"
+        }
+      ]
+    },
+    {
+      "_class" : "hudson.model.CauseAction",
+      "causes" : [
+        {
+          "_class" : "hudson.model.Cause$RemoteCause",
+          "shortDescription" : "Started by remote host 172.23.107.226",
+          "addr" : "172.23.107.226",
+          "note" : null
+        }
+      ]
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      "_class" : "hudson.plugins.git.util.BuildData",
+      "buildsByBranchName" : {
+        "origin/master" : {
+          "_class" : "hudson.plugins.git.util.Build",
+          "buildNumber" : 161279,
+          "buildResult" : null,
+          "marked" : {
+            "SHA1" : "262dcea97ae326ba11db19e18e16d05c0bedb83f",
+            "branch" : [
+              {
+                "SHA1" : "262dcea97ae326ba11db19e18e16d05c0bedb83f",
+                "name" : "origin/master"
+              }
+            ]
+          },
+          "revision" : {
+            "SHA1" : "262dcea97ae326ba11db19e18e16d05c0bedb83f",
+            "branch" : [
+              {
+                "SHA1" : "262dcea97ae326ba11db19e18e16d05c0bedb83f",
+                "name" : "origin/master"
+              }
+            ]
+          }
+        }
+      },
+      "lastBuiltRevision" : {
+        "SHA1" : "262dcea97ae326ba11db19e18e16d05c0bedb83f",
+        "branch" : [
+          {
+            "SHA1" : "262dcea97ae326ba11db19e18e16d05c0bedb83f",
+            "name" : "origin/master"
+          }
+        ]
+      },
+      "remoteUrls" : [
+        "git://github.com/couchbase/testrunner"
+      ],
+      "scmName" : ""
+    },
+    {
+      "_class" : "hudson.plugins.git.GitTagAction"
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      "_class" : "hudson.tasks.junit.TestResultAction",
+      "failCount" : 0,
+      "skipCount" : 0,
+      "totalCount" : 18,
+      "urlName" : "testReport"
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    }
+  ],
+  "artifacts" : [
+    
+  ],
+  "building" : false,
+  "description" : "6.5.0-4218 - nserv invalid_snap_start_check_ephemeral - centos (18/18)",
+  "displayName" : "#161279",
+  "duration" : 57646992,
+  "estimatedDuration" : 1500983,
+  "executor" : null,
+  "fullDisplayName" : "test_suite_executor #161279",
+  "id" : "161279",
+  "keepLog" : false,
+  "number" : 161279,
+  "queueId" : 320158,
+  "result" : "SUCCESS",
+  "timestamp" : 1568078830125,
+  "url" : "http://qa.sc.couchbase.com/job/test_suite_executor/161279/",
+  "builtOn" : "slv-s62221",
+  "changeSet" : {
+    "_class" : "hudson.scm.EmptyChangeLogSet",
+    "items" : [
+      
+    ],
+    "kind" : null
+  },
+  "culprits" : [
+    
+  ]
+}

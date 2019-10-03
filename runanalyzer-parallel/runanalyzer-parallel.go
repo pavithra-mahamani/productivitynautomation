@@ -491,13 +491,13 @@ func SaveFileToS3(objectName string) {
 	if outmesg != "" {
 		log.Println(outmesg)
 	}
-	// read permission
-	cmd = "aws s3api put-object-acl --bucket cb-logs-qe --key " + objectName + " --acl public-read "
+	// read permission - only needed if bucket policy is not there
+	//cmd = "aws s3api put-object-acl --bucket cb-logs-qe --key " + objectName + " --acl public-read "
 	//fmt.Println("cmd=", cmd)
-	outmesg = executeCommand(cmd, "")
-	if outmesg != "" {
-		log.Println(outmesg)
-	}
+	//outmesg = executeCommand(cmd, "")
+	//if outmesg != "" {
+	//	log.Println(outmesg)
+	//}
 }
 
 // ReadCsv ... read csv file as double dimension array

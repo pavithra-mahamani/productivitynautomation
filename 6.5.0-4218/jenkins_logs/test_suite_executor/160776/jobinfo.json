@@ -1,0 +1,241 @@
+{
+  "_class" : "hudson.model.FreeStyleBuild",
+  "actions" : [
+    {
+      "_class" : "hudson.model.ParametersAction",
+      "parameters" : [
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "confFile",
+          "value" : "tuq/py-tuq-3.conf"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "iniFile",
+          "value" : "b/resources/3-nodes-template-all-services.ini"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "version_number",
+          "value" : "6.5.0-4218"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "os",
+          "value" : "centos"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "timeout",
+          "value" : "1200"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "descriptor",
+          "value" : "query-sanity_extended-3_moi-Sep-07-07:31:42-6.5.0-4218"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "servers",
+          "value" : "\"172.23.120.178\",\"172.23.120.235\",\"172.23.97.227\""
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "addPoolServerId",
+          "value" : "None"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "addPoolServers",
+          "value" : "None"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "parameters",
+          "value" : "doc-per-day=6,standard_buckets=1,primary_indx_type=GSI,gsi_type=memory_optimized,skip_cleanup=False,nodes_init=3"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "component",
+          "value" : "query"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "subcomponent",
+          "value" : "sanity_extended-3_moi"
+        },
+        {
+          "_class" : "hudson.model.BooleanParameterValue",
+          "name" : "initNodes",
+          "value" : true
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "installParameters",
+          "value" : "storage_mode=memory_optimized"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "url",
+          "value" : ""
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "testrunner_tag",
+          "value" : "master"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "branch",
+          "value" : "master"
+        },
+        {
+          "_class" : "org.jvnet.jenkins.plugins.nodelabelparameter.LabelParameterValue",
+          "name" : "slave",
+          "value" : "P0"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "owners",
+          "value" : "QE"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "mailing_list",
+          "value" : "korrigan.clark@couchbase.com, ajay.bhullar@couchbase.com"
+        },
+        {
+          "_class" : "hudson.model.StringParameterValue",
+          "name" : "vbuckets",
+          "value" : "1024"
+        }
+      ]
+    },
+    {
+      "_class" : "hudson.model.CauseAction",
+      "causes" : [
+        {
+          "_class" : "hudson.model.Cause$RemoteCause",
+          "shortDescription" : "Started by remote host 172.23.107.68",
+          "addr" : "172.23.107.68",
+          "note" : null
+        }
+      ]
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      "_class" : "hudson.plugins.git.util.BuildData",
+      "buildsByBranchName" : {
+        "origin/master" : {
+          "_class" : "hudson.plugins.git.util.Build",
+          "buildNumber" : 160776,
+          "buildResult" : null,
+          "marked" : {
+            "SHA1" : "92d8aad09761a22733c91016771cd1c0de634465",
+            "branch" : [
+              {
+                "SHA1" : "92d8aad09761a22733c91016771cd1c0de634465",
+                "name" : "origin/master"
+              }
+            ]
+          },
+          "revision" : {
+            "SHA1" : "92d8aad09761a22733c91016771cd1c0de634465",
+            "branch" : [
+              {
+                "SHA1" : "92d8aad09761a22733c91016771cd1c0de634465",
+                "name" : "origin/master"
+              }
+            ]
+          }
+        }
+      },
+      "lastBuiltRevision" : {
+        "SHA1" : "92d8aad09761a22733c91016771cd1c0de634465",
+        "branch" : [
+          {
+            "SHA1" : "92d8aad09761a22733c91016771cd1c0de634465",
+            "name" : "origin/master"
+          }
+        ]
+      },
+      "remoteUrls" : [
+        "git://github.com/couchbase/testrunner"
+      ],
+      "scmName" : ""
+    },
+    {
+      "_class" : "hudson.plugins.git.GitTagAction"
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      "_class" : "hudson.tasks.junit.TestResultAction",
+      "failCount" : 0,
+      "skipCount" : 0,
+      "totalCount" : 46,
+      "urlName" : "testReport"
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    },
+    {
+      
+    }
+  ],
+  "artifacts" : [
+    
+  ],
+  "building" : false,
+  "description" : "6.5.0-4218 - query sanity_extended - centos (46/46)",
+  "displayName" : "#160776",
+  "duration" : 2350072,
+  "estimatedDuration" : 1500983,
+  "executor" : null,
+  "fullDisplayName" : "test_suite_executor #160776",
+  "id" : "160776",
+  "keepLog" : false,
+  "number" : 160776,
+  "queueId" : 318626,
+  "result" : "SUCCESS",
+  "timestamp" : 1567866703010,
+  "url" : "http://qa.sc.couchbase.com/job/test_suite_executor/160776/",
+  "builtOn" : "slv-s62221",
+  "changeSet" : {
+    "_class" : "hudson.scm.EmptyChangeLogSet",
+    "items" : [
+      
+    ],
+    "kind" : null
+  },
+  "culprits" : [
+    
+  ]
+}

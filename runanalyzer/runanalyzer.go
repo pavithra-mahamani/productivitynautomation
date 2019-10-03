@@ -60,6 +60,7 @@ var cbbuild string
 var src string
 var dest string
 var overwrite string
+var updateUrl string
 
 func main() {
 	fmt.Println("*** Helper Tool ***")
@@ -67,10 +68,12 @@ func main() {
 	srcInput := flag.String("src", "cbserver", usage())
 	destInput := flag.String("dest", "local", usage())
 	overwriteInput := flag.String("overwrite", "no", usage())
+	updateUrlInput := flag.String("updateurl", "no", usage())
 	flag.Parse()
 	dest = *destInput
 	src = *srcInput
 	overwrite = *overwriteInput
+	updateUrl = *updateUrlInput
 	//fmt.Println("original dest=", dest, "--", *destInput)
 	//time.Sleep(10 * time.Second)
 	if *action == "lastaborted" {
@@ -309,11 +312,37 @@ func executeN1QLStmt(localFilePath string, remoteURL string, statement string) e
 		return err
 	}
 	defer resp.Body.Close()
-	out, err := os.Create(localFilePath)
+	if localFilePath != "" {
+		out, err := os.Create(localFilePath)
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(out, resp.Body)
+		return err
+	} else {
+		log.Println(resp.Body)
+	}
+	return err
+}
+
+// DownloadFile2 will download the given url to the given file.
+func executeN1QLPostStmt(remoteURL string, statement string) error {
+
+	stmtStr := "{\"statement\": \"" + statement + "\"}"
+	fmt.Println(stmtStr)
+	var jsonStr = []byte(stmtStr)
+	req, err := http.NewRequest("POST", remoteURL, bytes.NewBuffer(jsonStr))
+	req.Header.Set("Content-Type", "application/json")
+	fmt.Println(req.URL.String())
+	fmt.Println(jsonStr)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
-	_, err = io.Copy(out, resp.Body)
+	defer resp.Body.Close()
+	log.Println(resp.Body)
 	return err
 }
 
@@ -403,6 +432,11 @@ func DownloadJenkinsFiles(csvFile string) {
 
 		URLParts := strings.Split(data.JobURL, "/")
 		jenkinsServer := strings.ToUpper(strings.Split(URLParts[2], ".")[0])
+
+		if strings.Contains(strings.ToLower(jenkinsServer), "cb-logs-qe") {
+			log.Println("CB Server run url is already pointing to S3.")
+			continue
+		}
 		//fmt.Println("Jenkins Server: ", jenkinsServer)
 		jenkinsUser := props.MustGetString(jenkinsServer + "_JENKINS_USER")
 		jenkinsUserPwd := props.MustGetString(jenkinsServer + "_JENKINS_TOKEN")
@@ -413,23 +447,50 @@ func DownloadJenkinsFiles(csvFile string) {
 		DownloadFileWithBasicAuth(LogFile, data.JobURL+data.BuildID+"/consoleText", jenkinsUser, jenkinsUserPwd)
 		//DownloadFileWithBasicAuth(ArchiveZipFile, data.JobURL+data.BuildID+"/artifact/*zip*/archive.zip", jenkinsUser, jenkinsUserPwd)
 
+		// Create index.html file
+		indexFile := JobDir + "/" + "index.html"
+		index, _ := os.Create(indexFile)
+		defer index.Close()
+
+		indexBuffer := bufio.NewWriter(index)
+		fmt.Fprintf(indexBuffer, "<h1>Test Suite: %s</h1>\n<ul>", data.TestName)
 		// Save in AWS S3
 		if strings.Contains(dest, "s3") {
 			log.Println("Saving to S3 ...")
 			//SaveInAwsS3(ConfigFile)
-			if fileExists(ConfigFile) {
-				SaveInAwsS3(ConfigFile)
-			}
-			if fileExists(JobFile) {
-				SaveInAwsS3(JobFile)
+			if fileExists(LogFile) {
+				SaveInAwsS3(LogFile)
+				fmt.Fprintf(indexBuffer, "\n<li><a href=\"consoleText.txt\">Jenkins job console log</a>")
 			}
 			if fileExists(ResultFile) {
 				SaveInAwsS3(ResultFile)
+				fmt.Fprintf(indexBuffer, "\n<li><a href=\"testresult.json\">Test result json</a>")
 			}
-			if fileExists(LogFile) {
-				SaveInAwsS3(LogFile)
+			if fileExists(ConfigFile) {
+				SaveInAwsS3(ConfigFile)
+				fmt.Fprintf(indexBuffer, "\n<li><a href=\"config.xml\">Jenkins job config</a>")
 			}
+			if fileExists(JobFile) {
+				SaveInAwsS3(JobFile)
+				fmt.Fprintf(indexBuffer, "\n<li><a href=\"jobinfo.json\">Jenkins job parameters</a>")
+			}
+			fmt.Fprintf(indexBuffer, "\n</ul>")
 			//SaveInAwsS3(ConfigFile, JobFile, ResultFile, LogFile)
+			indexBuffer.Flush()
+
+			if fileExists(indexFile) {
+				SaveInAwsS3(indexFile)
+			}
+		}
+		// Update URL in CB server
+		if strings.Contains(strings.ToLower(updateUrl), "yes") && !strings.Contains(strings.ToLower(data.JobURL), "cb-logs-qe") {
+			qry := "update `server` set url='http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/" +
+				cbbuild + "/" + "jenkins_logs" + "/" + JobName + "/' where lower(os)='centos' and `build`='" +
+				cbbuild + "' and url like '%/" + JobName + "/' and  build_id=" + data.BuildID
+			fmt.Println("CB update query = " + qry)
+			if err := executeN1QLPostStmt(url, qry); err != nil {
+				panic(err)
+			}
 		}
 	}
 
@@ -474,13 +535,13 @@ func SaveFileToS3(objectName string) {
 	if outmesg != "" {
 		log.Println(outmesg)
 	}
-	// read permission
-	cmd = "aws s3api put-object-acl --bucket cb-logs-qe --key " + objectName + " --acl public-read "
+	// read permission - only needed if bucket policy is not there
+	//cmd = "aws s3api put-object-acl --bucket cb-logs-qe --key " + objectName + " --acl public-read "
 	//fmt.Println("cmd=", cmd)
-	outmesg = executeCommand(cmd, "")
-	if outmesg != "" {
-		log.Println(outmesg)
-	}
+	//outmesg = executeCommand(cmd, "")
+	//if outmesg != "" {
+	//	log.Println(outmesg)
+	//}
 }
 
 // ReadCsv ... read csv file as double dimension array

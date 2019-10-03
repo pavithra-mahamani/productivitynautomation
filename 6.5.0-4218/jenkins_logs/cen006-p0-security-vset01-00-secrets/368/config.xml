@@ -1,0 +1,349 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>1:172.23.107.&#xd;
+1:172.23.107.66&#xd;
+&#xd;
+</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.plugins.buildblocker.BuildBlockerProperty plugin="build-blocker-plugin@1.4.1">
+      <useBuildBlocker>false</useBuildBlocker>
+    </hudson.plugins.buildblocker.BuildBlockerProperty>
+    <jenkins.model.BuildDiscarderProperty>
+      <strategy class="hudson.tasks.LogRotator">
+        <daysToKeep>21</daysToKeep>
+        <numToKeep>18</numToKeep>
+        <artifactDaysToKeep>21</artifactDaysToKeep>
+        <artifactNumToKeep>18</artifactNumToKeep>
+      </strategy>
+    </jenkins.model.BuildDiscarderProperty>
+    <com.sonyericsson.jenkins.plugins.bfa.model.ScannerJobProperty plugin="build-failure-analyzer@1.19.0">
+      <doNotScan>false</doNotScan>
+    </com.sonyericsson.jenkins.plugins.bfa.model.ScannerJobProperty>
+    <com.coravy.hudson.plugins.github.GithubProjectProperty plugin="github@1.27.0">
+      <projectUrl>https://github.com/couchbase/testrunner.git/</projectUrl>
+      <displayName></displayName>
+    </com.coravy.hudson.plugins.github.GithubProjectProperty>
+    <jenkins.advancedqueue.AdvancedQueueSorterJobProperty plugin="PrioritySorter@2.8">
+      <useJobPriority>false</useJobPriority>
+      <priority>-1</priority>
+    </jenkins.advancedqueue.AdvancedQueueSorterJobProperty>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.25">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+    <com.synopsys.arc.jenkinsci.plugins.jobrestrictions.jobs.JobRestrictionProperty plugin="job-restrictions@0.8"/>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>testcase_rbac</name>
+          <description></description>
+          <defaultValue>conf/security/py-secret-mgmt.conf</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>resource01</name>
+          <description></description>
+          <defaultValue>/tmp/audit-tests.ini</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>version_number</name>
+          <description></description>
+          <defaultValue>4.1.0-xx</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>priority</name>
+          <description>Jobs should run &lt; 12 hours.</description>
+          <defaultValue>P0</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>url</name>
+          <description></description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@3.3.0">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/ritamcouchbase/secrets-mgmt.git</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/master</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions/>
+  </scm>
+  <assignedNode>slv-s83001</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>true</blockBuildWhenUpstreamBuilding>
+  <authToken>trigger</authToken>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>echo version=${version_number}
+echo &quot;[global]
+username:root
+password:couchbase
+port:8091
+
+[membase]
+rest_username:Administrator
+rest_password:password
+
+[cluster1]
+1:_1
+2:_2
+
+[cluster2]
+1:_3
+2:_4
+
+[servers]
+1:_1
+2:_2
+3:_3
+4:_4
+
+[_1]
+ip:172.23.97.52
+password:couchbase
+n1ql_port:8093
+index_port:9102
+services:kv,n1ql,index,fts
+
+[_2]
+ip:172.23.97.53
+password:couchbase
+services:kv
+
+[_3]
+ip:172.23.97.56
+password:couchbase
+services:cbas
+
+[_4]
+ip:172.23.97.57
+password:couchbase
+services:cbas&quot; &gt; /tmp/audit-tests.ini</command>
+    </hudson.tasks.Shell>
+    <hudson.tasks.Shell>
+      <command>echo version=${version_number}
+
+#git checkout bc527ebb36fe12f217bcd4df5cb405c88c21c6f9
+
+python scripts/install.py -i ${resource01} -p version=${version_number},product=cb,parallel=True,vbuckets=1024,fts_query_limit=10000000,url=${url}
+
+#python scripts/install.py -p product=cb,version=3.0.0-708-toy,parallel=True,get-logs=True,vbuckets=1024,toy=mikewied,openssl=1 -i ${resource}
+</command>
+    </hudson.tasks.Shell>
+    <hudson.tasks.Shell>
+      <command>echo &apos;security.SecretsMgmtTests.SecretsMgmtTests:
+    test_cluster_rebalance_in_prompt,password=p@ssw0rd
+    test_cluster_rebalance_out_prompt,password=p@ssw0rd
+    test_cluster_rebalance_in_diff_modes,password=p@ssw0rd,extra_pass=p@ssword1
+    test_cluster_rebalance_out_diff_modes,password=p@ssw0rd,extra_pass=p@ssword1
+    test_cbcollect,password=p@ssw0rd,default_bucket=False
+    test_cli_setting,default_bucket=False,password=p@ssword
+    test_cluster_rebalance_in_env_var_services,services_in=kv-index-n1ql,nodes_init=1,nodes_in=3,password=p@ssword
+    test_cluster_rebalance_in_diff_type_var_services,services_in=kv-index-n1ql,nodes_init=1,nodes_in=3,password=p@ssword,extra_pass=p@ssword1
+    test_cluster_rebalance_out_env_var_services,services_in=kv-index-n1ql,nodes_init=1,nodes_in=3,password=p@ssword
+    test_cluster_rebalance_out_diff_type_var_services,services_in=kv-index-n1ql,nodes_init=1,nodes_in=3,password=p@ssword,extra_pass=p@ssword1
+    test_cluster_rebalance_out_diff_type_var_services,services_in=kv-n1ql-index,nodes_init=1,nodes_in=3,password=p@ssword,extra_pass=p@ssword1
+    test_failover_add_back,services_init=kv:n1ql-kv-index-kv:index,nodes_init=4,nodes_out=1,nodes_out_dist=kv:1,graceful=False,password=p@ssword
+    test_failover_add_back,services_init=kv:n1ql-kv-index-kv:index,nodes_init=4,nodes_out=1,nodes_out_dist=kv:1,graceful=False,password=p@ssword,recoveryType=delta
+    test_failover,services_init=kv-kv-index-index:n1ql,nodes_init=4,nodes_out=1,nodes_out_dist=kv:1,graceful=True,password=p@ssword
+    test_failover_add_back,services_init=kv-kv-index-n1ql,nodes_init=4,nodes_out=1,nodes_out_dist=index:1,graceful=False,password=p@ssword
+    test_failover_add_back,services_init=kv-kv-index-n1ql,,nodes_init=4,nodes_out=1,nodes_out_dist=n1ql:1,graceful=False,password=p@ssword
+    test_bucket_create_password,services_init=kv-kv-index-index:n1ql,nodes_init=4,default_bucket=False,default_bucket=False,password=p@ssw0rd
+   	test_bucket_create_password,services_init=kv-n1ql-cbas-index:n1ql,nodes_init=4,default_bucket=False,default_bucket=False,password=p@ssw0rd
+    test_bucket_create_password,services_init=kv-eventing-cbas-index:n1ql,nodes_init=4,default_bucket=False,default_bucket=False,password=p@ssw0rd
+    #test_bucket_create_password,services_init=kv-kv-index-index:n1ql,nodes_init=4,default_bucket=False,bucket_type=memcached,default_bucket=False,password=p@ssw0rd
+    test_bucket_edit_password,services_init=kv-kv-index-index:n1ql,nodes_init=4,default_bucket=False,bucket_type=couchbase,password=a@cd#efgh@@@,default_bucket=False
+    kill_process,services_init=kv-kv-index-index:n1ql,nodes_init=4,targetProcess=memcached
+    kill_process,services_init=kv-kv-index-index:n1ql,nodes_init=4,targetProcess=babysitter
+    rotate_data_key,password=p@ssword&apos; &gt; /tmp/audit-temp.conf
+
+echo &apos;security.SecretsMgmtTests.SecretsMgmtUpgrade:
+    #upgrade_all_nodes,initial_version=5.1.0-5552,upgrade_version=5.5.0-2845
+    upgrade_all_nodes_post_463,initial_version=5.1.0-5552,upgrade_version=5.5.0-2845,initial-services-setting=kv,index-kv,n1ql,after_upgrade_services_in=eventing,&apos;nodes_init&apos;: &apos;2&apos;&apos; &gt; /tmp/secret_upgrade.conf
+
+
+git checkout master
+python testrunner.py -i ${resource01} -c /tmp/audit-temp.conf -p get-cbcollect-info=False
+#python testrunner.py -i ${resource01} -c /tmp/secret_upgrade.conf -p get-cbcollect-info=False
+#/opt/jython/bin/jython -J-cp Couchbase-Java-Client-2.5.6/*:jsch-0.1.54.jar:doc_ops.jar testrunner.py -i INI_FILE.ini -t cbas.cbas_metadata_replication.MetadataReplication.test_reboot_nodes,cb_bucket_name=default,cbas_bucket_name=default_bucket,cbas_dataset_name=default_ds,items=10000,add_all_cbas_nodes=True,node_type=NC,create_secondary_indexes=True,GROUP=G4
+
+#python testrunner.py -i ${resource01} -t cbas.cbas_bucket_operations.CBASBucketOperations.load_docs_in_cb_bucket_before_and_after_cbas_connect,cb_bucket_name=default,cbas_bucket_name=default_bucket,cbas_dataset_name=default_ds,items=100000,cluster=D,enable_secrets=True
+#python testrunner.py -i ${resource01} -t 2i.gsi_index_partitioning.GSIIndexPartitioningTests.test_index_scans,items=10000,nodes_init=4,services_init=kv:n1ql-index-index-index,groups=simple,reset_services=True,doc-per-day=1,dataset=bigdata,create_primary_index=False,enable_secrets=True
+#python testrunner.py -i ${resource01} -t eventing.eventing_sanity.EventingSanity.test_create_mutation_for_dcp_stream_boundary_from_beginning,nodes_init=4,services_init=kv-eventing-index-n1ql,dataset=default,groups=simple,reset_services=True,skip_cleanup=True,enable_secrets=True
+
+#./testrunner -i /tmp/audit-tests.ini get-cbcollect-info=False -t security.SecretsMgmtTests.SecretsMgmtTests.test_cluster_rebalance_out_prompt,password=p@ssw0rd
+
+
+#python testrunner.py -i /tmp/audit-tests.ini -c conf/py-multi-node-sanity.conf -p enable_secrets=True
+
+#support_ver=&quot;5.5&quot;
+#echo $version_number
+#small_ver=${version_number:0:3}
+#if [ $(echo &quot;$small_ver &gt;= $support_ver&quot; | bc) -eq 0 ]
+#then
+#    echo &quot;Will not run on versions &lt; 5.5&quot;
+#	exit 0
+#else
+#	python testrunner.py -i /tmp/audit-tests.ini -c conf/py-multi-node-sanity-new-feat.conf -p quota_percent=70,enable_secrets=True
+#    python testrunner.py -i /tmp/audit-tests.ini -t cbas.cbas_bucket_operations.CBASBucketOperations.load_docs_in_cb_bucket_before_and_after_cbas_connect,cb_bucket_name=default,cbas_bucket_name=default_bucket,cbas_dataset_name=default_ds,items=100000,cluster=D,enable_secrets=True
+#fi
+
+
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.ArtifactArchiver>
+      <artifacts>changes.*,*.zip,**/*.log,*.gz,**/*.xml,*json,*.ini</artifacts>
+      <allowEmptyArchive>false</allowEmptyArchive>
+      <onlyIfSuccessful>false</onlyIfSuccessful>
+      <fingerprint>false</fingerprint>
+      <defaultExcludes>true</defaultExcludes>
+      <caseSensitive>true</caseSensitive>
+    </hudson.tasks.ArtifactArchiver>
+    <hudson.tasks.junit.JUnitResultArchiver plugin="junit@1.20">
+      <testResults>**/*.xml</testResults>
+      <keepLongStdio>false</keepLongStdio>
+      <healthScaleFactor>1.0</healthScaleFactor>
+      <allowEmptyResults>false</allowEmptyResults>
+    </hudson.tasks.junit.JUnitResultArchiver>
+    <hudson.plugins.descriptionsetter.DescriptionSetterPublisher plugin="description-setter@1.9">
+      <regexp>version=(.*)</regexp>
+      <regexpForFailed></regexpForFailed>
+      <setForMatrix>false</setForMatrix>
+    </hudson.plugins.descriptionsetter.DescriptionSetterPublisher>
+    <hudson.plugins.claim.ClaimPublisher plugin="claim@2.9"/>
+    <hudson.plugins.emailext.ExtendedEmailPublisher plugin="email-ext@2.57.2">
+      <recipientList>ritam@couchbase.com</recipientList>
+      <configuredTriggers>
+        <hudson.plugins.emailext.plugins.trigger.FailureTrigger>
+          <email>
+            <subject>$PROJECT_DEFAULT_SUBJECT</subject>
+            <body>$PROJECT_DEFAULT_CONTENT</body>
+            <recipientProviders>
+              <hudson.plugins.emailext.plugins.recipients.ListRecipientProvider/>
+            </recipientProviders>
+            <attachmentsPattern></attachmentsPattern>
+            <attachBuildLog>false</attachBuildLog>
+            <compressBuildLog>false</compressBuildLog>
+            <contentType>project</contentType>
+          </email>
+        </hudson.plugins.emailext.plugins.trigger.FailureTrigger>
+        <hudson.plugins.emailext.plugins.trigger.SuccessTrigger>
+          <email>
+            <subject>$PROJECT_DEFAULT_SUBJECT</subject>
+            <body>$PROJECT_DEFAULT_CONTENT</body>
+            <recipientProviders>
+              <hudson.plugins.emailext.plugins.recipients.ListRecipientProvider/>
+            </recipientProviders>
+            <attachmentsPattern></attachmentsPattern>
+            <attachBuildLog>false</attachBuildLog>
+            <compressBuildLog>false</compressBuildLog>
+            <replyTo>$PROJECT_DEFAULT_REPLYTO</replyTo>
+            <contentType>project</contentType>
+          </email>
+        </hudson.plugins.emailext.plugins.trigger.SuccessTrigger>
+        <hudson.plugins.emailext.plugins.trigger.StillUnstableTrigger>
+          <email>
+            <subject>$PROJECT_DEFAULT_SUBJECT</subject>
+            <body>$PROJECT_DEFAULT_CONTENT</body>
+            <recipientProviders>
+              <hudson.plugins.emailext.plugins.recipients.ListRecipientProvider/>
+            </recipientProviders>
+            <attachmentsPattern></attachmentsPattern>
+            <attachBuildLog>false</attachBuildLog>
+            <compressBuildLog>false</compressBuildLog>
+            <replyTo>$PROJECT_DEFAULT_REPLYTO</replyTo>
+            <contentType>project</contentType>
+          </email>
+        </hudson.plugins.emailext.plugins.trigger.StillUnstableTrigger>
+        <hudson.plugins.emailext.plugins.trigger.AbortedTrigger>
+          <email>
+            <subject>$PROJECT_DEFAULT_SUBJECT</subject>
+            <body>$PROJECT_DEFAULT_CONTENT</body>
+            <recipientProviders>
+              <hudson.plugins.emailext.plugins.recipients.ListRecipientProvider/>
+            </recipientProviders>
+            <attachmentsPattern></attachmentsPattern>
+            <attachBuildLog>false</attachBuildLog>
+            <compressBuildLog>false</compressBuildLog>
+            <replyTo>$PROJECT_DEFAULT_REPLYTO</replyTo>
+            <contentType>project</contentType>
+          </email>
+        </hudson.plugins.emailext.plugins.trigger.AbortedTrigger>
+        <hudson.plugins.emailext.plugins.trigger.FixedTrigger>
+          <email>
+            <subject>$PROJECT_DEFAULT_SUBJECT</subject>
+            <body>$PROJECT_DEFAULT_CONTENT</body>
+            <recipientProviders>
+              <hudson.plugins.emailext.plugins.recipients.ListRecipientProvider/>
+            </recipientProviders>
+            <attachmentsPattern></attachmentsPattern>
+            <attachBuildLog>false</attachBuildLog>
+            <compressBuildLog>false</compressBuildLog>
+            <replyTo>$PROJECT_DEFAULT_REPLYTO</replyTo>
+            <contentType>project</contentType>
+          </email>
+        </hudson.plugins.emailext.plugins.trigger.FixedTrigger>
+      </configuredTriggers>
+      <contentType>default</contentType>
+      <defaultSubject>Security tests - QE OWNER: Ritam</defaultSubject>
+      <defaultContent>${JELLY_SCRIPT, template=&quot;couchbase&quot;}
+
+${TEST_COUNTS}
+
+${FAILED_TESTS}</defaultContent>
+      <attachmentsPattern></attachmentsPattern>
+      <presendScript></presendScript>
+      <postsendScript></postsendScript>
+      <attachBuildLog>false</attachBuildLog>
+      <compressBuildLog>false</compressBuildLog>
+      <replyTo></replyTo>
+      <saveOutput>false</saveOutput>
+      <disabled>false</disabled>
+    </hudson.plugins.emailext.ExtendedEmailPublisher>
+    <hudson.plugins.parameterizedtrigger.BuildTrigger plugin="parameterized-trigger@2.30">
+      <configs>
+        <hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+          <configs>
+            <hudson.plugins.parameterizedtrigger.CurrentBuildParameters/>
+          </configs>
+          <projects>cen006-p0-security-vset01-00-grp-P0</projects>
+          <condition>ALWAYS</condition>
+          <triggerWithNoParameters>false</triggerWithNoParameters>
+        </hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+      </configs>
+    </hudson.plugins.parameterizedtrigger.BuildTrigger>
+  </publishers>
+  <buildWrappers>
+    <hudson.plugins.build__timeout.BuildTimeoutWrapper plugin="build-timeout@1.18">
+      <strategy class="hudson.plugins.build_timeout.impl.AbsoluteTimeOutStrategy">
+        <timeoutMinutes>3200</timeoutMinutes>
+      </strategy>
+      <operationList>
+        <hudson.plugins.build__timeout.operations.AbortOperation/>
+      </operationList>
+    </hudson.plugins.build__timeout.BuildTimeoutWrapper>
+  </buildWrappers>
+</project>

@@ -1,0 +1,14 @@
+{
+  "_class" : "hudson.tasks.junit.TestResult",
+  "testActions" : [
+    
+  ],
+  "duration" : 0.0,
+  "empty" : true,
+  "failCount" : 0,
+  "passCount" : 0,
+  "skipCount" : 0,
+  "suites" : [
+    
+  ]
+}

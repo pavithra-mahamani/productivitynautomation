@@ -1,0 +1,470 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.plugins.buildblocker.BuildBlockerProperty plugin="build-blocker-plugin@1.4.1">
+      <useBuildBlocker>false</useBuildBlocker>
+    </hudson.plugins.buildblocker.BuildBlockerProperty>
+    <jenkins.model.BuildDiscarderProperty>
+      <strategy class="hudson.tasks.LogRotator">
+        <daysToKeep>31</daysToKeep>
+        <numToKeep>3000</numToKeep>
+        <artifactDaysToKeep>21</artifactDaysToKeep>
+        <artifactNumToKeep>3000</artifactNumToKeep>
+      </strategy>
+    </jenkins.model.BuildDiscarderProperty>
+    <com.sonyericsson.jenkins.plugins.bfa.model.ScannerJobProperty plugin="build-failure-analyzer@1.19.0">
+      <doNotScan>false</doNotScan>
+    </com.sonyericsson.jenkins.plugins.bfa.model.ScannerJobProperty>
+    <com.coravy.hudson.plugins.github.GithubProjectProperty plugin="github@1.27.0">
+      <projectUrl>https://github.com/membase/testrunner/</projectUrl>
+      <displayName></displayName>
+    </com.coravy.hudson.plugins.github.GithubProjectProperty>
+    <jenkins.advancedqueue.AdvancedQueueSorterJobProperty plugin="PrioritySorter@2.8">
+      <useJobPriority>false</useJobPriority>
+      <priority>-1</priority>
+    </jenkins.advancedqueue.AdvancedQueueSorterJobProperty>
+    <com.sonyericsson.rebuild.RebuildSettings plugin="rebuild@1.25">
+      <autoRebuild>false</autoRebuild>
+      <rebuildDisabled>false</rebuildDisabled>
+    </com.sonyericsson.rebuild.RebuildSettings>
+    <com.synopsys.arc.jenkinsci.plugins.jobrestrictions.jobs.JobRestrictionProperty plugin="job-restrictions@0.8"/>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>confFile</name>
+          <description></description>
+          <defaultValue>conf/very-short.conf</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>iniFile</name>
+          <description></description>
+          <defaultValue>/tmp/generic.ini</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>version_number</name>
+          <description></description>
+          <defaultValue>4.1.0-4778</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>os</name>
+          <description></description>
+          <defaultValue>centos</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>timeout</name>
+          <description></description>
+          <defaultValue>7200</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>descriptor</name>
+          <description></description>
+          <defaultValue>test-suite</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>servers</name>
+          <description></description>
+          <defaultValue>[]</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>addPoolServerId</name>
+          <description></description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>None</string>
+              <string>elastic-fts</string>
+              <string>elastic-xdcr</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>addPoolServers</name>
+          <description></description>
+          <defaultValue>None</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>parameters</name>
+          <description>Test Runner Parameters</description>
+          <defaultValue>get-cbcollect-info=True</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>component</name>
+          <description></description>
+          <defaultValue>generic-component</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>subcomponent</name>
+          <description></description>
+          <defaultValue>generic-subcomponent</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>initNodes</name>
+          <description></description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>installParameters</name>
+          <description></description>
+          <defaultValue>None</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>url</name>
+          <description></description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>testrunner_tag</name>
+          <description>Testrunner tag to checkout to run the release specific tests.</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>master</string>
+              <string>4.1.0</string>
+              <string>4.0.0</string>
+              <string>4.5.0</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>branch</name>
+          <description></description>
+          <defaultValue>master</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <org.jvnet.jenkins.plugins.nodelabelparameter.LabelParameterDefinition plugin="nodelabelparameter@1.7.2">
+          <name>slave</name>
+          <description>Slave to run the test on</description>
+          <defaultValue>P0</defaultValue>
+          <allNodesMatchingLabel>false</allNodesMatchingLabel>
+          <triggerIfResult>allCases</triggerIfResult>
+          <nodeEligibility class="org.jvnet.jenkins.plugins.nodelabelparameter.node.AllNodeEligibility"/>
+        </org.jvnet.jenkins.plugins.nodelabelparameter.LabelParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>owners</name>
+          <description>Owners of the test</description>
+          <defaultValue>QA</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>mailing_list</name>
+          <description></description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>vbuckets</name>
+          <description></description>
+          <defaultValue>1024</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@3.3.0">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>git://github.com/couchbase/testrunner</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>master</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions>
+      <hudson.plugins.git.extensions.impl.PerBuildTag/>
+      <hudson.plugins.git.extensions.impl.CloneOption>
+        <shallow>true</shallow>
+        <noTags>false</noTags>
+        <reference></reference>
+        <timeout>30</timeout>
+        <depth>0</depth>
+        <honorRefspec>false</honorRefspec>
+      </hudson.plugins.git.extensions.impl.CloneOption>
+    </extensions>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <authToken>test_dispatcher</authToken>
+  <triggers/>
+  <concurrentBuild>true</concurrentBuild>
+  <customWorkspace>workspace/${OS}-p0-${component}-vset00-00-${subcomponent}</customWorkspace>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>echo Desc: $descriptor</command>
+    </hudson.tasks.Shell>
+    <hudson.plugins.descriptionsetter.DescriptionSetterBuilder plugin="description-setter@1.9">
+      <regexp>^ Desc: (.*)</regexp>
+      <description>\1</description>
+    </hudson.plugins.descriptionsetter.DescriptionSetterBuilder>
+    <hudson.tasks.Shell>
+      <command>#echo confFile $confFile
+#echo resource $resource
+#echo cb version $version_number
+#echo the os is $os
+#echo the timeout is $timeout
+#echo the servers are $servers
+#echo parameters $parameters
+#echo the ini file is $iniFile
+
+</command>
+    </hudson.tasks.Shell>
+    <hudson.tasks.Shell>
+      <command>
+sed -i &apos;s/ALLOW_HTP.*/ALLOW_HTP = False/&apos; lib/testconstants.py
+
+set +e
+echo newState=available&gt;propfile
+newState=available
+
+#majorRelease=${version_number:0:1} - this did not work on 
+majorRelease=`echo ${version_number} | awk &apos;{print substr($0,1,1)}&apos;`
+echo the major release is $majorRelease
+
+echo ${servers}
+
+python -m easy_install httplib2 
+
+if [ -f /etc/redhat-release ]; then
+  echo &apos;centos&apos;
+  yum install -y docker
+  service docker start
+fi
+
+if [ -f /etc/lsb-release ]; then
+  echo &apos;ubuntu&apos;
+  apt-install docker
+  service docker start
+fi
+
+python  scripts/populateIni.py -s ${servers} -d ${addPoolServerId} -a ${addPoolServers} -i ${iniFile} -p ${os} -o /tmp/testexec.$$.ini
+
+
+if [ &quot;$os&quot; = &quot;windows&quot; ]; then
+   echo &quot;Have Windows,&quot;
+   parallel=true   # serial worked even worse but may come back to is
+ else
+   parallel=true
+fi
+
+if [ &quot;$installParameters&quot; = &quot;None&quot; ]; then
+   extraInstall=&apos;&apos;
+else
+   extraInstall=,$installParameters
+fi
+echo extra install is $extraInstall
+
+timedatectl
+
+if [ &quot;$os&quot; = &quot;windows&quot; ]; then
+    #first_with_new_installer=&quot;4.7&quot;
+    #dot_release=${version_number:0:3}
+    #echo the dot release is $dot_release
+    #if [ $(echo &quot;$first_with_new_installer &lt;= $dot_release&quot; | bc) -eq 0 ]; then
+        #echo pre 4.7 release
+        python scripts/install.py -i /tmp/testexec.$$.ini -p version=${version_number},product=cb,parallel=${parallel},init_nodes=${initNodes},url=${url}${extraInstall}
+
+    #else
+        #echo 4.7 or greater
+        # interim nsis install
+        #python ./scripts/install.py -i /tmp/testexec.$$.ini -p version=4.7.0-903,product=cb,parallel=true,vbuckets=1024,nsis=True,url=http://172.23.120.24/builds/latestbuilds/couchbase-server/spock/win_installers/nsis/couchbase-server-enterprise_4.7.0-903-windows_amd64.exe
+    #fi
+else
+    python scripts/ssh.py -i /tmp/testexec.$$.ini &quot;iptables -F&quot;
+    #python scripts/install.py -i /tmp/testexec.$$.ini -p version=${version_number},product=cb,parallel=${parallel},init_nodes=${initNodes}${extraInstall}
+    python scripts/install.py -i /tmp/testexec.$$.ini -p get-cbcollect-info=True,version=${version_number},product=cb,parallel=${parallel},init_nodes=${initNodes},url=${url}${extraInstall}
+    #echo &quot;Sleeping now...&quot;
+    #sleep 90000
+
+fi
+
+
+if [ &quot;$?&quot; -eq 0 ]; then
+  desc2=`echo $descriptor | awk &apos;{split($0,r,&quot;-&quot;);print r[1],r[2]}&apos;`
+  #export test_params=&quot;get-cbcollect-info=True&quot;
+  python scripts/ssh.py -i /tmp/testexec.$$.ini &quot;iptables -F&quot;
+  
+  if [ $majorRelease = &quot;3&quot; ]; then
+     echo have a 3.x release
+     git checkout 0b2bb7a53e350f90737112457877ef2c05ca482a
+  elif [[ &quot;$testrunner_tag&quot; != &quot;master&quot; ]]; then
+     git checkout $testrunner_tag
+  fi
+  echo &quot;Need to set ALLOW_HTP back to True to do git pull branch&quot;
+  sed -i &apos;s/ALLOW_HTP.*/ALLOW_HTP = True/&apos; lib/testconstants.py
+  git checkout ${branch}
+  git pull origin ${branch}
+  echo &quot;Set ALLOW_HTP to False so test could run.&quot;
+  sed -i &apos;s/ALLOW_HTP.*/ALLOW_HTP = False/&apos; lib/testconstants.py
+  
+  ###### Added on 22/March/2018 to fix auto merge failures. Please revert this if this does not work.
+  git fetch
+  git reset --hard origin/${branch}
+  ######
+  
+  ###### Added on 4/April/2018 to fix issues related to disk full on slaves.
+  find /data/workspace/*/logs/* -type d -ctime +30 -exec rm -rf {} \;
+  find /data/workspace/ -type d -ctime +90 -exec rm -rf {} \;
+  find /root/workspace/*/logs/* -type d -ctime +30 -exec rm -rf {} \;
+  find /root/workspace/ -type d -ctime +90 -exec rm -rf {} \;
+  ######
+  
+  ##Added on August 2nd 2017 to kill all python processes older than 10days, comment if it causes any failures
+  killall --older-than 240h python
+  python testrunner.py -i /tmp/testexec.$$.ini -c ${confFile} -p ${parameters}
+  echo workspace is $WORKSPACE
+  fails=`cat $WORKSPACE/logs/*/*.xml | grep &apos;testsuite errors&apos; | awk &apos;{split($3,s1,&quot;=&quot;);print s1[2]}&apos; | sed s/\&quot;//g | awk &apos;{s+=$1} END {print s}&apos;`
+  echo fails is $fails
+  total_tests=`cat $WORKSPACE/logs/*/*.xml | grep &apos;testsuite errors&apos; | awk &apos;{split($6,s1,&quot;=&quot;);print s1[2]}&apos; | sed s/\&quot;//g |awk &apos;{s+=$1} END {print s}&apos;`
+  echo $total_tests
+  echo Desc1: $version_number - $desc2 - $os \($(( $total_tests - $fails ))/$total_tests\)
+else
+  echo Desc: $desc
+  newState=failedInstall
+  echo newState=failedInstall&gt;propfile
+  #wget http://qa.sc.couchbase.com/jnlpJars/jenkins-cli.jar
+  #java -jar jenkins-cli.jar -s http://qa.sc.couchbase.com/ set-build-result not_built
+fi
+
+</command>
+    </hudson.tasks.Shell>
+    <hudson.plugins.descriptionsetter.DescriptionSetterBuilder plugin="description-setter@1.9">
+      <regexp>^Desc1: (.*)</regexp>
+      <description>\1</description>
+    </hudson.plugins.descriptionsetter.DescriptionSetterBuilder>
+    <EnvInjectBuilder plugin="envinject@1.90">
+      <info>
+        <propertiesFilePath>propfile</propertiesFilePath>
+      </info>
+    </EnvInjectBuilder>
+  </builders>
+  <publishers>
+    <hudson.tasks.ArtifactArchiver>
+      <artifacts>**/*.zip,**/*.log,**/*.gz</artifacts>
+      <allowEmptyArchive>false</allowEmptyArchive>
+      <onlyIfSuccessful>false</onlyIfSuccessful>
+      <fingerprint>false</fingerprint>
+      <defaultExcludes>true</defaultExcludes>
+      <caseSensitive>true</caseSensitive>
+    </hudson.tasks.ArtifactArchiver>
+    <hudson.tasks.junit.JUnitResultArchiver plugin="junit@1.20">
+      <testResults>**/*.xml</testResults>
+      <keepLongStdio>false</keepLongStdio>
+      <healthScaleFactor>1.0</healthScaleFactor>
+      <allowEmptyResults>false</allowEmptyResults>
+    </hudson.tasks.junit.JUnitResultArchiver>
+    <hudson.plugins.emailext.ExtendedEmailPublisher plugin="email-ext@2.57.2">
+      <recipientList>$mailing_list</recipientList>
+      <configuredTriggers>
+        <hudson.plugins.emailext.plugins.trigger.FailureTrigger>
+          <email>
+            <subject>$PROJECT_DEFAULT_SUBJECT</subject>
+            <body>$PROJECT_DEFAULT_CONTENT</body>
+            <recipientProviders>
+              <hudson.plugins.emailext.plugins.recipients.DevelopersRecipientProvider/>
+              <hudson.plugins.emailext.plugins.recipients.ListRecipientProvider/>
+            </recipientProviders>
+            <attachmentsPattern></attachmentsPattern>
+            <attachBuildLog>false</attachBuildLog>
+            <compressBuildLog>false</compressBuildLog>
+            <replyTo>$PROJECT_DEFAULT_REPLYTO</replyTo>
+            <contentType>project</contentType>
+          </email>
+        </hudson.plugins.emailext.plugins.trigger.FailureTrigger>
+        <hudson.plugins.emailext.plugins.trigger.UnstableTrigger>
+          <email>
+            <subject>$PROJECT_DEFAULT_SUBJECT</subject>
+            <body>$PROJECT_DEFAULT_CONTENT</body>
+            <recipientProviders>
+              <hudson.plugins.emailext.plugins.recipients.DevelopersRecipientProvider/>
+              <hudson.plugins.emailext.plugins.recipients.ListRecipientProvider/>
+            </recipientProviders>
+            <attachmentsPattern></attachmentsPattern>
+            <attachBuildLog>false</attachBuildLog>
+            <compressBuildLog>false</compressBuildLog>
+            <replyTo>$PROJECT_DEFAULT_REPLYTO</replyTo>
+            <contentType>project</contentType>
+          </email>
+        </hudson.plugins.emailext.plugins.trigger.UnstableTrigger>
+      </configuredTriggers>
+      <contentType>default</contentType>
+      <defaultSubject>QE OWNER: ${ENV , var=&quot;owners&quot;} Component: ${ENV, var=&quot;component&quot;} Subcomponent: ${ENV, var=&quot;subcomponent&quot;} - ${BUILD_STATUS}: ${ENV , var=&quot;version_number&quot;} - ${JOB_NAME}</defaultSubject>
+      <defaultContent>${JELLY_SCRIPT, template=&quot;couchbase&quot;}</defaultContent>
+      <attachmentsPattern></attachmentsPattern>
+      <presendScript>$DEFAULT_PRESEND_SCRIPT</presendScript>
+      <postsendScript>$DEFAULT_POSTSEND_SCRIPT</postsendScript>
+      <attachBuildLog>false</attachBuildLog>
+      <compressBuildLog>false</compressBuildLog>
+      <replyTo></replyTo>
+      <saveOutput>false</saveOutput>
+      <disabled>false</disabled>
+    </hudson.plugins.emailext.ExtendedEmailPublisher>
+    <hudson.plugins.parameterizedtrigger.BuildTrigger plugin="parameterized-trigger@2.30">
+      <configs>
+        <hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+          <configs>
+            <hudson.plugins.parameterizedtrigger.CurrentBuildParameters/>
+            <hudson.plugins.parameterizedtrigger.PredefinedBuildParameters>
+              <properties>newState=$newState
+UPSTREAM_BUILD_NUMBER=${BUILD_NUMBER}</properties>
+            </hudson.plugins.parameterizedtrigger.PredefinedBuildParameters>
+          </configs>
+          <projects>test-executor-cleanup</projects>
+          <condition>ALWAYS</condition>
+          <triggerWithNoParameters>false</triggerWithNoParameters>
+        </hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+      </configs>
+    </hudson.plugins.parameterizedtrigger.BuildTrigger>
+  </publishers>
+  <buildWrappers>
+    <hudson.plugins.build__timeout.BuildTimeoutWrapper plugin="build-timeout@1.18">
+      <strategy class="hudson.plugins.build_timeout.impl.AbsoluteTimeOutStrategy">
+        <timeoutMinutes>1200</timeoutMinutes>
+      </strategy>
+      <timeoutEnvVar>timeOut</timeoutEnvVar>
+      <operationList>
+        <hudson.plugins.build__timeout.operations.AbortOperation/>
+      </operationList>
+    </hudson.plugins.build__timeout.BuildTimeoutWrapper>
+    <org.jenkinsci.plugins.preSCMbuildstep.PreSCMBuildStepsWrapper plugin="preSCMbuildstep@0.3">
+      <buildSteps>
+        <hudson.tasks.Shell>
+          <command>desc=`echo $descriptor | awk &apos;{split($0,r,&quot;-&quot;);print r[1],r[2]}&apos;`
+echo Desc: $version_number - $desc - $os
+
+echo newState=available&gt;propfile
+newState=available</command>
+        </hudson.tasks.Shell>
+        <hudson.plugins.descriptionsetter.DescriptionSetterBuilder plugin="description-setter@1.9">
+          <regexp>^Desc: (.*)</regexp>
+          <description>\1</description>
+        </hudson.plugins.descriptionsetter.DescriptionSetterBuilder>
+        <EnvInjectBuilder plugin="envinject@1.90">
+          <info>
+            <propertiesFilePath>propfile</propertiesFilePath>
+          </info>
+        </EnvInjectBuilder>
+      </buildSteps>
+      <failOnError>false</failOnError>
+    </org.jenkinsci.plugins.preSCMbuildstep.PreSCMBuildStepsWrapper>
+  </buildWrappers>
+</project>
