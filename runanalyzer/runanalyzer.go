@@ -54,13 +54,16 @@ type TotalCycleTime struct {
 	Totaltime int64
 }
 
-const url = "http://172.23.109.245:8093/query/service"
+//const url = "http://172.23.109.245:8093/query/service"
 
 var cbbuild string
 var src string
 var dest string
 var overwrite string
-var updateUrl string
+var updateURL string
+var cbplatform string
+var s3bucket string
+var url string
 
 func main() {
 	fmt.Println("*** Helper Tool ***")
@@ -68,12 +71,20 @@ func main() {
 	srcInput := flag.String("src", "cbserver", usage())
 	destInput := flag.String("dest", "local", usage())
 	overwriteInput := flag.String("overwrite", "no", usage())
-	updateUrlInput := flag.String("updateurl", "no", usage())
+	updateURLInput := flag.String("updateurl", "no", usage())
+	cbplatformInput := flag.String("os", "centos", usage())
+	s3bucketInput := flag.String("s3bucket", "cb-logs-qe", usage())
+	urlInput := flag.String("cbqueryurl", "http://172.23.109.245:8093/query/service", usage())
+
 	flag.Parse()
 	dest = *destInput
 	src = *srcInput
 	overwrite = *overwriteInput
-	updateUrl = *updateUrlInput
+	updateURL = *updateURLInput
+	cbplatform = *cbplatformInput
+	s3bucket = *s3bucketInput
+	url = *urlInput
+
 	//fmt.Println("original dest=", dest, "--", *destInput)
 	//time.Sleep(10 * time.Second)
 	if *action == "lastaborted" {
@@ -93,7 +104,9 @@ func usage() string {
 	fileName, _ := os.Executable()
 	return "Usage: " + fileName + " -h | --help \nEnter action value. \n" +
 		"-action lastaborted 6.5.0-4106 6.5.0-4059 6.5.0-4000  : to get the aborted jobs common across last 3 builds\n" +
-		"-action savejoblogs 6.5.0-4106  : to get the jenkins logs for a given build\n" +
+		"-action savejoblogs 6.5.0-4106  : to download the jenkins logs and save in S3 for a given build. " +
+		"Options: --dest [local]|s3|none --src csvfile --os centos --overwrite [no]|yes --updateurl [no]|yes " +
+		"--s3bucket cb-logs-qe --cbqueryurl [http://172.23.109.245:8093/query/service]\n" +
 		"-action totalduration 6.5.0-4106  : to get the total time duration for a build cyle\n" +
 		"-action runquery 'select * from server where lower(`os`)=\"centos\" and `build`=\"6.5.0-4106\"' : to run a given query statement"
 }
@@ -120,7 +133,7 @@ func gettotalbuildcycleduration(buildN string) string {
 	fmt.Println("action: totalduration")
 
 	//url := "http://172.23.109.245:8093/query/service"
-	qry := "select sum(duration) as totaltime from server b where lower(b.os)=\"centos\" and b.`build`=\"" + buildN + "\""
+	qry := "select sum(duration) as totaltime from server b where lower(b.os)=\"" + cbplatform + "\" and b.`build`=\"" + buildN + "\""
 	fmt.Println("query=" + qry)
 	localFileName := "duration.json"
 	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
@@ -169,7 +182,7 @@ func savejoblogs() {
 	var jobCsvFile string
 	if src == "cbserver" {
 		//url := "http://172.23.109.245:8093/query/service"
-		qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os)=\"centos\" and b.`build`=\"" + build1 + "\""
+		qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os)=\"" + cbplatform + "\" and b.`build`=\"" + build1 + "\""
 		fmt.Println("query=" + qry)
 		localFileName := "result.json"
 		if err := executeN1QLStmt(localFileName, url, qry); err != nil {
@@ -255,7 +268,7 @@ func lastabortedjobs() {
 	}
 
 	//url := "http://172.23.109.245:8093/query/service"
-	qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os)=\"centos\" and b.result=\"ABORTED\" and b.`build`=\"" + build1 + "\" and b.name in (select raw a.name from server a where lower(a.os)=\"centos\" and a.result=\"ABORTED\" and a.`build`=\"" + build2 + "\" intersect select raw name from server where lower(os)=\"centos\" and result=\"ABORTED\" and `build`=\"" + build3 + "\" intersect select raw name from server where lower(os)=\"centos\" and result=\"ABORTED\" and `build`=\"" + build1 + "\")"
+	qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os)=\"" + cbplatform + "\" and b.result=\"ABORTED\" and b.`build`=\"" + build1 + "\" and b.name in (select raw a.name from server a where lower(a.os)=\"" + cbplatform + "\" and a.result=\"ABORTED\" and a.`build`=\"" + build2 + "\" intersect select raw name from server where lower(os)=\"" + cbplatform + "\" and result=\"ABORTED\" and `build`=\"" + build3 + "\" intersect select raw name from server where lower(os)=\"" + cbplatform + "\" and result=\"ABORTED\" and `build`=\"" + build1 + "\")"
 	fmt.Println("query=" + qry)
 	localFileName := "result.json"
 	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
@@ -320,9 +333,11 @@ func executeN1QLStmt(localFilePath string, remoteURL string, statement string) e
 		_, err = io.Copy(out, resp.Body)
 		return err
 	} else {
-		log.Println(resp.Body)
+		body, err := ioutil.ReadAll(resp.Body)
+		log.Println(string(body))
+		return err
 	}
-	return err
+
 }
 
 // DownloadFile2 will download the given url to the given file.
@@ -333,8 +348,8 @@ func executeN1QLPostStmt(remoteURL string, statement string) error {
 	var jsonStr = []byte(stmtStr)
 	req, err := http.NewRequest("POST", remoteURL, bytes.NewBuffer(jsonStr))
 	req.Header.Set("Content-Type", "application/json")
-	fmt.Println(req.URL.String())
-	fmt.Println(jsonStr)
+	//fmt.Println(req.URL.String())
+	//fmt.Println(jsonStr)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -342,7 +357,8 @@ func executeN1QLPostStmt(remoteURL string, statement string) error {
 		return err
 	}
 	defer resp.Body.Close()
-	log.Println(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
+	log.Println("Response= " + string(body))
 	return err
 }
 
@@ -433,7 +449,7 @@ func DownloadJenkinsFiles(csvFile string) {
 		URLParts := strings.Split(data.JobURL, "/")
 		jenkinsServer := strings.ToUpper(strings.Split(URLParts[2], ".")[0])
 
-		if strings.Contains(strings.ToLower(jenkinsServer), "cb-logs-qe") {
+		if strings.Contains(strings.ToLower(jenkinsServer), s3bucket) {
 			log.Println("CB Server run url is already pointing to S3.")
 			continue
 		}
@@ -453,26 +469,28 @@ func DownloadJenkinsFiles(csvFile string) {
 		defer index.Close()
 
 		indexBuffer := bufio.NewWriter(index)
-		fmt.Fprintf(indexBuffer, "<h1>Test Suite: %s</h1>\n<ul>", data.TestName)
+		fmt.Fprintf(indexBuffer, "<h1>CB Server build: %s</h1>\n<ul>", cbbuild)
+		fmt.Fprintf(indexBuffer, "<h2>OS: %s</h2>\n<ul>", cbplatform)
+		fmt.Fprintf(indexBuffer, "<h3>Test Suite: %s</h3>\n<ul>", data.TestName)
 		// Save in AWS S3
 		if strings.Contains(dest, "s3") {
 			log.Println("Saving to S3 ...")
 			//SaveInAwsS3(ConfigFile)
 			if fileExists(LogFile) {
 				SaveInAwsS3(LogFile)
-				fmt.Fprintf(indexBuffer, "\n<li><a href=\"consoleText.txt\">Jenkins job console log</a>")
+				fmt.Fprintf(indexBuffer, "\n<li><a href=\"consoleText.txt\" target=\"_blank\">Jenkins job console log</a>")
 			}
 			if fileExists(ResultFile) {
 				SaveInAwsS3(ResultFile)
-				fmt.Fprintf(indexBuffer, "\n<li><a href=\"testresult.json\">Test result json</a>")
+				fmt.Fprintf(indexBuffer, "\n<li><a href=\"testresult.json\" target=\"_blank\">Test result json</a>")
 			}
 			if fileExists(ConfigFile) {
 				SaveInAwsS3(ConfigFile)
-				fmt.Fprintf(indexBuffer, "\n<li><a href=\"config.xml\">Jenkins job config</a>")
+				fmt.Fprintf(indexBuffer, "\n<li><a href=\"config.xml\" target=\"_blank\">Jenkins job config</a>")
 			}
 			if fileExists(JobFile) {
 				SaveInAwsS3(JobFile)
-				fmt.Fprintf(indexBuffer, "\n<li><a href=\"jobinfo.json\">Jenkins job parameters</a>")
+				fmt.Fprintf(indexBuffer, "\n<li><a href=\"jobinfo.json\" target=\"_blank\">Jenkins job parameters</a>")
 			}
 			fmt.Fprintf(indexBuffer, "\n</ul>")
 			//SaveInAwsS3(ConfigFile, JobFile, ResultFile, LogFile)
@@ -480,18 +498,19 @@ func DownloadJenkinsFiles(csvFile string) {
 
 			if fileExists(indexFile) {
 				SaveInAwsS3(indexFile)
+				// Update URL in CB server
+				if strings.Contains(strings.ToLower(updateURL), "yes") && !strings.Contains(strings.ToLower(data.JobURL), s3bucket) {
+					qry := "update `server` set url='http://" + s3bucket + ".s3-website-us-west-2.amazonaws.com/" +
+						cbbuild + "/" + "jenkins_logs" + "/" + JobName + "/' where lower(os)='" + cbplatform + "' and `build`='" +
+						cbbuild + "' and url like '%/" + JobName + "/' and  build_id=" + data.BuildID
+					fmt.Println("CB update in progress with qry= " + qry)
+					if err := executeN1QLPostStmt(url, qry); err != nil {
+						panic(err)
+					}
+				}
 			}
 		}
-		// Update URL in CB server
-		if strings.Contains(strings.ToLower(updateUrl), "yes") && !strings.Contains(strings.ToLower(data.JobURL), "cb-logs-qe") {
-			qry := "update `server` set url='http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/" +
-				cbbuild + "/" + "jenkins_logs" + "/" + JobName + "/' where lower(os)='centos' and `build`='" +
-				cbbuild + "' and url like '%/" + JobName + "/' and  build_id=" + data.BuildID
-			fmt.Println("CB update query = " + qry)
-			if err := executeN1QLPostStmt(url, qry); err != nil {
-				panic(err)
-			}
-		}
+
 	}
 
 }
@@ -509,7 +528,7 @@ func fileExists(filename string) bool {
 func SaveInAwsS3(files ...string) {
 	for i := 0; i < len(files); i++ {
 		if overwrite == "no" {
-			cmd1 := "aws s3 ls " + "s3://cb-logs-qe/" + files[i]
+			cmd1 := "aws s3 ls " + "s3://" + s3bucket + "/" + files[i]
 			//fmt.Println(cmd1)
 			cmd1Out := executeCommand(cmd1, "")
 			//fmt.Println(cmd1, "--"+cmd1Out)
@@ -529,14 +548,14 @@ func SaveInAwsS3(files ...string) {
 
 // SaveFileToS3 ...
 func SaveFileToS3(objectName string) {
-	cmd := "aws s3 cp " + objectName + " s3://cb-logs-qe/" + objectName
+	cmd := "aws s3 cp " + objectName + " s3://" + s3bucket + "/" + objectName
 	//fmt.Println("cmd=", cmd)
 	outmesg := executeCommand(cmd, "")
 	if outmesg != "" {
 		log.Println(outmesg)
 	}
 	// read permission - only needed if bucket policy is not there
-	//cmd = "aws s3api put-object-acl --bucket cb-logs-qe --key " + objectName + " --acl public-read "
+	//cmd = "aws s3api put-object-acl --bucket " + s3bucket + " --key " + objectName + " --acl public-read "
 	//fmt.Println("cmd=", cmd)
 	//outmesg = executeCommand(cmd, "")
 	//if outmesg != "" {
