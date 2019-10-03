@@ -64,6 +64,7 @@ var updateURL string
 var cbplatform string
 var s3bucket string
 var url string
+var updateOrgURL string
 
 func main() {
 	fmt.Println("*** Helper Tool ***")
@@ -75,6 +76,7 @@ func main() {
 	cbplatformInput := flag.String("os", "centos", usage())
 	s3bucketInput := flag.String("s3bucket", "cb-logs-qe", usage())
 	urlInput := flag.String("cbqueryurl", "http://172.23.109.245:8093/query/service", usage())
+	updateOrgURLInput := flag.String("updateorgurl", "no", usage())
 
 	flag.Parse()
 	dest = *destInput
@@ -84,6 +86,7 @@ func main() {
 	cbplatform = *cbplatformInput
 	s3bucket = *s3bucketInput
 	url = *urlInput
+	updateOrgURL = *updateOrgURLInput
 
 	//fmt.Println("original dest=", dest, "--", *destInput)
 	//time.Sleep(10 * time.Second)
@@ -438,12 +441,26 @@ func DownloadJenkinsFiles(csvFile string) {
 		}
 		index++
 		fmt.Println("\n" + strconv.Itoa(index) + "/" + strconv.Itoa(len(lines)) + ". " + data.TestName + " " + data.JobURL + " " + data.BuildID)
+
+		// Start downloading
 		req, _ := http.NewRequest("GET", data.JobURL, nil)
 		JobName := path.Base(req.URL.Path)
 		if JobName == data.BuildID {
 			JobName = path.Base(req.URL.Path + "/..")
 			data.JobURL = data.JobURL + ".."
 		}
+
+		// Update original URL in CB server if required to restore
+		if strings.Contains(strings.ToLower(updateOrgURL), "yes") {
+			qry := "update `server` set url='" + data.JobURL + "/" + JobName + "/' where `build`='" +
+				cbbuild + "' and url like '%/" + JobName + "/' and  build_id=" + data.BuildID
+			fmt.Println("CB update is in progress with qry= " + qry)
+			if err := executeN1QLPostStmt(url, qry); err != nil {
+				panic(err)
+			}
+			continue
+		}
+
 		JobDir := cbbuild + "/" + "jenkins_logs" + "/" + JobName + "/" + data.BuildID
 		err := os.MkdirAll(JobDir, 0755)
 		if err != nil {
