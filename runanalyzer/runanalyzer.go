@@ -525,7 +525,8 @@ func DownloadJenkinsFiles(csvFile string) {
 
 			if fileExists(indexFile) {
 				SaveInAwsS3(indexFile)
-				log.Println("URL to access: http://" + s3bucket + ".s3-website-us-west-2.amazonaws.com/" +
+				log.Println("Original URL: " + data.JobURL + data.BuildID + "/")
+				log.Println("S3 URL: http://" + s3bucket + ".s3-website-us-west-2.amazonaws.com/" +
 					cbbuild + "/" + "jenkins_logs" + "/" + JobName + "/" + data.BuildID + "/")
 				// Update URL in CB server
 				if strings.Contains(strings.ToLower(updateURL), "yes") && !strings.Contains(strings.ToLower(data.JobURL), s3bucket) {
