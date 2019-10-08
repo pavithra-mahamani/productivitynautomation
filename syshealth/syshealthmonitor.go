@@ -380,11 +380,11 @@ func GetServerPoolHosts() {
 
 		for i := 0; i < len(result.Results); i++ {
 			//fmt.Println((i + 1), result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
-			fmt.Print(result.Results[i].IPaddr, ", ", result.Results[i].HostOS, ", ", result.Results[i].State, ", [")
-			for j := 0; j < len(result.Results[i].PoolID); j++ {
-				fmt.Print(result.Results[i].PoolID[j], ", ")
-			}
-			fmt.Println("]")
+			//fmt.Print(result.Results[i].IPaddr, ", ", result.Results[i].HostOS, ", ", result.Results[i].State, ", [")
+			//for j := 0; j < len(result.Results[i].PoolID); j++ {
+			//	fmt.Print(result.Results[i].PoolID[j], ", ")
+			//}
+			//fmt.Println("]")
 			//_, err = fmt.Fprintf(w, "%s,%s,%s\n", result.Results[i].IPaddr,
 			//	result.Results[i].HostOS, result.Results[i].State)
 			if result.Results[i].SpoolID != "" {
@@ -392,7 +392,11 @@ func GetServerPoolHosts() {
 				//fmt.Println("result.Results[i].SpoolID=", result.Results[i].SpoolID+", PoolID length=", len(result.Results[i].PoolID))
 			} else {
 				for j := 0; j < len(result.Results[i].PoolID); j++ {
-					pools[result.Results[i].PoolID[j]] = pools[result.Results[i].PoolID[j]] + result.Results[i].IPaddr + "\n"
+					if !strings.Contains(result.Results[i].IPaddr, "[f") {
+						pools[result.Results[i].PoolID[j]] = pools[result.Results[i].PoolID[j]] + result.Results[i].IPaddr + "\n"
+					} else {
+						pools[result.Results[i].PoolID[j]] = pools[result.Results[i].PoolID[j]] + "#" + result.Results[i].IPaddr + "\n"
+					}
 					//_, err = fmt.Fprintf(w, ",%s", result.Results[i].PoolID[j])
 					//fmt.Println("result.Results[i].SpoolID=", result.Results[i].SpoolID+", PoolID length=", len(result.Results[i].PoolID))
 				}
@@ -415,7 +419,9 @@ func GetServerPoolHosts() {
 		sort.Strings(keys)
 		totalHosts := 0
 		for _, k := range keys {
-			_, err = fmt.Fprintf(w, "\n[%s]\n%s", k, pools[k])
+			nk := strings.ReplaceAll(k, " ", "")
+			nk = strings.ReplaceAll(nk, "-", "")
+			_, err = fmt.Fprintf(w, "\n[%s]\n%s", nk, pools[k])
 			count := len(strings.Split(pools[k], "\n")) - 1
 			totalHosts += count
 			fmt.Printf("\n%s: %d", k, count)
