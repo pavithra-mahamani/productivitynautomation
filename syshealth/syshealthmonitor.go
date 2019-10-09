@@ -71,6 +71,18 @@ type QEServerPool struct {
 	State   string
 }
 
+// HostOSN1QLQryResult type
+type HostOSN1QLQryResult struct {
+	Status  string
+	Results []HostOSCount
+}
+
+// HostOSCount type
+type HostOSCount struct {
+	HostOS string
+	Count  int16
+}
+
 //const url = "http://172.23.109.245:8093/query/service"
 
 var cbbuild string
@@ -84,7 +96,7 @@ var url string
 var updateOrgURL string
 
 func main() {
-	fmt.Println("*** Helper Tool ***")
+	fmt.Println("\n*** Helper Tool ***")
 	action := flag.String("action", "usage", usage())
 	srcInput := flag.String("src", "cbserver", usage())
 	destInput := flag.String("dest", "local", usage())
@@ -131,7 +143,8 @@ func usage() string {
 		"Options: --dest [local]|s3|none --src csvfile --os centos --overwrite [no]|yes --updateurl [no]|yes " +
 		"--s3bucket cb-logs-qe --cbqueryurl [http://172.23.109.245:8093/query/service]\n" +
 		"-action totalduration 6.5.0-4106  : to get the total time duration for a build cyle\n" +
-		"-action runquery 'select * from server where lower(`os`)=\"centos\" and `build`=\"6.5.0-4106\"' : to run a given query statement"
+		"-action runquery 'select * from server where lower(`os`)=\"centos\" and `build`=\"6.5.0-4106\"' : to run a given query statement\n" +
+		"-action getserverpoolhosts : to get the server pool host ips"
 }
 func runquery(qry string) string {
 	//url := "http://172.23.109.245:8093/query/service"
@@ -347,8 +360,55 @@ func GetServerPoolHosts() {
 	fmt.Println("action: getserverpoolhosts")
 
 	url := "http://172.23.105.177:8093/query/service"
-	qry := "select ipaddr,origin,os as hostos,poolId as spoolId, poolId,state from `QE-server-pool`"
-	fmt.Println("query=" + qry)
+	qry := "select os as hostos, count(*) as count from `QE-server-pool` group by os order by os"
+	//fmt.Println("query=" + qry)
+	localFileName := "osresult.json"
+	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
+		panic(err)
+	}
+
+	resultFile, err := os.Open(localFileName)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer resultFile.Close()
+
+	byteValue, _ := ioutil.ReadAll(resultFile)
+
+	var result HostOSN1QLQryResult
+
+	err = json.Unmarshal(byteValue, &result)
+
+	of, _ := os.Create("vms_os.txt")
+	defer of.Close()
+	ofw := bufio.NewWriter(of)
+
+	if result.Status == "success" {
+		fmt.Println("Platforms Count: ", len(result.Results))
+		index := 1
+		for i := 0; i < len(result.Results); i++ {
+			if strings.TrimSpace(result.Results[i].HostOS) != "" {
+				fmt.Println("\n---------------------------------------------------------")
+				fmt.Printf("*** Platform#%d: %s\n", index, result.Results[i].HostOS)
+				fmt.Println("---------------------------------------------------------")
+				fmt.Fprintf(ofw, "%s: %d\n", result.Results[i].HostOS, result.Results[i].Count)
+				GetServerPoolVMsPerPlatform(result.Results[i].HostOS)
+				index++
+			} else {
+				fmt.Println("Empty platform")
+			}
+		}
+		ofw.Flush()
+	}
+}
+
+//GetServerPoolVMsPerPlatform ...
+func GetServerPoolVMsPerPlatform(osplatform string) {
+
+	url := "http://172.23.105.177:8093/query/service"
+	//osplatform := "centos"
+	qry := "select ipaddr,origin,os as hostos,poolId as spoolId, poolId,state from `QE-server-pool` where lower(`os`)='" + osplatform + "'"
+	//fmt.Println("query=" + qry)
 	localFileName := "result.json"
 	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
 		panic(err)
@@ -367,7 +427,7 @@ func GetServerPoolHosts() {
 	err = json.Unmarshal(byteValue, &result)
 	//fmt.Println("Status=" + result.Status)
 	//fmt.Println(err)
-	f, err := os.Create("cbqe_hosts.ini")
+	f, err := os.Create("cbqe_vms_per_pool_" + osplatform + ".ini")
 	defer f.Close()
 
 	w := bufio.NewWriter(f)
@@ -387,7 +447,10 @@ func GetServerPoolHosts() {
 			//fmt.Println("]")
 			//_, err = fmt.Fprintf(w, "%s,%s,%s\n", result.Results[i].IPaddr,
 			//	result.Results[i].HostOS, result.Results[i].State)
+
+			//pools level
 			if result.Results[i].SpoolID != "" {
+				//pools[result.Results[i].SpoolID+result.Results[i].HostOS] = pools[result.Results[i].SpoolID+result.Results[i].HostOS] + result.Results[i].IPaddr + "\n"
 				pools[result.Results[i].SpoolID] = pools[result.Results[i].SpoolID] + result.Results[i].IPaddr + "\n"
 				//fmt.Println("result.Results[i].SpoolID=", result.Results[i].SpoolID+", PoolID length=", len(result.Results[i].PoolID))
 			} else {
@@ -401,6 +464,8 @@ func GetServerPoolHosts() {
 					//fmt.Println("result.Results[i].SpoolID=", result.Results[i].SpoolID+", PoolID length=", len(result.Results[i].PoolID))
 				}
 			}
+
+			// states level
 			if !strings.Contains(result.Results[i].IPaddr, "[f") {
 				states[result.Results[i].State] = states[result.Results[i].State] + result.Results[i].IPaddr + "\n"
 			} else {
@@ -409,7 +474,7 @@ func GetServerPoolHosts() {
 
 		}
 		//summary and generation of .ini - write to file
-		fmt.Println("\nSummary")
+		fmt.Println("\nBy Pool")
 		fmt.Println("-------")
 
 		var keys []string
@@ -418,21 +483,27 @@ func GetServerPoolHosts() {
 		}
 		sort.Strings(keys)
 		totalHosts := 0
+		pf, _ := os.Create("vmpools_" + osplatform + ".txt")
+		defer pf.Close()
+		pfw := bufio.NewWriter(pf)
+
 		for _, k := range keys {
 			nk := strings.ReplaceAll(k, " ", "")
 			nk = strings.ReplaceAll(nk, "-", "")
 			_, err = fmt.Fprintf(w, "\n[%s]\n%s", nk, pools[k])
 			count := len(strings.Split(pools[k], "\n")) - 1
 			totalHosts += count
-			fmt.Printf("\n%s: %d", k, count)
+			fmt.Printf("%s: %d\n", k, count)
+			fmt.Fprintf(pfw, "%s: %d\n", k, count)
 		}
 
 		w.Flush()
+		pfw.Flush()
 		fmt.Println("\n Total: ", totalHosts)
 
-		fmt.Println("\nSummary per status")
+		fmt.Println("\nBy State")
 		fmt.Println("-------")
-		f1, err1 := os.Create("cbqe_hosts_state.ini")
+		f1, err1 := os.Create("cbqe_vms_per_state_" + osplatform + ".ini")
 		if err1 != nil {
 			log.Println(err1)
 		}
@@ -445,16 +516,21 @@ func GetServerPoolHosts() {
 		}
 		sort.Strings(skeys)
 		totalHosts = 0
+		sf, _ := os.Create("vmstates_" + osplatform + ".txt")
+		defer sf.Close()
+		sfw := bufio.NewWriter(sf)
 		for _, k := range skeys {
 			nk := strings.ReplaceAll(k, " ", "")
 			nk = strings.ReplaceAll(nk, "-", "")
 			_, err = fmt.Fprintf(w1, "\n[%s]\n%s", nk, states[k])
 			count := len(strings.Split(states[k], "\n")) - 1
 			totalHosts += count
-			fmt.Printf("\n%s: %d", nk, count)
+			fmt.Printf("%s: %d\n", nk, count)
+			fmt.Fprintf(sfw, "%s: %d\n", nk, count)
 		}
 		fmt.Println("\n Total: ", totalHosts)
 		w1.Flush()
+		sfw.Flush()
 		fmt.Println("\n NOTE: Check the created ini files at : ", f.Name(), " and ", f1.Name())
 	} else {
 		fmt.Println("Status: Failed")
