@@ -65,6 +65,7 @@ var cbplatform string
 var s3bucket string
 var url string
 var updateOrgURL string
+var includes string
 
 func main() {
 	fmt.Println("*** Helper Tool ***")
@@ -77,6 +78,7 @@ func main() {
 	s3bucketInput := flag.String("s3bucket", "cb-logs-qe", usage())
 	urlInput := flag.String("cbqueryurl", "http://172.23.109.245:8093/query/service", usage())
 	updateOrgURLInput := flag.String("updateorgurl", "no", usage())
+	includesInput := flag.String("includes", "console,config,parameters,testresult", usage())
 
 	flag.Parse()
 	dest = *destInput
@@ -87,6 +89,7 @@ func main() {
 	s3bucket = *s3bucketInput
 	url = *urlInput
 	updateOrgURL = *updateOrgURLInput
+	includes = *includesInput
 
 	//fmt.Println("original dest=", dest, "--", *destInput)
 	//time.Sleep(10 * time.Second)
@@ -108,7 +111,7 @@ func usage() string {
 	return "Usage: " + fileName + " -h | --help \nEnter action value. \n" +
 		"-action lastaborted 6.5.0-4106 6.5.0-4059 6.5.0-4000  : to get the aborted jobs common across last 3 builds\n" +
 		"-action savejoblogs 6.5.0-4106  : to download the jenkins logs and save in S3 for a given build. " +
-		"Options: --dest [local]|s3|none --src csvfile --os centos --overwrite [no]|yes --updateurl [no]|yes " +
+		"Options: --dest [local]|s3|none --src csvfile --os centos --overwrite [no]|yes --updateurl [no]|yes --includes [console,config,parameters,testresult],archive" +
 		"--s3bucket cb-logs-qe --cbqueryurl [http://172.23.109.245:8093/query/service]\n" +
 		"-action totalduration 6.5.0-4106  : to get the total time duration for a build cyle\n" +
 		"-action runquery 'select * from server where lower(`os`)=\"centos\" and `build`=\"6.5.0-4106\"' : to run a given query statement"
@@ -471,7 +474,7 @@ func DownloadJenkinsFiles(csvFile string) {
 		JobFile := JobDir + "/" + "jobinfo.json"
 		ResultFile := JobDir + "/" + "testresult.json"
 		LogFile := JobDir + "/" + "consoleText.txt"
-		//ArchiveZipFile := JobDir + "/" + "archive.zip"
+		ArchiveZipFile := JobDir + "/" + "archive.zip"
 
 		URLParts := strings.Split(data.JobURL, "/")
 		jenkinsServer := strings.ToUpper(strings.Split(URLParts[2], ".")[0])
@@ -484,11 +487,31 @@ func DownloadJenkinsFiles(csvFile string) {
 		jenkinsUser := props.MustGetString(jenkinsServer + "_JENKINS_USER")
 		jenkinsUserPwd := props.MustGetString(jenkinsServer + "_JENKINS_TOKEN")
 
-		DownloadFileWithBasicAuth(ConfigFile, data.JobURL+"/config.xml", jenkinsUser, jenkinsUserPwd)
-		DownloadFileWithBasicAuth(JobFile, data.JobURL+data.BuildID+"/api/json?pretty=true", jenkinsUser, jenkinsUserPwd)
-		DownloadFileWithBasicAuth(ResultFile, data.JobURL+data.BuildID+"/testReport/api/json?pretty=true", jenkinsUser, jenkinsUserPwd)
-		DownloadFileWithBasicAuth(LogFile, data.JobURL+data.BuildID+"/consoleText", jenkinsUser, jenkinsUserPwd)
-		//DownloadFileWithBasicAuth(ArchiveZipFile, data.JobURL+data.BuildID+"/artifact/*zip*/archive.zip", jenkinsUser, jenkinsUserPwd)
+		includedFiles := strings.Split(includes, ",")
+		for i := 0; i < len(includedFiles); i++ {
+			switch strings.ToLower(strings.TrimSpace(includedFiles[i])) {
+			case "console":
+				log.Println("...downloading console file")
+				DownloadFileWithBasicAuth(LogFile, data.JobURL+data.BuildID+"/consoleText", jenkinsUser, jenkinsUserPwd)
+				break
+			case "config":
+				log.Println("...downloading config file")
+				DownloadFileWithBasicAuth(ConfigFile, data.JobURL+"/config.xml", jenkinsUser, jenkinsUserPwd)
+				break
+			case "parameters":
+				log.Println("...downloading parameters file")
+				DownloadFileWithBasicAuth(JobFile, data.JobURL+data.BuildID+"/api/json?pretty=true", jenkinsUser, jenkinsUserPwd)
+				break
+			case "testresult":
+				log.Println("...downloading testresult file")
+				DownloadFileWithBasicAuth(ResultFile, data.JobURL+data.BuildID+"/testReport/api/json?pretty=true", jenkinsUser, jenkinsUserPwd)
+				break
+			case "archive":
+				log.Println("...downloading archive file")
+				DownloadFileWithBasicAuth(ArchiveZipFile, data.JobURL+data.BuildID+"/artifact/*zip*/archive.zip", jenkinsUser, jenkinsUserPwd)
+				break
+			}
+		}
 
 		// Create index.html file
 		indexFile := JobDir + "/" + "index.html"
@@ -503,21 +526,39 @@ func DownloadJenkinsFiles(csvFile string) {
 		if strings.Contains(dest, "s3") {
 			log.Println("Saving to S3 ...")
 			//SaveInAwsS3(ConfigFile)
-			if fileExists(LogFile) {
-				SaveInAwsS3(LogFile)
-				fmt.Fprintf(indexBuffer, "\n<li><a href=\"consoleText.txt\" target=\"_blank\">Jenkins job console log</a>")
-			}
-			if fileExists(ResultFile) {
-				SaveInAwsS3(ResultFile)
-				fmt.Fprintf(indexBuffer, "\n<li><a href=\"testresult.json\" target=\"_blank\">Test result json</a>")
-			}
-			if fileExists(ConfigFile) {
-				SaveInAwsS3(ConfigFile)
-				fmt.Fprintf(indexBuffer, "\n<li><a href=\"config.xml\" target=\"_blank\">Jenkins job config</a>")
-			}
-			if fileExists(JobFile) {
-				SaveInAwsS3(JobFile)
-				fmt.Fprintf(indexBuffer, "\n<li><a href=\"jobinfo.json\" target=\"_blank\">Jenkins job parameters</a>")
+			for i := 0; i < len(includedFiles); i++ {
+				switch strings.ToLower(strings.TrimSpace(includedFiles[i])) {
+				case "console":
+					if fileExists(LogFile) {
+						SaveInAwsS3(LogFile)
+						fmt.Fprintf(indexBuffer, "\n<li><a href=\"consoleText.txt\" target=\"_blank\">Jenkins job console log</a>")
+					}
+					break
+				case "testresult":
+					if fileExists(ResultFile) {
+						SaveInAwsS3(ResultFile)
+						fmt.Fprintf(indexBuffer, "\n<li><a href=\"testresult.json\" target=\"_blank\">Test result json</a>")
+					}
+					break
+				case "config":
+					if fileExists(ConfigFile) {
+						SaveInAwsS3(ConfigFile)
+						fmt.Fprintf(indexBuffer, "\n<li><a href=\"config.xml\" target=\"_blank\">Jenkins job config</a>")
+					}
+					break
+				case "parameters":
+					if fileExists(JobFile) {
+						SaveInAwsS3(JobFile)
+						fmt.Fprintf(indexBuffer, "\n<li><a href=\"jobinfo.json\" target=\"_blank\">Jenkins job parameters</a>")
+					}
+					break
+				case "archive":
+					if fileExists(ArchiveZipFile) {
+						SaveInAwsS3(ArchiveZipFile)
+						fmt.Fprintf(indexBuffer, "\n<li><a href=\"archive.zip\" target=\"_blank\">Jenkins artifacts archive zip</a>")
+					}
+					break
+				}
 			}
 			fmt.Fprintf(indexBuffer, "\n</ul>")
 			//SaveInAwsS3(ConfigFile, JobFile, ResultFile, LogFile)
