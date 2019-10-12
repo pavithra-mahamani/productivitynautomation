@@ -130,6 +130,9 @@ func main() {
 	} else if *action == "getserverpoolhosts" {
 		fmt.Println("Server Pool Hosts: ")
 		GetServerPoolHosts()
+	} else if *action == "healthchecks" {
+		fmt.Println("HealthChecks: ")
+		HealthChecks()
 	} else if *action == "usage" {
 		fmt.Println(usage())
 	}
@@ -144,7 +147,8 @@ func usage() string {
 		"--s3bucket cb-logs-qe --cbqueryurl [http://172.23.109.245:8093/query/service]\n" +
 		"-action totalduration 6.5.0-4106  : to get the total time duration for a build cyle\n" +
 		"-action runquery 'select * from server where lower(`os`)=\"centos\" and `build`=\"6.5.0-4106\"' : to run a given query statement\n" +
-		"-action getserverpoolhosts : to get the server pool host ips"
+		"-action getserverpoolhosts : to get the server pool host ips" +
+		"-action healthchecks : to assess the VMs health"
 }
 func runquery(qry string) string {
 	//url := "http://172.23.109.245:8093/query/service"
@@ -355,6 +359,36 @@ func lastabortedjobs() {
 	}
 }
 
+// VMPoolsCSV ...
+type VMPoolsCSV struct {
+	PoolName string
+	Count    int
+}
+
+// HealthChecks ...
+func HealthChecks() {
+	fmt.Println("action: healthcheck")
+	poolsFile := "vmpools_centos.txt"
+	iniFile := "cbqe_vms_per_pool_centos.ini"
+	lines, err := ReadCsv(poolsFile)
+	if err != nil {
+		panic(err)
+	}
+	index := 0
+	for _, line := range lines {
+		data := VMPoolsCSV{
+			PoolName: line[0],
+		}
+		index++
+		fmt.Println("\n" + strconv.Itoa(index) + "/" + strconv.Itoa(len(lines)) + ". " + data.PoolName)
+		//cmd := "ansible " + data.PoolName + " -i " + iniFile + " -u root -m ping |tee ping_output_" + data.PoolName + ".txt"
+		cmd := "ansible " + data.PoolName + " -i " + iniFile + " -u root -m ping "
+		fmt.Println("cmd= " + cmd)
+		cmdOut := executeCommand("ansible "+data.PoolName+" -i "+iniFile+" -u root -m ping ", "")
+		fmt.Println(cmdOut)
+	}
+}
+
 //GetServerPoolHosts ...
 func GetServerPoolHosts() {
 	fmt.Println("action: getserverpoolhosts")
@@ -437,6 +471,8 @@ func GetServerPoolVMsPerPlatform(osplatform string) {
 		pools = make(map[string]string)
 		var states map[string]string
 		states = make(map[string]string)
+		var poolswithstates map[string]string
+		poolswithstates = make(map[string]string)
 
 		for i := 0; i < len(result.Results); i++ {
 			//fmt.Println((i + 1), result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
@@ -452,13 +488,16 @@ func GetServerPoolVMsPerPlatform(osplatform string) {
 			if result.Results[i].SpoolID != "" {
 				//pools[result.Results[i].SpoolID+result.Results[i].HostOS] = pools[result.Results[i].SpoolID+result.Results[i].HostOS] + result.Results[i].IPaddr + "\n"
 				pools[result.Results[i].SpoolID] = pools[result.Results[i].SpoolID] + result.Results[i].IPaddr + "\n"
+				poolswithstates[result.Results[i].SpoolID+result.Results[i].State] = poolswithstates[result.Results[i].SpoolID+result.Results[i].State] + result.Results[i].IPaddr + "\n"
 				//fmt.Println("result.Results[i].SpoolID=", result.Results[i].SpoolID+", PoolID length=", len(result.Results[i].PoolID))
 			} else {
 				for j := 0; j < len(result.Results[i].PoolID); j++ {
 					if !strings.Contains(result.Results[i].IPaddr, "[f") {
 						pools[result.Results[i].PoolID[j]] = pools[result.Results[i].PoolID[j]] + result.Results[i].IPaddr + "\n"
+						poolswithstates[result.Results[i].PoolID[j]+result.Results[i].State] = poolswithstates[result.Results[i].PoolID[j]+result.Results[i].State] + result.Results[i].IPaddr + "\n"
 					} else {
 						pools[result.Results[i].PoolID[j]] = pools[result.Results[i].PoolID[j]] + "#" + result.Results[i].IPaddr + "\n"
+						poolswithstates[result.Results[i].PoolID[j]+result.Results[i].State] = poolswithstates[result.Results[i].PoolID[j]+result.Results[i].State] + "#" + result.Results[i].IPaddr + "\n"
 					}
 					//_, err = fmt.Fprintf(w, ",%s", result.Results[i].PoolID[j])
 					//fmt.Println("result.Results[i].SpoolID=", result.Results[i].SpoolID+", PoolID length=", len(result.Results[i].PoolID))
@@ -500,6 +539,7 @@ func GetServerPoolVMsPerPlatform(osplatform string) {
 		w.Flush()
 		pfw.Flush()
 		fmt.Println("\n Total: ", totalHosts)
+		fmt.Println("\n NOTE: Check the created ini files at : ", f.Name(), " and ", pf.Name())
 
 		fmt.Println("\nBy State")
 		fmt.Println("-------")
@@ -531,7 +571,40 @@ func GetServerPoolVMsPerPlatform(osplatform string) {
 		fmt.Println("\n Total: ", totalHosts)
 		w1.Flush()
 		sfw.Flush()
-		fmt.Println("\n NOTE: Check the created ini files at : ", f.Name(), " and ", f1.Name())
+		fmt.Println("\n NOTE: Check the created ini files at : ", f1.Name(), " and ", sf.Name())
+
+		fmt.Println("\nBy Pools with State")
+		fmt.Println("-------")
+		f2, err2 := os.Create("cbqe_vms_per_poolswithstate_" + osplatform + ".ini")
+		if err2 != nil {
+			log.Println(err2)
+		}
+		defer f2.Close()
+		w2 := bufio.NewWriter(f2)
+
+		var pskeys []string
+		for k := range poolswithstates {
+			pskeys = append(pskeys, k)
+		}
+		sort.Strings(pskeys)
+		totalHosts = 0
+		psf, _ := os.Create("vmpoolswithstates_" + osplatform + ".txt")
+		defer psf.Close()
+		psfw := bufio.NewWriter(psf)
+		for _, k := range pskeys {
+			nk := strings.ReplaceAll(k, " ", "")
+			nk = strings.ReplaceAll(nk, "-", "")
+			_, err = fmt.Fprintf(w2, "\n[%s]\n%s", nk, poolswithstates[k])
+			count := len(strings.Split(poolswithstates[k], "\n")) - 1
+			totalHosts += count
+			fmt.Printf("%s: %d\n", nk, count)
+			fmt.Fprintf(psfw, "%s: %d\n", nk, count)
+		}
+		fmt.Println("\n Total: ", totalHosts)
+		w2.Flush()
+		psfw.Flush()
+
+		fmt.Println("\n NOTE: Check the created ini files at : ", f2.Name(), " and ", psf.Name())
 	} else {
 		fmt.Println("Status: Failed")
 	}
