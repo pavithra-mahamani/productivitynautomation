@@ -473,6 +473,8 @@ func GetServerPoolVMsPerPlatform(osplatform string) {
 		states = make(map[string]string)
 		var poolswithstates map[string]string
 		poolswithstates = make(map[string]string)
+		var vms map[string]string
+		vms = make(map[string]string)
 
 		for i := 0; i < len(result.Results); i++ {
 			//fmt.Println((i + 1), result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
@@ -489,20 +491,26 @@ func GetServerPoolVMsPerPlatform(osplatform string) {
 				//pools[result.Results[i].SpoolID+result.Results[i].HostOS] = pools[result.Results[i].SpoolID+result.Results[i].HostOS] + result.Results[i].IPaddr + "\n"
 				pools[result.Results[i].SpoolID] = pools[result.Results[i].SpoolID] + result.Results[i].IPaddr + "\n"
 				poolswithstates[result.Results[i].SpoolID+result.Results[i].State] = poolswithstates[result.Results[i].SpoolID+result.Results[i].State] + result.Results[i].IPaddr + "\n"
+				vms[result.Results[i].IPaddr] = vms[result.Results[i].IPaddr] + result.Results[i].SpoolID + ","
+
 				//fmt.Println("result.Results[i].SpoolID=", result.Results[i].SpoolID+", PoolID length=", len(result.Results[i].PoolID))
 			} else {
 				for j := 0; j < len(result.Results[i].PoolID); j++ {
 					if !strings.Contains(result.Results[i].IPaddr, "[f") {
 						pools[result.Results[i].PoolID[j]] = pools[result.Results[i].PoolID[j]] + result.Results[i].IPaddr + "\n"
 						poolswithstates[result.Results[i].PoolID[j]+result.Results[i].State] = poolswithstates[result.Results[i].PoolID[j]+result.Results[i].State] + result.Results[i].IPaddr + "\n"
+						vms[result.Results[i].IPaddr] = vms[result.Results[i].IPaddr] + result.Results[i].PoolID[j] + ","
 					} else {
 						pools[result.Results[i].PoolID[j]] = pools[result.Results[i].PoolID[j]] + "#" + result.Results[i].IPaddr + "\n"
 						poolswithstates[result.Results[i].PoolID[j]+result.Results[i].State] = poolswithstates[result.Results[i].PoolID[j]+result.Results[i].State] + "#" + result.Results[i].IPaddr + "\n"
+						vms[result.Results[i].IPaddr] = vms[result.Results[i].IPaddr] + result.Results[i].PoolID[j] + ","
 					}
 					//_, err = fmt.Fprintf(w, ",%s", result.Results[i].PoolID[j])
 					//fmt.Println("result.Results[i].SpoolID=", result.Results[i].SpoolID+", PoolID length=", len(result.Results[i].PoolID))
 				}
+
 			}
+			vms[result.Results[i].IPaddr] = vms[result.Results[i].IPaddr] + result.Results[i].State
 
 			// states level
 			if !strings.Contains(result.Results[i].IPaddr, "[f") {
@@ -514,7 +522,7 @@ func GetServerPoolVMsPerPlatform(osplatform string) {
 		}
 		//summary and generation of .ini - write to file
 		fmt.Println("\nBy Pool")
-		fmt.Println("-------")
+		fmt.Println("---------")
 
 		var keys []string
 		for k := range pools {
@@ -542,7 +550,7 @@ func GetServerPoolVMsPerPlatform(osplatform string) {
 		fmt.Println("\n NOTE: Check the created ini files at : ", f.Name(), " and ", pf.Name())
 
 		fmt.Println("\nBy State")
-		fmt.Println("-------")
+		fmt.Println("----------")
 		f1, err1 := os.Create("cbqe_vms_per_state_" + osplatform + ".ini")
 		if err1 != nil {
 			log.Println(err1)
@@ -574,7 +582,7 @@ func GetServerPoolVMsPerPlatform(osplatform string) {
 		fmt.Println("\n NOTE: Check the created ini files at : ", f1.Name(), " and ", sf.Name())
 
 		fmt.Println("\nBy Pools with State")
-		fmt.Println("-------")
+		fmt.Println("---------------------")
 		f2, err2 := os.Create("cbqe_vms_per_poolswithstate_" + osplatform + ".ini")
 		if err2 != nil {
 			log.Println(err2)
@@ -604,7 +612,35 @@ func GetServerPoolVMsPerPlatform(osplatform string) {
 		w2.Flush()
 		psfw.Flush()
 
-		fmt.Println("\n NOTE: Check the created ini files at : ", f2.Name(), " and ", psf.Name())
+		fmt.Println("\nBy VMs")
+		fmt.Println("---------------------")
+		f3, err3 := os.Create("cbqe_vms_list_" + osplatform + ".ini")
+		if err3 != nil {
+			log.Println(err3)
+		}
+		defer f3.Close()
+		w3 := bufio.NewWriter(f3)
+
+		var vmkeys []string
+		for k := range vms {
+			vmkeys = append(vmkeys, k)
+		}
+		sort.Strings(vmkeys)
+		totalHosts = 0
+		vmsf, _ := os.Create("vms_list_" + osplatform + ".txt")
+		defer vmsf.Close()
+		vmsfw := bufio.NewWriter(vmsf)
+		for _, k := range vmkeys {
+			_, err = fmt.Fprintf(w3, "\n%s: %s", k, vms[k])
+			totalHosts++
+			fmt.Printf("%s: %s\n", k, vms[k])
+			fmt.Fprintf(vmsfw, "%s: %s\n", k, vms[k])
+		}
+		fmt.Println("\n Total: ", totalHosts)
+		w3.Flush()
+		vmsfw.Flush()
+
+		fmt.Println("\n NOTE: Check the created ini files at : ", f3.Name(), " and ", vmsf.Name())
 	} else {
 		fmt.Println("Status: Failed")
 	}
