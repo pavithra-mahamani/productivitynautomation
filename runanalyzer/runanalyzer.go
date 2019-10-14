@@ -51,8 +51,10 @@ type TotalCycleTimeQryResult struct {
 
 // TotalCycleTime type
 type TotalCycleTime struct {
-	Numofjobs int
-	Totaltime int64
+	Numofjobs  int
+	Totaltime  int64
+	Failcount  int
+	Totalcount int
 }
 
 // CBBuildQryResult type
@@ -114,7 +116,7 @@ func main() {
 		savejoblogs()
 	} else if *action == "totaltime" {
 		//gettotalbuildcycleduration(os.Args[3])
-		fmt.Printf("\n\t\t\tGrand total time: %d hours\n", gettotalbuildcycleduration(os.Args[3]))
+		fmt.Printf("\n\t\t\t\t\t\t\t\t\t\t\tGrand total time: %d hours\n", gettotalbuildcycleduration(os.Args[3]))
 	} else if *action == "runquery" {
 		fmt.Println("Query Result: ", runquery(os.Args[3]))
 	} else if *action == "usage" {
@@ -209,17 +211,17 @@ func gettotalbuildcycleduration(buildN string) int {
 	outW := bufio.NewWriter(outFile)
 	defer outFile.Close()
 
-	fmt.Println("------------------------------------------------------------------------------")
-	fmt.Println("S.No.\tBuild\t\tNumber of jobs\t\tTotal time")
-	fmt.Println("------------------------------------------------------------------------------")
-	fmt.Fprintln(outW, "------------------------------------------------------------------------------")
-	fmt.Fprintln(outW, "S.No.\tBuild\t\tNumber of jobs\t\tTotal time")
-	fmt.Fprintln(outW, "------------------------------------------------------------------------------")
+	fmt.Println("--------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Println("S.No.\tBuild\t\tTestCount\tPassedCount\tFailedCount\tPassrate\tJobcount\t\tTotaltime")
+	fmt.Println("--------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "--------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "S.No.\tBuild\t\tTestCount\tPassedCount\tFailedCount\tPassrate\tJobscount\t\tTotaltime")
+	fmt.Fprintln(outW, "--------------------------------------------------------------------------------------------------------------------------------------------")
 
 	for i := 0; i < len(cbbuilds); i++ {
 		cbbuild = cbbuilds[i]
 		//url := "http://172.23.109.245:8093/query/service"
-		qry := "select count(*) as numofjobs, sum(duration) as totaltime from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\""
+		qry := "select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\""
 		//fmt.Println("\nquery=" + qry)
 		localFileName := "duration.json"
 		if err := executeN1QLStmt(localFileName, url, qry); err != nil {
@@ -246,8 +248,9 @@ func gettotalbuildcycleduration(buildN string) int {
 			secs := result.Results[0].Totaltime % (1000 * 60 * 60)
 			mins := math.Floor(float64(secs) / 60 / 1000)
 			//secs = result.Results[0].Totaltime * 1000 % 60
-			fmt.Printf("\n%3d.\t%s\t%3d\t\t%4d hrs %2d mins (%11d millis)", (i + 1), cbbuild, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime)
-			fmt.Fprintf(outW, "\n%3d.\t%s\t%3d\t\t%4d hrs %2d mins (%11d millis)", (i + 1), cbbuild, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime)
+			passCount := result.Results[0].Totalcount - result.Results[0].Failcount
+			fmt.Printf("\n%3d.\t%s\t%5d\t\t%5d\t\t%5d\t\t%6.2f%%\t\t%3d\t\t%4d hrs %2d mins (%11d millis)", (i + 1), cbbuild, result.Results[0].Totalcount, passCount, result.Results[0].Failcount, (float32(passCount)/float32(result.Results[0].Totalcount))*100, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime)
+			fmt.Fprintf(outW, "\n%3d.\t%s\t%5d\t\t%5d\t\t%5d\t\t%6.2f%%\t\t%3d\t\t%4d hrs %2d mins (%11d millis)", (i + 1), cbbuild, result.Results[0].Totalcount, passCount, result.Results[0].Failcount, (float32(passCount)/float32(result.Results[0].Totalcount))*100, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime)
 			//fmt.Printf("\n%d. %s, Number of jobs=%d, Total duration=%02d hrs %02d mins (%02d millis)", i, cbbuild, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime)
 			//fmt.Printf("Number of jobs=%d, Total duration=%02d hrs : %02d mins :%02d secs", result.Results[0].Numofjobs, int64(hours), int64(mins), int64(secs))
 			//ttime = string(hours) + ": " + string(mins) + ": " + string(secs)
@@ -255,7 +258,7 @@ func gettotalbuildcycleduration(buildN string) int {
 			fmt.Println("Status: Failed")
 		}
 	}
-	fmt.Fprintf(outW, "\n\t\t\tGrand total time=%6d hours\n", totalhours)
+	fmt.Fprintf(outW, "\n\t\t\t\t\t\t\t\t\t\t\tGrand total time=%6d hours\n", totalhours)
 	outW.Flush()
 
 	return totalhours
