@@ -205,9 +205,16 @@ func gettotalbuildcycleduration(buildN string) int {
 	}
 	// total jobs
 	var cbbuilds = strings.Split(builds, ",")
+	outFile, _ := os.Create("totaltime_summary.txt")
+	outW := bufio.NewWriter(outFile)
+	defer outFile.Close()
+
 	fmt.Println("------------------------------------------------------------------------------")
 	fmt.Println("S.No.\tBuild\t\tNumber of jobs\t\tTotal time")
 	fmt.Println("------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "S.No.\tBuild\t\tNumber of jobs\t\tTotal time")
+	fmt.Fprintln(outW, "------------------------------------------------------------------------------")
 
 	for i := 0; i < len(cbbuilds); i++ {
 		cbbuild = cbbuilds[i]
@@ -240,6 +247,7 @@ func gettotalbuildcycleduration(buildN string) int {
 			mins := math.Floor(float64(secs) / 60 / 1000)
 			//secs = result.Results[0].Totaltime * 1000 % 60
 			fmt.Printf("\n%3d.\t%s\t%3d\t\t%4d hrs %2d mins (%11d millis)", (i + 1), cbbuild, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime)
+			fmt.Fprintf(outW, "\n%3d.\t%s\t%3d\t\t%4d hrs %2d mins (%11d millis)", (i + 1), cbbuild, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime)
 			//fmt.Printf("\n%d. %s, Number of jobs=%d, Total duration=%02d hrs %02d mins (%02d millis)", i, cbbuild, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime)
 			//fmt.Printf("Number of jobs=%d, Total duration=%02d hrs : %02d mins :%02d secs", result.Results[0].Numofjobs, int64(hours), int64(mins), int64(secs))
 			//ttime = string(hours) + ": " + string(mins) + ": " + string(secs)
@@ -247,6 +255,8 @@ func gettotalbuildcycleduration(buildN string) int {
 			fmt.Println("Status: Failed")
 		}
 	}
+	fmt.Fprintf(outW, "\n\t\t\tGrand total time=%6d hours\n", totalhours)
+	outW.Flush()
 
 	return totalhours
 
