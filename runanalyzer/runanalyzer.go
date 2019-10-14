@@ -26,6 +26,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/magiconair/properties"
 )
@@ -211,12 +212,12 @@ func gettotalbuildcycleduration(buildN string) int {
 	outW := bufio.NewWriter(outFile)
 	defer outFile.Close()
 
-	fmt.Println("--------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Println("---------------------------------------------------------------------------------------------------------------------------------------------")
 	fmt.Println("S.No.\tBuild\t\tTestCount\tPassedCount\tFailedCount\tPassrate\tJobcount\t\tTotaltime")
-	fmt.Println("--------------------------------------------------------------------------------------------------------------------------------------------")
-	fmt.Fprintln(outW, "--------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Println("---------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "---------------------------------------------------------------------------------------------------------------------------------------------")
 	fmt.Fprintln(outW, "S.No.\tBuild\t\tTestCount\tPassedCount\tFailedCount\tPassrate\tJobscount\t\tTotaltime")
-	fmt.Fprintln(outW, "--------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "---------------------------------------------------------------------------------------------------------------------------------------------")
 
 	for i := 0; i < len(cbbuilds); i++ {
 		cbbuild = cbbuilds[i]
@@ -258,7 +259,13 @@ func gettotalbuildcycleduration(buildN string) int {
 			fmt.Println("Status: Failed")
 		}
 	}
-	fmt.Fprintf(outW, "\n\t\t\t\t\t\t\t\t\t\t\tGrand total time=%6d hours\n", totalhours)
+	fmt.Println("\n---------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "\n---------------------------------------------------------------------------------------------------------------------------------------------")
+	p := fmt.Println
+	t := time.Now()
+	p(t.Format(time.RFC3339))
+	fmt.Fprintf(outW, "\n%s\t\t\t\t\t\t\t\t\t\tGrand total time=%6d hours\n", t.Format(time.RFC3339), totalhours)
+
 	outW.Flush()
 
 	return totalhours
