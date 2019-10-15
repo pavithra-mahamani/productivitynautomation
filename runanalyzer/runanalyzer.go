@@ -394,8 +394,9 @@ func getJobsList(build1 string) string {
 					result.Results[i].URLbuild)
 			}
 			w.Flush()
+			f.Close()
 			fmt.Println("Count: ", len(result.Results))
-
+			resultFile.Close()
 		} else {
 			fmt.Println("Status: Failed")
 		}
@@ -431,7 +432,14 @@ func DownloadJenkinsJobInfo(csvFile string) int {
 		return -1
 	}
 	index := 0
+	numServers := 0
 	totalMachines := 0
+	machinesOut, machinesErr := os.Create(cbbuild + "_" + cbplatform + "_jobsmachineslist.txt")
+	if machinesErr != nil {
+		log.Println("Machines list file creation error ", err)
+	}
+	defer machinesOut.Close()
+	listOut := bufio.NewWriter(machinesOut)
 	for _, line := range lines {
 		data := CSVJob{
 			TestName: line[0],
@@ -439,7 +447,7 @@ func DownloadJenkinsJobInfo(csvFile string) int {
 			BuildID:  line[2],
 		}
 		index++
-		//fmt.Println("\n" + strconv.Itoa(index) + "/" + strconv.Itoa(len(lines)) + ". " + data.TestName + " " + data.JobURL + " " + data.BuildID)
+		fmt.Println("\n" + strconv.Itoa(index) + "/" + strconv.Itoa(len(lines)) + ". " + data.TestName + " " + data.JobURL + " " + data.BuildID)
 
 		// Start downloading
 		req, _ := http.NewRequest("GET", data.JobURL, nil)
@@ -502,36 +510,73 @@ func DownloadJenkinsJobInfo(csvFile string) int {
 				switch strings.ToLower(strings.TrimSpace(includedFiles[i])) {
 				case "console":
 					//log.Println("...downloading console file")
-					DownloadFileWithBasicAuth(LogFile, data.JobURL+data.BuildID+"/consoleText", jenkinsUser, jenkinsUserPwd)
+					if !fileExists(LogFile) {
+						DownloadFileWithBasicAuth(LogFile, data.JobURL+data.BuildID+"/consoleText", jenkinsUser, jenkinsUserPwd)
+					}
 					substring := ""
 					if fileExists(LogFile) {
+						//check if log is available
+						log.Println("SearchingFile2 for No such file string...")
+						substring = "No such file"
+						out, err := SearchFile2(LogFile, substring)
+						//log.Println(out, err)
+						if out != "" {
+							log.Println("Jenkins log is not available. Let us check at S3...")
+							s3consolelogurl := "http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/" + cbbuild + "/jenkins_logs/" + JobName + "/" + data.BuildID + "/consoleText.txt"
+							log.Println("Downloading from " + s3consolelogurl)
+							DownloadFile(LogFile, s3consolelogurl)
+							if !fileExists(LogFile) {
+								log.Println("No log file at S3 also! skipping." + s3consolelogurl)
+								continue
+							} else {
+								log.Println("SearchingFile for 404...")
+								out, err = SearchFile2(LogFile, "404 Not Found")
+								if out != "" {
+									log.Println("No log file at S3 also! skipping." + s3consolelogurl)
+									break
+								}
+							}
+
+						}
+						log.Println("Searching for INI file...")
 						substring = "testrunner -i"
-						out, err := SearchFile(LogFile, substring)
+						out, err = SearchFile2(LogFile, substring)
 						log.Println(out, err)
 
 						if out == "" {
 							substring = "testrunner.py -i"
-							out, err := SearchFile(LogFile, substring)
+							out, err := SearchFile2(LogFile, substring)
 							log.Println(out, err)
 						}
 						if out != "" {
-							index := strings.Index(out, substring)
-							substring1 := out[index+len(substring):]
+							lineindex := strings.Index(out, substring)
+							substring1 := out[lineindex+len(substring):]
 							log.Println(substring1)
 							words := strings.Split(substring1, " ")
+							numServers = 0
 							if len(words) > 0 {
+
 								iniFile := words[1]
 								log.Println("iniFile=", iniFile)
-								cfg, err := ini.Load("/Users/jagadeshmunta/cb_sanity/testrunner/" + iniFile)
-								if err != nil {
-									fmt.Printf("Fail to read file: %v", err)
-									continue
-								}
+								if strings.Contains(iniFile, "/tmp") {
+									out, err := SearchFileNextLines2(LogFile, "[servers]")
+									log.Println(out, err)
+									numServers = len(strings.Split(out, "\n")) - 1
+								} else {
+									cfg, err := ini.Load("/Users/jagadeshmunta/cb_sanity/testrunner/" + iniFile)
+									if err != nil {
+										fmt.Printf("Fail to read file: %v", err)
+										continue
+									}
 
-								// Classic read of values, default section can be represented as empty string
-								numServers := len(cfg.Section("servers").Keys())
+									// Classic read of values, default section can be represented as empty string
+									numServers = len(cfg.Section("servers").Keys())
+								}
 								fmt.Println("servers:", numServers)
 								totalMachines += numServers
+								fmt.Println("Total machines:", totalMachines)
+								fmt.Fprintln(listOut, "\n"+strconv.Itoa(index)+"/"+strconv.Itoa(len(lines))+". "+data.TestName+" "+data.JobURL+" "+data.BuildID+"\t"+strconv.Itoa(numServers)+"\t-->"+strconv.Itoa(totalMachines))
+								listOut.Flush()
 							}
 						}
 
@@ -557,6 +602,8 @@ func DownloadJenkinsJobInfo(csvFile string) int {
 			}
 		}
 	}
+	machinesOut.Close()
+
 	return totalMachines
 }
 
@@ -960,7 +1007,7 @@ func ReadCsv(filename string) ([][]string, error) {
 	if err != nil {
 		return [][]string{}, err
 	}
-
+	f.Close()
 	return lines, nil
 }
 
@@ -981,6 +1028,7 @@ func SearchFile(filename string, substring string) (string, error) {
 	for scanner.Scan() {
 		linestring = scanner.Text()
 		if strings.Contains(linestring, substring) {
+			f.Close()
 			return linestring, nil
 		}
 		line++
@@ -990,5 +1038,115 @@ func SearchFile(filename string, substring string) (string, error) {
 		log.Println(err)
 		return "", err
 	}
+	f.Close()
 	return linestring, err
+}
+
+//SearchFile2 ...
+func SearchFile2(filename string, substring string) (string, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	// Splits on newlines by default.
+	scanner := bufio.NewReader(f)
+
+	line := 1
+	linestring := ""
+	// https://golang.org/pkg/bufio/#Scanner.Scan
+	for {
+		linestring, err = scanner.ReadString('\n')
+		if err != nil {
+			f.Close()
+			return "", err
+		}
+		if strings.Contains(linestring, substring) {
+			f.Close()
+			return linestring, nil
+		}
+		line++
+	}
+}
+
+//SearchFileNextLines ...
+func SearchFileNextLines(filename string, substring string) (string, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	// Splits on newlines by default.
+	scanner := bufio.NewScanner(f)
+
+	line := 1
+	linestring := ""
+	// https://golang.org/pkg/bufio/#Scanner.Scan
+	for scanner.Scan() {
+		linestring = scanner.Text()
+		if strings.Contains(linestring, substring) {
+			scanner.Scan()
+			linestring = scanner.Text()
+			lines := linestring
+			for linestring != "\n" && linestring != "" {
+				lines += linestring + "\n"
+				if scanner.Scan() {
+					linestring = scanner.Text()
+					log.Println(linestring)
+				} else {
+					break
+				}
+			}
+			f.Close()
+			return lines, nil
+		}
+		line++
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Println(err)
+		return "", err
+	}
+	return linestring, err
+}
+
+//SearchFileNextLines2 ...
+func SearchFileNextLines2(filename string, substring string) (string, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	// Splits on newlines by default.
+	scanner := bufio.NewReader(f)
+
+	line := 1
+	linestring := ""
+	// https://golang.org/pkg/bufio/#Scanner.Scan
+	for {
+		linestring, err = scanner.ReadString('\n')
+		if err != nil {
+			return "", nil
+		}
+		if strings.Contains(linestring, substring) {
+			linestring, err = scanner.ReadString('\n')
+			lines := ""
+			for linestring != "\n" && linestring != "" && err != io.EOF {
+				lines += linestring
+				linestring, err = scanner.ReadString('\n')
+				if err == nil {
+					log.Println(linestring)
+				} else {
+					break
+				}
+			}
+			f.Close()
+			return lines, nil
+		}
+		line++
+	}
+
 }
