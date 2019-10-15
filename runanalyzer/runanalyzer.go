@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/magiconair/properties"
+	"gopkg.in/ini.v1"
 )
 
 // N1QLQryResult type
@@ -82,6 +83,7 @@ var url string
 var updateOrgURL string
 var includes string
 var limits string
+var totalmachines string
 
 func main() {
 	fmt.Println("*** Helper Tool ***")
@@ -96,6 +98,7 @@ func main() {
 	updateOrgURLInput := flag.String("updateorgurl", "no", usage())
 	includesInput := flag.String("includes", "console,config,parameters,testresult", usage())
 	limitsInput := flag.String("limits", "100", usage())
+	totalmachinesInput := flag.String("totalmachines", "false", usage())
 
 	flag.Parse()
 	dest = *destInput
@@ -108,6 +111,7 @@ func main() {
 	updateOrgURL = *updateOrgURLInput
 	includes = *includesInput
 	limits = *limitsInput
+	totalmachines = *totalmachinesInput
 
 	//fmt.Println("original dest=", dest, "--", *destInput)
 	//time.Sleep(10 * time.Second)
@@ -205,6 +209,7 @@ func gettotalbuildcycleduration(buildN string) int {
 
 			}
 		}
+
 	}
 	// total jobs
 	var cbbuilds = strings.Split(builds, ",")
@@ -212,15 +217,21 @@ func gettotalbuildcycleduration(buildN string) int {
 	outW := bufio.NewWriter(outFile)
 	defer outFile.Close()
 
-	fmt.Println("---------------------------------------------------------------------------------------------------------------------------------------------")
-	fmt.Println("S.No.\tBuild\t\tTestCount\tPassedCount\tFailedCount\tPassrate\tJobcount\t\tTotaltime")
-	fmt.Println("---------------------------------------------------------------------------------------------------------------------------------------------")
-	fmt.Fprintln(outW, "---------------------------------------------------------------------------------------------------------------------------------------------")
-	fmt.Fprintln(outW, "S.No.\tBuild\t\tTestCount\tPassedCount\tFailedCount\tPassrate\tJobscount\t\tTotaltime")
-	fmt.Fprintln(outW, "---------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Println("---------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Println("S.No.\tBuild\t\tTestCount\tPassedCount\tFailedCount\tPassrate\tJobcount\t\tTotaltime\t\t\tMachinesCount")
+	fmt.Println("---------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "---------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "S.No.\tBuild\t\tTestCount\tPassedCount\tFailedCount\tPassrate\tJobscount\t\tTotaltime\t\t\tMachinesCount")
+	fmt.Fprintln(outW, "---------------------------------------------------------------------------------------------------------------------------------------------------------------")
 
 	for i := 0; i < len(cbbuilds); i++ {
 		cbbuild = cbbuilds[i]
+
+		//get machines list
+		totalMachinesCount := -1
+		if totalmachines == "true" {
+			totalMachinesCount = getMachinesList(cbbuild)
+		}
 		//url := "http://172.23.109.245:8093/query/service"
 		qry := "select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\""
 		//fmt.Println("\nquery=" + qry)
@@ -250,8 +261,12 @@ func gettotalbuildcycleduration(buildN string) int {
 			mins := math.Floor(float64(secs) / 60 / 1000)
 			//secs = result.Results[0].Totaltime * 1000 % 60
 			passCount := result.Results[0].Totalcount - result.Results[0].Failcount
-			fmt.Printf("\n%3d.\t%s\t%5d\t\t%5d\t\t%5d\t\t%6.2f%%\t\t%3d\t\t%4d hrs %2d mins (%11d millis)", (i + 1), cbbuild, result.Results[0].Totalcount, passCount, result.Results[0].Failcount, (float32(passCount)/float32(result.Results[0].Totalcount))*100, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime)
-			fmt.Fprintf(outW, "\n%3d.\t%s\t%5d\t\t%5d\t\t%5d\t\t%6.2f%%\t\t%3d\t\t%4d hrs %2d mins (%11d millis)", (i + 1), cbbuild, result.Results[0].Totalcount, passCount, result.Results[0].Failcount, (float32(passCount)/float32(result.Results[0].Totalcount))*100, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime)
+			fmt.Printf("\n%3d.\t%s\t%5d\t\t%5d\t\t%5d\t\t%6.2f%%\t\t%3d\t\t%4d hrs %2d mins (%11d millis)\t\t%2d",
+				(i + 1), cbbuild, result.Results[0].Totalcount, passCount, result.Results[0].Failcount,
+				(float32(passCount)/float32(result.Results[0].Totalcount))*100, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime, totalMachinesCount)
+			fmt.Fprintf(outW, "\n%3d.\t%s\t%5d\t\t%5d\t\t%5d\t\t%6.2f%%\t\t%3d\t\t%4d hrs %2d mins (%11d millis)\t\t%2d",
+				(i + 1), cbbuild, result.Results[0].Totalcount, passCount, result.Results[0].Failcount,
+				(float32(passCount)/float32(result.Results[0].Totalcount))*100, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime, totalMachinesCount)
 			//fmt.Printf("\n%d. %s, Number of jobs=%d, Total duration=%02d hrs %02d mins (%02d millis)", i, cbbuild, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime)
 			//fmt.Printf("Number of jobs=%d, Total duration=%02d hrs : %02d mins :%02d secs", result.Results[0].Numofjobs, int64(hours), int64(mins), int64(secs))
 			//ttime = string(hours) + ": " + string(mins) + ": " + string(secs)
@@ -259,8 +274,8 @@ func gettotalbuildcycleduration(buildN string) int {
 			fmt.Println("Status: Failed")
 		}
 	}
-	fmt.Println("\n---------------------------------------------------------------------------------------------------------------------------------------------")
-	fmt.Fprintln(outW, "\n---------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Println("\n---------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "\n---------------------------------------------------------------------------------------------------------------------------------------------------------------")
 	p := fmt.Println
 	t := time.Now()
 	p(t.Format(time.RFC3339))
@@ -335,6 +350,214 @@ func savejoblogs() {
 		DownloadJenkinsFiles(jobCsvFile)
 	}
 
+}
+
+// getJobsList of a given build
+func getJobsList(build1 string) string {
+
+	var jobCsvFile string
+	if src == "cbserver" {
+		//url := "http://172.23.109.245:8093/query/service"
+		qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + build1 + "\""
+		fmt.Println("query=" + qry)
+		localFileName := "result.json"
+		if err := executeN1QLStmt(localFileName, url, qry); err != nil {
+			panic(err)
+		}
+
+		resultFile, err := os.Open(localFileName)
+		if err != nil {
+			fmt.Println(err)
+		}
+		defer resultFile.Close()
+
+		byteValue, _ := ioutil.ReadAll(resultFile)
+
+		var result N1QLQryResult
+
+		err = json.Unmarshal(byteValue, &result)
+		//fmt.Println("Status=" + result.Status)
+		//fmt.Println(err)
+		jobCsvFile = build1 + "_all_jobs.csv"
+		f, err := os.Create(jobCsvFile)
+		defer f.Close()
+
+		w := bufio.NewWriter(f)
+
+		if result.Status == "success" {
+			fmt.Println("Count: ", len(result.Results))
+			for i := 0; i < len(result.Results); i++ {
+				//fmt.Println((i + 1), result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
+				fmt.Print(strings.TrimSpace(result.Results[i].Aname), ",", strings.TrimSpace(result.Results[i].JURL), ",",
+					result.Results[i].URLbuild, "\n")
+				_, err = fmt.Fprintf(w, "%s,%s,%d\n", strings.TrimSpace(result.Results[i].Aname), strings.TrimSpace(result.Results[i].JURL),
+					result.Results[i].URLbuild)
+			}
+			w.Flush()
+			fmt.Println("Count: ", len(result.Results))
+
+		} else {
+			fmt.Println("Status: Failed")
+		}
+	} else {
+		jobCsvFile = src
+	}
+
+	return jobCsvFile
+}
+
+// getMachinesList...
+func getMachinesList(build1 string) int {
+	var jobCsvFile = getJobsList(build1)
+	// Download the files
+	includes = "console,parameters"
+	dest = "local"
+	return DownloadJenkinsJobInfo(jobCsvFile)
+	// Parse the properties file
+
+}
+
+// DownloadJenkinsJobInfo ...
+func DownloadJenkinsJobInfo(csvFile string) int {
+
+	props := properties.MustLoadFile("${HOME}/.jenkins_env.properties", properties.UTF8)
+	//jenkinsServer := props.MustGetString("QA_JENKINS_SERVER")
+	//jenkinsUser := props.MustGetString("QA_JENKINS_USER")
+	//jenkinsUserPwd := props.MustGetString("QA_JENKINS_TOKEN")
+
+	lines, err := ReadCsv(csvFile)
+	if err != nil {
+		log.Println(err)
+		return -1
+	}
+	index := 0
+	totalMachines := 0
+	for _, line := range lines {
+		data := CSVJob{
+			TestName: line[0],
+			JobURL:   line[1],
+			BuildID:  line[2],
+		}
+		index++
+		//fmt.Println("\n" + strconv.Itoa(index) + "/" + strconv.Itoa(len(lines)) + ". " + data.TestName + " " + data.JobURL + " " + data.BuildID)
+
+		// Start downloading
+		req, _ := http.NewRequest("GET", data.JobURL, nil)
+		JobName := path.Base(req.URL.Path)
+		if JobName == data.BuildID {
+			JobName = path.Base(req.URL.Path + "/..")
+			data.JobURL = data.JobURL + "../"
+		}
+
+		JobDir := cbbuild + "/" + "jenkins_logs" + "/" + JobName + "/" + data.BuildID
+		err := os.MkdirAll(JobDir, 0755)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		ConfigFile := JobDir + "/" + "config.xml"
+		JobFile := JobDir + "/" + "jobinfo.json"
+		ResultFile := JobDir + "/" + "testresult.json"
+		LogFile := JobDir + "/" + "consoleText.txt"
+		ArchiveZipFile := JobDir + "/" + "archive.zip"
+
+		URLParts := strings.Split(data.JobURL, "/")
+		jenkinsServer := strings.ToUpper(strings.Split(URLParts[2], ".")[0])
+
+		if strings.Contains(strings.ToLower(jenkinsServer), s3bucket) { // from S3
+			log.Println("Download from S3...")
+			includedFiles := strings.Split(includes, ",")
+			for i := 0; i < len(includedFiles); i++ {
+				switch strings.ToLower(strings.TrimSpace(includedFiles[i])) {
+				case "console":
+					//log.Println("...downloading console file")
+					DownloadFile(LogFile, data.JobURL+data.BuildID+"/consoleText.txt")
+					break
+				case "config":
+					//log.Println("...downloading config file")
+					DownloadFile(ConfigFile, data.JobURL+"/config.xml")
+					break
+				case "parameters":
+					//log.Println("...downloading parameters file")
+					DownloadFile(JobFile, data.JobURL+data.BuildID+"/jobinfo.json")
+					break
+				case "testresult":
+					//log.Println("...downloading testresult file")
+					DownloadFile(ResultFile, data.JobURL+data.BuildID+"/testresult.json")
+					break
+				case "archive":
+					//log.Println("...downloading archive file")
+					DownloadFile(ArchiveZipFile, data.JobURL+data.BuildID+"/archive.zip")
+					break
+				}
+			}
+
+		} else { // from Jenkins
+			//fmt.Println("Jenkins Server: ", jenkinsServer)
+			jenkinsUser := props.MustGetString(jenkinsServer + "_JENKINS_USER")
+			jenkinsUserPwd := props.MustGetString(jenkinsServer + "_JENKINS_TOKEN")
+
+			includedFiles := strings.Split(includes, ",")
+			for i := 0; i < len(includedFiles); i++ {
+				switch strings.ToLower(strings.TrimSpace(includedFiles[i])) {
+				case "console":
+					//log.Println("...downloading console file")
+					DownloadFileWithBasicAuth(LogFile, data.JobURL+data.BuildID+"/consoleText", jenkinsUser, jenkinsUserPwd)
+					substring := ""
+					if fileExists(LogFile) {
+						substring = "testrunner -i"
+						out, err := SearchFile(LogFile, substring)
+						log.Println(out, err)
+
+						if out == "" {
+							substring = "testrunner.py -i"
+							out, err := SearchFile(LogFile, substring)
+							log.Println(out, err)
+						}
+						if out != "" {
+							index := strings.Index(out, substring)
+							substring1 := out[index+len(substring):]
+							log.Println(substring1)
+							words := strings.Split(substring1, " ")
+							if len(words) > 0 {
+								iniFile := words[1]
+								log.Println("iniFile=", iniFile)
+								cfg, err := ini.Load("/Users/jagadeshmunta/cb_sanity/testrunner/" + iniFile)
+								if err != nil {
+									fmt.Printf("Fail to read file: %v", err)
+									continue
+								}
+
+								// Classic read of values, default section can be represented as empty string
+								numServers := len(cfg.Section("servers").Keys())
+								fmt.Println("servers:", numServers)
+								totalMachines += numServers
+							}
+						}
+
+					}
+					break
+				case "config":
+					//log.Println("...downloading config file")
+					DownloadFileWithBasicAuth(ConfigFile, data.JobURL+"/config.xml", jenkinsUser, jenkinsUserPwd)
+					break
+				case "parameters":
+					//log.Println("...downloading parameters file")
+					DownloadFileWithBasicAuth(JobFile, data.JobURL+data.BuildID+"/api/json?pretty=true", jenkinsUser, jenkinsUserPwd)
+					break
+				case "testresult":
+					//log.Println("...downloading testresult file")
+					DownloadFileWithBasicAuth(ResultFile, data.JobURL+data.BuildID+"/testReport/api/json?pretty=true", jenkinsUser, jenkinsUserPwd)
+					break
+				case "archive":
+					//log.Println("...downloading archive file")
+					DownloadFileWithBasicAuth(ArchiveZipFile, data.JobURL+data.BuildID+"/artifact/*zip*/archive.zip", jenkinsUser, jenkinsUserPwd)
+					break
+				}
+			}
+		}
+	}
+	return totalMachines
 }
 
 // executeCommand ...
@@ -521,7 +744,8 @@ func DownloadJenkinsFiles(csvFile string) {
 
 	lines, err := ReadCsv(csvFile)
 	if err != nil {
-		panic(err)
+		log.Println(err)
+		return
 	}
 	index := 0
 	for _, line := range lines {
@@ -738,4 +962,33 @@ func ReadCsv(filename string) ([][]string, error) {
 	}
 
 	return lines, nil
+}
+
+//SearchFile ...
+func SearchFile(filename string, substring string) (string, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	// Splits on newlines by default.
+	scanner := bufio.NewScanner(f)
+
+	line := 1
+	linestring := ""
+	// https://golang.org/pkg/bufio/#Scanner.Scan
+	for scanner.Scan() {
+		linestring = scanner.Text()
+		if strings.Contains(linestring, substring) {
+			return linestring, nil
+		}
+		line++
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Println(err)
+		return "", err
+	}
+	return linestring, err
 }
