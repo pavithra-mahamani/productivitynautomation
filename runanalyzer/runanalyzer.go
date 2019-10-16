@@ -85,6 +85,7 @@ var includes string
 var limits string
 var totalmachines string
 var qryfilter string
+var workspace string
 
 func main() {
 	fmt.Println("*** Helper Tool ***")
@@ -101,6 +102,7 @@ func main() {
 	limitsInput := flag.String("limits", "100", usage())
 	totalmachinesInput := flag.String("totalmachines", "false", usage())
 	qryfilterInput := flag.String("qryfilter", " ", usage())
+	workspaceInput := flag.String("workspace", "testrunner", usage())
 
 	flag.Parse()
 	dest = *destInput
@@ -115,6 +117,7 @@ func main() {
 	limits = *limitsInput
 	totalmachines = *totalmachinesInput
 	qryfilter = *qryfilterInput
+	workspace = *workspaceInput
 
 	//fmt.Println("original dest=", dest, "--", *destInput)
 	//time.Sleep(10 * time.Second)
@@ -399,9 +402,9 @@ func getJobsList(build1 string) string {
 			fmt.Println("Count: ", len(result.Results))
 			for i := 0; i < len(result.Results); i++ {
 				//fmt.Println((i + 1), result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
-				fmt.Print(strings.TrimSpace(result.Results[i].Aname), ",", strings.TrimSpace(result.Results[i].JURL), ",",
+				fmt.Print(strings.TrimSpace(result.Results[i].Aname), ",", strings.TrimSpace(strings.ReplaceAll(result.Results[i].JURL, "=", "")), ",",
 					result.Results[i].URLbuild, "\n")
-				_, err = fmt.Fprintf(w, "%s,%s,%d\n", strings.TrimSpace(result.Results[i].Aname), strings.TrimSpace(result.Results[i].JURL),
+				_, err = fmt.Fprintf(w, "%s,%s,%d\n", strings.TrimSpace(result.Results[i].Aname), strings.TrimSpace(strings.ReplaceAll(result.Results[i].JURL, ",", "")),
 					result.Results[i].URLbuild)
 			}
 			w.Flush()
@@ -530,9 +533,9 @@ func DownloadJenkinsJobInfo(csvFile string) int {
 					if fileExists(LogFile) {
 						//check if log is available
 						log.Println("SearchingFile2 for No such file string...")
-						substring = "No such file"
+						substring = "No such file:"
 						out, _ := SearchFile2(LogFile, substring)
-						//log.Println(out, err)
+						log.Println("out=", out, "error=", err)
 						if out != "" {
 							log.Println("Jenkins log is not available. Let us check at S3...")
 							s3consolelogurl := "http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/" + cbbuild + "/jenkins_logs/" + JobName + "/" + data.BuildID + "/consoleText.txt"
@@ -578,7 +581,18 @@ func DownloadJenkinsJobInfo(csvFile string) int {
 									log.Println(out, err)
 									numServers = len(strings.Split(out, "\n")) - 1
 								} else {
-									cfg, err := ini.Load("/Users/jagadeshmunta/cb_sanity/testrunner/" + iniFile)
+									if _, err := os.Stat(workspace); os.IsNotExist(err) {
+										log.Println("The testrunner workspace directory doesn't exist. Performing git clone http://github.com/couchbase/testrunner")
+										out, err := exec.Command("git", "clone", "http://github.com/couchbase/testrunner").Output()
+										if err != nil {
+											log.Fatal(err)
+										} else {
+											log.Println(out)
+										}
+
+									}
+
+									cfg, err := ini.Load(workspace + "/" + iniFile)
 									if err != nil {
 										fmt.Printf("Fail to read file: %v", err)
 										continue
