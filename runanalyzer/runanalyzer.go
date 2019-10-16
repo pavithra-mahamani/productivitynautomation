@@ -84,6 +84,7 @@ var updateOrgURL string
 var includes string
 var limits string
 var totalmachines string
+var qryfilter string
 
 func main() {
 	fmt.Println("*** Helper Tool ***")
@@ -99,6 +100,7 @@ func main() {
 	includesInput := flag.String("includes", "console,config,parameters,testresult", usage())
 	limitsInput := flag.String("limits", "100", usage())
 	totalmachinesInput := flag.String("totalmachines", "false", usage())
+	qryfilterInput := flag.String("qryfilter", " ", usage())
 
 	flag.Parse()
 	dest = *destInput
@@ -112,6 +114,7 @@ func main() {
 	includes = *includesInput
 	limits = *limitsInput
 	totalmachines = *totalmachinesInput
+	qryfilter = *qryfilterInput
 
 	//fmt.Println("original dest=", dest, "--", *destInput)
 	//time.Sleep(10 * time.Second)
@@ -138,7 +141,8 @@ func usage() string {
 		"-action savejoblogs 6.5.0-4106  : to download the jenkins logs and save in S3 for a given build. " +
 		"Options: --dest [local]|s3|none --src csvfile --os centos --overwrite [no]|yes --updateurl [no]|yes --includes [console,config,parameters,testresult],archive" +
 		"--s3bucket cb-logs-qe --cbqueryurl [http://172.23.109.245:8093/query/service]\n" +
-		"-action totaltime 6.5  : to get the total number of jobs, time duration for a given set of  builds in a release, Options: --limits [100]\n" +
+		"-action totaltime 6.5  : to get the total number of jobs, time duration for a given set of  builds in a release, " +
+		"Options: --limits [100] --qryfilter 'where result.numofjobs>900 and (totalcount-failcount)*100/totalcount>90'\n" +
 		"-action runquery 'select * from server where lower(`os`)=\"centos\" and `build`=\"6.5.0-4106\"' : to run a given query statement"
 }
 func runquery(qry string) string {
@@ -181,7 +185,7 @@ func gettotalbuildcycleduration(buildN string) int {
 	for i := 0; i < len(cbbuildrel); i++ {
 		cbbuild = cbbuildrel[i]
 		// get build ids
-		qry1 := "select distinct `build` from server where lower(os)like \"" + cbplatform + "\" and `build` like \"" + cbbuild + "%\" order by `build` desc limit " + limits
+		qry1 := "select distinct `build` from server where lower(os)like \"" + cbplatform + "\" and `build` like \"" + cbbuild + "%\"  order by `build` desc limit " + limits
 		localFileName1 := "cbbuilds.json"
 		if err1 := executeN1QLStmt(localFileName1, url, qry1); err1 != nil {
 			panic(err1)
@@ -224,22 +228,24 @@ func gettotalbuildcycleduration(buildN string) int {
 	fmt.Fprintln(outW, "S.No.\tBuild\t\tTestCount\tPassedCount\tFailedCount\tPassrate\tJobscount\t\tTotaltime\t\t\tMachinesCount")
 	fmt.Fprintln(outW, "---------------------------------------------------------------------------------------------------------------------------------------------------------------")
 
+	sno := 1
 	for i := 0; i < len(cbbuilds); i++ {
 		cbbuild = cbbuilds[i]
 
 		//get machines list
-		totalMachinesCount := -1
+		totalMachinesCount := 0
 		if totalmachines == "true" {
 			totalMachinesCount = getMachinesList(cbbuild)
 		}
 		//url := "http://172.23.109.245:8093/query/service"
-		qry := "select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\""
+		//qry := "select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" " + qryfilter
+		qry := "select numofjobs, totaltime, failcount, totalcount from (select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" ) as result " + qryfilter
 		//fmt.Println("\nquery=" + qry)
 		localFileName := "duration.json"
 		if err := executeN1QLStmt(localFileName, url, qry); err != nil {
-			panic(err)
+			//panic(err)
+			log.Println(err)
 		}
-
 		resultFile, err := os.Open(localFileName)
 		if err != nil {
 			fmt.Println(err)
@@ -252,6 +258,9 @@ func gettotalbuildcycleduration(buildN string) int {
 
 		err = json.Unmarshal(byteValue, &result)
 
+		if len(result.Results) < 1 {
+			continue
+		}
 		if result.Status == "success" {
 			//fmt.Println(" Total time in millis: ", result.Results[0].Totaltime)
 
@@ -261,17 +270,19 @@ func gettotalbuildcycleduration(buildN string) int {
 			mins := math.Floor(float64(secs) / 60 / 1000)
 			//secs = result.Results[0].Totaltime * 1000 % 60
 			passCount := result.Results[0].Totalcount - result.Results[0].Failcount
+
 			fmt.Printf("\n%3d.\t%s\t%5d\t\t%5d\t\t%5d\t\t%6.2f%%\t\t%3d\t\t%4d hrs %2d mins (%11d millis)\t\t%2d",
-				(i + 1), cbbuild, result.Results[0].Totalcount, passCount, result.Results[0].Failcount,
+				(sno), cbbuild, result.Results[0].Totalcount, passCount, result.Results[0].Failcount,
 				(float32(passCount)/float32(result.Results[0].Totalcount))*100, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime, totalMachinesCount)
 			fmt.Fprintf(outW, "\n%3d.\t%s\t%5d\t\t%5d\t\t%5d\t\t%6.2f%%\t\t%3d\t\t%4d hrs %2d mins (%11d millis)\t\t%2d",
-				(i + 1), cbbuild, result.Results[0].Totalcount, passCount, result.Results[0].Failcount,
+				(sno), cbbuild, result.Results[0].Totalcount, passCount, result.Results[0].Failcount,
 				(float32(passCount)/float32(result.Results[0].Totalcount))*100, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime, totalMachinesCount)
+			sno++
 			//fmt.Printf("\n%d. %s, Number of jobs=%d, Total duration=%02d hrs %02d mins (%02d millis)", i, cbbuild, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime)
 			//fmt.Printf("Number of jobs=%d, Total duration=%02d hrs : %02d mins :%02d secs", result.Results[0].Numofjobs, int64(hours), int64(mins), int64(secs))
 			//ttime = string(hours) + ": " + string(mins) + ": " + string(secs)
 		} else {
-			fmt.Println("Status: Failed")
+			fmt.Println("Status: Failed. " + err.Error())
 		}
 	}
 	fmt.Println("\n---------------------------------------------------------------------------------------------------------------------------------------------------------------")
@@ -512,13 +523,15 @@ func DownloadJenkinsJobInfo(csvFile string) int {
 					//log.Println("...downloading console file")
 					if !fileExists(LogFile) {
 						DownloadFileWithBasicAuth(LogFile, data.JobURL+data.BuildID+"/consoleText", jenkinsUser, jenkinsUserPwd)
+					} else {
+						log.Println("File already existed locally...")
 					}
 					substring := ""
 					if fileExists(LogFile) {
 						//check if log is available
 						log.Println("SearchingFile2 for No such file string...")
 						substring = "No such file"
-						out, err := SearchFile2(LogFile, substring)
+						out, _ := SearchFile2(LogFile, substring)
 						//log.Println(out, err)
 						if out != "" {
 							log.Println("Jenkins log is not available. Let us check at S3...")
@@ -537,16 +550,18 @@ func DownloadJenkinsJobInfo(csvFile string) int {
 								}
 							}
 
+						} else {
+							log.Println("Using the local file...")
 						}
 						log.Println("Searching for INI file...")
 						substring = "testrunner -i"
 						out, err = SearchFile2(LogFile, substring)
-						log.Println(out, err)
+						//log.Println(out, err)
 
 						if out == "" {
 							substring = "testrunner.py -i"
-							out, err := SearchFile2(LogFile, substring)
-							log.Println(out, err)
+							out, err = SearchFile2(LogFile, substring)
+							//log.Println(out, err)
 						}
 						if out != "" {
 							lineindex := strings.Index(out, substring)
@@ -705,10 +720,12 @@ func executeN1QLStmt(localFilePath string, remoteURL string, statement string) e
 			return err
 		}
 		_, err = io.Copy(out, resp.Body)
+		resp.Body.Close()
 		return err
 	} else {
 		body, err := ioutil.ReadAll(resp.Body)
 		log.Println(string(body))
+		resp.Body.Close()
 		return err
 	}
 
@@ -748,6 +765,7 @@ func DownloadFile(localFilePath string, remoteURL string) error {
 		return err
 	}
 	_, err = io.Copy(out, resp.Body)
+	out.Close()
 	return err
 }
 
@@ -772,6 +790,7 @@ func DownloadFileWithBasicAuth(localFilePath string, remoteURL string, userName 
 		return err
 	}
 	_, err = io.Copy(out, resp.Body)
+	out.Close()
 	return err
 }
 
