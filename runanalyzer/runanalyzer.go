@@ -300,6 +300,7 @@ func gettotalbuildcycleduration(buildN string) int {
 			//fmt.Printf("\n%d. %s, Number of jobs=%d, Total duration=%02d hrs %02d mins (%02d millis)", i, cbbuild, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime)
 			//fmt.Printf("Number of jobs=%d, Total duration=%02d hrs : %02d mins :%02d secs", result.Results[0].Numofjobs, int64(hours), int64(mins), int64(secs))
 			//ttime = string(hours) + ": " + string(mins) + ": " + string(secs)
+			outW.Flush()
 		} else {
 			fmt.Println("Status: Failed. " + err.Error())
 		}
@@ -415,17 +416,17 @@ func getJobsList(build1 string) string {
 		w := bufio.NewWriter(f)
 
 		if result.Status == "success" {
-			fmt.Println("Count: ", len(result.Results))
+			fmt.Printf(" Jobs Count: %d\n", len(result.Results))
 			for i := 0; i < len(result.Results); i++ {
 				//fmt.Println((i + 1), result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
-				fmt.Print(strings.TrimSpace(result.Results[i].Aname), ",", strings.TrimSpace(strings.ReplaceAll(result.Results[i].JURL, "=", "")), ",",
-					result.Results[i].URLbuild, "\n")
+				//fmt.Print(strings.TrimSpace(result.Results[i].Aname), ",", strings.TrimSpace(strings.ReplaceAll(result.Results[i].JURL, "=", "")), ",",
+				//	result.Results[i].URLbuild, "\n")
 				_, err = fmt.Fprintf(w, "%s,%s,%d\n", strings.TrimSpace(result.Results[i].Aname), strings.TrimSpace(strings.ReplaceAll(result.Results[i].JURL, ",", "")),
 					result.Results[i].URLbuild)
 			}
 			w.Flush()
 			f.Close()
-			fmt.Println("Count: ", len(result.Results))
+			//fmt.Println("Count: ", len(result.Results))
 			resultFile.Close()
 		} else {
 			fmt.Println("Status: Failed")
@@ -439,6 +440,7 @@ func getJobsList(build1 string) string {
 
 // getMachinesList...
 func getMachinesList(build1 string) int {
+	fmt.Printf("\n-->Build: %s ", build1)
 	var jobCsvFile = getJobsList(build1)
 	// Download the files
 	includes = "console,parameters"
@@ -532,7 +534,8 @@ func DownloadJenkinsJobInfo(csvFile string) int {
 			BuildID:  line[2],
 		}
 		index++
-		fmt.Println("\n" + strconv.Itoa(index) + "/" + strconv.Itoa(len(lines)) + ". " + data.TestName + " " + data.JobURL + " " + data.BuildID)
+		//fmt.Println("\n" + strconv.Itoa(index) + "/" + strconv.Itoa(len(lines)) + ". " + data.TestName + " " + data.JobURL + " " + data.BuildID)
+		fmt.Printf(".")
 
 		// Start downloading
 		req, _ := http.NewRequest("GET", data.JobURL, nil)
@@ -597,26 +600,26 @@ func DownloadJenkinsJobInfo(csvFile string) int {
 					//log.Println("...downloading console file")
 					if !fileExists(LogFile) {
 						DownloadFileWithBasicAuth(LogFile, data.JobURL+data.BuildID+"/consoleText", jenkinsUser, jenkinsUserPwd)
-					} else {
+					} /*else {
 						log.Println("File already existed locally...")
-					}
+					}*/
 					substring := ""
 					if fileExists(LogFile) {
 						//check if log is available
-						log.Println("SearchingFile2 for No such file string...")
+						//log.Println("SearchingFile2 for No such file string...")
 						substring = "No such file:"
 						out, _ := SearchFile2(LogFile, substring)
-						log.Println("out=", out, "error=", err)
+						//log.Println("out=", out, "error=", err)
 						if out != "" {
-							log.Println("Jenkins log is not available. Let us check at S3...")
+							//log.Println("Jenkins log is not available. Let us check at S3...")
 							s3consolelogurl := "http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/" + cbbuild + "/jenkins_logs/" + JobName + "/" + data.BuildID + "/consoleText.txt"
-							log.Println("Downloading from " + s3consolelogurl)
+							//log.Println("Downloading from " + s3consolelogurl)
 							DownloadFile(LogFile, s3consolelogurl)
 							if !fileExists(LogFile) {
-								log.Println("No log file at S3 also! skipping." + s3consolelogurl)
+								//log.Println("No log file at S3 also! skipping." + s3consolelogurl)
 								continue
 							} else {
-								log.Println("SearchingFile for 404...")
+								//log.Println("SearchingFile for 404...")
 								out, err = SearchFile2(LogFile, "404 Not Found")
 								if out != "" {
 									log.Println("No log file at S3 also! skipping." + s3consolelogurl)
@@ -624,10 +627,10 @@ func DownloadJenkinsJobInfo(csvFile string) int {
 								}
 							}
 
-						} else {
+						} /*else {
 							log.Println("Using the local file...")
-						}
-						log.Println("Searching for INI file...")
+						}*/
+						//log.Println("Searching for INI file...")
 						substring = "testrunner -i"
 						out, err = SearchFile2(LogFile, substring)
 						//log.Println(out, err)
@@ -640,16 +643,16 @@ func DownloadJenkinsJobInfo(csvFile string) int {
 						if out != "" {
 							lineindex := strings.Index(out, substring)
 							substring1 := out[lineindex+len(substring):]
-							log.Println(substring1)
+							//log.Println(substring1)
 							words := strings.Split(substring1, " ")
 							numServers = 0
 							if len(words) > 0 {
 
 								iniFile := words[1]
-								log.Println("iniFile=", iniFile)
+								//log.Println("iniFile=", iniFile)
 								if strings.Contains(iniFile, "/tmp") {
-									out, err := SearchFileNextLines2(LogFile, "[servers]")
-									log.Println(out, err)
+									out, _ := SearchFileNextLines2(LogFile, "[servers]")
+									//log.Println(out, err)
 									numServers = len(strings.Split(out, "\n")) - 1
 								} else {
 									if _, err := os.Stat(workspace); os.IsNotExist(err) {
@@ -672,9 +675,9 @@ func DownloadJenkinsJobInfo(csvFile string) int {
 									// Classic read of values, default section can be represented as empty string
 									numServers = len(cfg.Section("servers").Keys())
 								}
-								fmt.Println("servers:", numServers)
+								//fmt.Println("servers:", numServers)
 								totalMachines += numServers
-								fmt.Println("Total machines:", totalMachines)
+								//fmt.Println("Total machines:", totalMachines)
 								fmt.Fprintln(listOut, "\n"+strconv.Itoa(index)+"/"+strconv.Itoa(len(lines))+". "+data.TestName+" "+data.JobURL+" "+data.BuildID+"\t"+strconv.Itoa(numServers)+"\t-->"+strconv.Itoa(totalMachines))
 								listOut.Flush()
 							}
@@ -866,7 +869,7 @@ func DownloadFileWithBasicAuth(localFilePath string, remoteURL string, userName 
 		return err
 	}
 	if resp.StatusCode != 200 {
-		log.Println("Warning: ", remoteURL, " not found!")
+		//log.Println("Warning: ", remoteURL, " not found!")
 		return err
 	}
 	defer resp.Body.Close()
@@ -1242,7 +1245,8 @@ func SearchFileNextLines2(filename string, substring string) (string, error) {
 				lines += linestring
 				linestring, err = scanner.ReadString('\n')
 				if err == nil {
-					log.Println(linestring)
+					//log.Println(linestring)
+					continue
 				} else {
 					break
 				}
