@@ -70,6 +70,18 @@ type CBBuild struct {
 	Build string
 }
 
+// JobStatusQryResult type
+type JobStatusQryResult struct {
+	Status  string
+	Results []JobStatus
+}
+
+// JobStatus type
+type JobStatus struct {
+	Result    string
+	Numofjobs int
+}
+
 //const url = "http://172.23.109.245:8093/query/service"
 
 var cbbuild string
@@ -224,22 +236,26 @@ func gettotalbuildcycleduration(buildN string) int {
 	outW := bufio.NewWriter(outFile)
 	defer outFile.Close()
 
-	fmt.Println("---------------------------------------------------------------------------------------------------------------------------------------------------------------")
-	fmt.Println("S.No.\tBuild\t\tTestCount\tPassedCount\tFailedCount\tPassrate\tJobcount\t\tTotaltime\t\t\tMachinesCount")
-	fmt.Println("---------------------------------------------------------------------------------------------------------------------------------------------------------------")
-	fmt.Fprintln(outW, "---------------------------------------------------------------------------------------------------------------------------------------------------------------")
-	fmt.Fprintln(outW, "S.No.\tBuild\t\tTestCount\tPassedCount\tFailedCount\tPassrate\tJobscount\t\tTotaltime\t\t\tMachinesCount")
-	fmt.Fprintln(outW, "---------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Println("---------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Println("S.No.\tBuild\t\tTestCount\tPassedCount\tFailedCount\tPassrate\tJobcount(A,F,U,S)\tTotaltime\t\t\t\tMachinesCount")
+	fmt.Println("---------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "---------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "S.No.\tBuild\t\tTestCount\tPassedCount\tFailedCount\tPassrate\tJobscount(A,F,U,S)\tTotaltime\t\t\t\tMachinesCount")
+	fmt.Fprintln(outW, "---------------------------------------------------------------------------------------------------------------------------------------------------------------------")
 
 	sno := 1
 	for i := 0; i < len(cbbuilds); i++ {
 		cbbuild = cbbuilds[i]
+
+		// get jobs status
+		abortedJobs, failureJobs, unstableJobs, successJobs := getJobsStatusList(cbbuild)
 
 		//get machines list
 		totalMachinesCount := 0
 		if totalmachines == "true" {
 			totalMachinesCount = getMachinesList(cbbuild)
 		}
+
 		//url := "http://172.23.109.245:8093/query/service"
 		//qry := "select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" " + qryfilter
 		qry := "select numofjobs, totaltime, failcount, totalcount from (select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" ) as result " + qryfilter
@@ -274,12 +290,12 @@ func gettotalbuildcycleduration(buildN string) int {
 			//secs = result.Results[0].Totaltime * 1000 % 60
 			passCount := result.Results[0].Totalcount - result.Results[0].Failcount
 
-			fmt.Printf("\n%3d.\t%s\t%5d\t\t%5d\t\t%5d\t\t%6.2f%%\t\t%3d\t\t%4d hrs %2d mins (%11d millis)\t\t%2d",
+			fmt.Printf("\n%3d.\t%s\t%5d\t\t%5d\t\t%5d\t\t%6.2f%%\t\t%3d(%3d,%3d,%3d,%3d)\t%4d hrs %2d mins (%11d millis)\t%2d",
 				(sno), cbbuild, result.Results[0].Totalcount, passCount, result.Results[0].Failcount,
-				(float32(passCount)/float32(result.Results[0].Totalcount))*100, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime, totalMachinesCount)
-			fmt.Fprintf(outW, "\n%3d.\t%s\t%5d\t\t%5d\t\t%5d\t\t%6.2f%%\t\t%3d\t\t%4d hrs %2d mins (%11d millis)\t\t%2d",
+				(float32(passCount)/float32(result.Results[0].Totalcount))*100, result.Results[0].Numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, int64(hours), int64(mins), result.Results[0].Totaltime, totalMachinesCount)
+			fmt.Fprintf(outW, "\n%3d.\t%s\t%5d\t\t%5d\t\t%5d\t\t%6.2f%%\t\t%3d(%3d,%3d,%3d,%3d)\t%4d hrs %2d mins (%11d millis)\t%2d",
 				(sno), cbbuild, result.Results[0].Totalcount, passCount, result.Results[0].Failcount,
-				(float32(passCount)/float32(result.Results[0].Totalcount))*100, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime, totalMachinesCount)
+				(float32(passCount)/float32(result.Results[0].Totalcount))*100, result.Results[0].Numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, int64(hours), int64(mins), result.Results[0].Totaltime, totalMachinesCount)
 			sno++
 			//fmt.Printf("\n%d. %s, Number of jobs=%d, Total duration=%02d hrs %02d mins (%02d millis)", i, cbbuild, result.Results[0].Numofjobs, int64(hours), int64(mins), result.Results[0].Totaltime)
 			//fmt.Printf("Number of jobs=%d, Total duration=%02d hrs : %02d mins :%02d secs", result.Results[0].Numofjobs, int64(hours), int64(mins), int64(secs))
@@ -288,8 +304,8 @@ func gettotalbuildcycleduration(buildN string) int {
 			fmt.Println("Status: Failed. " + err.Error())
 		}
 	}
-	fmt.Println("\n---------------------------------------------------------------------------------------------------------------------------------------------------------------")
-	fmt.Fprintln(outW, "\n---------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Println("\n---------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "\n---------------------------------------------------------------------------------------------------------------------------------------------------------------------")
 	p := fmt.Println
 	t := time.Now()
 	p(t.Format(time.RFC3339))
@@ -373,7 +389,7 @@ func getJobsList(build1 string) string {
 	if src == "cbserver" {
 		//url := "http://172.23.109.245:8093/query/service"
 		qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + build1 + "\""
-		fmt.Println("query=" + qry)
+		//fmt.Println("query=" + qry)
 		localFileName := "result.json"
 		if err := executeN1QLStmt(localFileName, url, qry); err != nil {
 			panic(err)
@@ -430,6 +446,61 @@ func getMachinesList(build1 string) int {
 	return DownloadJenkinsJobInfo(jobCsvFile)
 	// Parse the properties file
 
+}
+
+// getJobsStatusList of a given build
+func getJobsStatusList(build1 string) (int, int, int, int) {
+
+	abortedJobs := 0
+	failureJobs := 0
+	unstableJobs := 0
+	successJobs := 0
+	if src == "cbserver" {
+		//url := "http://172.23.109.245:8093/query/service"
+		//qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + build1 + "\""
+		qry := "select result, count(*) as numofjobs from server where lower(os) like \"" + cbplatform + "\"  and `build`=\"" + build1 + "\" group by result"
+		//fmt.Println("query=" + qry)
+		localFileName := "jobstatusresult.json"
+		if err := executeN1QLStmt(localFileName, url, qry); err != nil {
+			panic(err)
+		}
+
+		resultFile, err := os.Open(localFileName)
+		if err != nil {
+			fmt.Println(err)
+		}
+		defer resultFile.Close()
+
+		byteValue, _ := ioutil.ReadAll(resultFile)
+
+		var result JobStatusQryResult
+
+		err = json.Unmarshal(byteValue, &result)
+
+		if result.Status == "success" {
+			for i := 0; i < len(result.Results); i++ {
+				switch result.Results[i].Result {
+				case "ABORTED":
+					abortedJobs = result.Results[i].Numofjobs
+					break
+				case "FAILURE":
+					failureJobs = result.Results[i].Numofjobs
+					break
+				case "UNSTABLE":
+					unstableJobs = result.Results[i].Numofjobs
+					break
+				case "SUCCESS":
+					successJobs = result.Results[i].Numofjobs
+					break
+				}
+			}
+			resultFile.Close()
+		} else {
+			fmt.Println("Status: Failed")
+		}
+	}
+
+	return abortedJobs, failureJobs, unstableJobs, successJobs
 }
 
 // DownloadJenkinsJobInfo ...
