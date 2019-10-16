@@ -53,6 +53,7 @@ type TotalCycleTimeQryResult struct {
 
 // TotalCycleTime type
 type TotalCycleTime struct {
+	Build      string
 	Numofjobs  int
 	Totaltime  int64
 	Failcount  int
@@ -95,6 +96,7 @@ var url string
 var updateOrgURL string
 var includes string
 var limits string
+var finallimits string
 var totalmachines string
 var qryfilter string
 var workspace string
@@ -112,6 +114,7 @@ func main() {
 	updateOrgURLInput := flag.String("updateorgurl", "no", usage())
 	includesInput := flag.String("includes", "console,config,parameters,testresult", usage())
 	limitsInput := flag.String("limits", "100", usage())
+	finallimitsInput := flag.String("finallimits", "100", usage())
 	totalmachinesInput := flag.String("totalmachines", "false", usage())
 	qryfilterInput := flag.String("qryfilter", " ", usage())
 	workspaceInput := flag.String("workspace", "testrunner", usage())
@@ -127,6 +130,7 @@ func main() {
 	updateOrgURL = *updateOrgURLInput
 	includes = *includesInput
 	limits = *limitsInput
+	finallimits = *finallimitsInput
 	totalmachines = *totalmachinesInput
 	qryfilter = *qryfilterInput
 	workspace = *workspaceInput
@@ -183,55 +187,57 @@ func gettotalbuildcycleduration(buildN string) int {
 	//fmt.Println("action: totaltime")
 
 	var build1 string
-	var builds string
+	//var builds string
 	if len(os.Args) < 2 {
 		fmt.Println("Enter the build to get the number of jobs and total duration.")
 		os.Exit(1)
 	} else {
 		build1 = os.Args[len(os.Args)-1]
 		cbbuild = build1
-		builds = build1
+		//builds = build1
 	}
 	var totalhours int
 
 	// For all build releases
-	builds = ""
-	var cbbuildrel = strings.Split(build1, ",")
-	for i := 0; i < len(cbbuildrel); i++ {
-		cbbuild = cbbuildrel[i]
-		// get build ids
-		qry1 := "select distinct `build` from server where lower(os)like \"" + cbplatform + "\" and `build` like \"" + cbbuild + "%\"  order by `build` desc limit " + limits
-		localFileName1 := "cbbuilds.json"
-		if err1 := executeN1QLStmt(localFileName1, url, qry1); err1 != nil {
-			panic(err1)
-		}
-
-		resultFile1, err1 := os.Open(localFileName1)
-		if err1 != nil {
-			fmt.Println(err1)
-		}
-		defer resultFile1.Close()
-
-		byteValue1, _ := ioutil.ReadAll(resultFile1)
-
-		var result1 CBBuildQryResult
-
-		err1 = json.Unmarshal(byteValue1, &result1)
-		if result1.Status == "success" {
-
-			for i := 0; i < len(result1.Results); i++ {
-				builds += result1.Results[i].Build
-				if i < len(result1.Results)-1 {
-					builds += ","
-				}
-				//fmt.Printf("buildid=%s, builds=%s", result1.Results[i].Build, builds)
-
+	/*
+		builds = ""
+		var cbbuildrel = strings.Split(build1, ",")
+		for i := 0; i < len(cbbuildrel); i++ {
+			cbbuild = cbbuildrel[i]
+			// get build ids
+			qry1 := "select distinct `build` from server where lower(os)like \"" + cbplatform + "\" and `build` like \"" + cbbuild + "%\"  order by `build` desc limit " + limits
+			localFileName1 := "cbbuilds.json"
+			if err1 := executeN1QLStmt(localFileName1, url, qry1); err1 != nil {
+				panic(err1)
 			}
-		}
 
-	}
+			resultFile1, err1 := os.Open(localFileName1)
+			if err1 != nil {
+				fmt.Println(err1)
+			}
+			defer resultFile1.Close()
+
+			byteValue1, _ := ioutil.ReadAll(resultFile1)
+
+			var result1 CBBuildQryResult
+
+			err1 = json.Unmarshal(byteValue1, &result1)
+			if result1.Status == "success" {
+
+				for i := 0; i < len(result1.Results); i++ {
+					builds += result1.Results[i].Build
+					if i < len(result1.Results)-1 {
+						builds += ","
+					}
+					//fmt.Printf("buildid=%s, builds=%s", result1.Results[i].Build, builds)
+
+				}
+			}
+
+		}
+	*/
 	// total jobs
-	var cbbuilds = strings.Split(builds, ",")
+	//var cbbuilds = strings.Split(builds, ",")
 	outFile, _ := os.Create("totaltime_summary.txt")
 	outW := bufio.NewWriter(outFile)
 	defer outFile.Close()
@@ -256,59 +262,67 @@ func gettotalbuildcycleduration(buildN string) int {
 	}
 
 	sno := 1
-	for i := 0; i < len(cbbuilds); i++ {
-		cbbuild = cbbuilds[i]
+	//for i := 0; i < len(cbbuilds); i++ {
+	//	cbbuild = cbbuilds[i]
 
-		//url := "http://172.23.109.245:8093/query/service"
-		//qry := "select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" " + qryfilter
-		qry := "select numofjobs, totaltime, failcount, totalcount from (select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" ) as result " + qryfilter
-		//fmt.Println("\nquery=" + qry)
-		localFileName := "duration.json"
-		if err := executeN1QLStmt(localFileName, url, qry); err != nil {
-			//panic(err)
-			log.Println(err)
-		}
-		resultFile, err := os.Open(localFileName)
-		if err != nil {
-			fmt.Println(err)
-		}
-		defer resultFile.Close()
+	//url := "http://172.23.109.245:8093/query/service"
+	//qry := "select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" " + qryfilter
+	//qry := "select numofjobs, totaltime, failcount, totalcount from (select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b " +
+	//	"where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" ) as result " + qryfilter + " limit " + finallimits
+	qry := "select `build`, numofjobs, totaltime, failcount, totalcount from (select b.`build`, count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b " +
+		"where lower(b.os) like \"" + cbplatform + "\" and b.`build` like \"" + cbbuild + "%\" group by b.`build` order by b.`build` desc) as result " + qryfilter + " limit " + limits
+	//qry := "select `build`, numofjobs, totaltime, failcount, totalcount from (select b.`build`, count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like "centos" and b.`build` like "6.5%" group by b.`build` order by b.`build` desc) as result where numofjobs>500 limit 30"
+	//fmt.Println("\nquery=" + qry)
+	localFileName := "duration.json"
+	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
+		//panic(err)
+		log.Println(err)
+	}
+	resultFile, err := os.Open(localFileName)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer resultFile.Close()
 
-		byteValue, _ := ioutil.ReadAll(resultFile)
+	byteValue, _ := ioutil.ReadAll(resultFile)
 
-		var result TotalCycleTimeQryResult
+	var result TotalCycleTimeQryResult
 
-		err = json.Unmarshal(byteValue, &result)
+	err = json.Unmarshal(byteValue, &result)
 
-		if len(result.Results) < 1 {
-			continue
-		}
-		if result.Status == "success" {
-			//fmt.Println(" Total time in millis: ", result.Results[0].Totaltime)
+	//if len(result.Results) < 1 {
+	//	continue
+	//}
+	if result.Status == "success" {
+		//fmt.Println(" Total time in millis: ", result.Results[0].Totaltime)
+
+		for i := 0; i < len(result.Results); i++ {
+			cbbuild = result.Results[i].Build
+
 			// get jobs status
 			abortedJobs, failureJobs, unstableJobs, successJobs := getJobsStatusList(cbbuild)
 
-			hours := math.Floor(float64(result.Results[0].Totaltime) / 1000 / 60 / 60)
+			hours := math.Floor(float64(result.Results[i].Totaltime) / 1000 / 60 / 60)
 			totalhours += int(hours)
-			secs := result.Results[0].Totaltime % (1000 * 60 * 60)
+			secs := result.Results[i].Totaltime % (1000 * 60 * 60)
 			mins := math.Floor(float64(secs) / 60 / 1000)
-			//secs = result.Results[0].Totaltime * 1000 % 60
-			passCount := result.Results[0].Totalcount - result.Results[0].Failcount
+			//secs = result.Results[i].Totaltime * 1000 % 60
+			passCount := result.Results[i].Totalcount - result.Results[i].Failcount
 
 			fmt.Printf("\n%3d.\t%s\t%5d\t\t%5d\t\t%5d\t\t%6.2f%%\t\t%3d(%3d,%3d,%3d,%3d)\t%4d hrs %2d mins (%11d millis)",
-				(sno), cbbuild, result.Results[0].Totalcount, passCount, result.Results[0].Failcount,
-				(float32(passCount)/float32(result.Results[0].Totalcount))*100, result.Results[0].Numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, int64(hours), int64(mins), result.Results[0].Totaltime)
+				(sno), cbbuild, result.Results[i].Totalcount, passCount, result.Results[i].Failcount,
+				(float32(passCount)/float32(result.Results[i].Totalcount))*100, result.Results[i].Numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, int64(hours), int64(mins), result.Results[i].Totaltime)
 			fmt.Fprintf(outW, "\n%3d.\t%s\t%5d\t\t%5d\t\t%5d\t\t%6.2f%%\t\t%3d(%3d,%3d,%3d,%3d)\t%4d hrs %2d mins (%11d millis)",
-				(sno), cbbuild, result.Results[0].Totalcount, passCount, result.Results[0].Failcount,
-				(float32(passCount)/float32(result.Results[0].Totalcount))*100, result.Results[0].Numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, int64(hours), int64(mins), result.Results[0].Totaltime)
+				(sno), cbbuild, result.Results[i].Totalcount, passCount, result.Results[i].Failcount,
+				(float32(passCount)/float32(result.Results[i].Totalcount))*100, result.Results[i].Numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, int64(hours), int64(mins), result.Results[i].Totaltime)
 
 			//get machines list
 			totalMachinesCount := 0
 			if totalmachines == "true" {
 				totalMachinesCount = getMachinesList(cbbuild)
 				if totalMachinesCount != 0 {
-					fmt.Printf("\t%2d", totalMachinesCount)
-					fmt.Fprintf(outW, "\t%2d", totalMachinesCount)
+					fmt.Printf("\t%4d", totalMachinesCount)
+					fmt.Fprintf(outW, "\t%4d", totalMachinesCount)
 				}
 			}
 
@@ -317,13 +331,14 @@ func gettotalbuildcycleduration(buildN string) int {
 			//fmt.Printf("Number of jobs=%d, Total duration=%02d hrs : %02d mins :%02d secs", result.Results[0].Numofjobs, int64(hours), int64(mins), int64(secs))
 			//ttime = string(hours) + ": " + string(mins) + ": " + string(secs)
 			outW.Flush()
-		} else {
-			fmt.Println("Status: Failed. " + err.Error())
 		}
+	} else {
+		fmt.Println("Status: Failed. " + err.Error())
 	}
+	//}
 	if totalmachines == "true" {
-		fmt.Println("\n-------------------------------------------------------------------------------------------------------------------------------------------------------")
-		fmt.Fprintln(outW, "\n-------------------------------------------------------------------------------------------------------------------------------------------------------")
+		fmt.Println("\n---------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+		fmt.Fprintln(outW, "\n---------------------------------------------------------------------------------------------------------------------------------------------------------------------")
 	} else {
 		fmt.Println("\n-----------------------------------------------------------------------------------------------------------------------------------------------------")
 		fmt.Fprintln(outW, "\n-----------------------------------------------------------------------------------------------------------------------------------------------------")
@@ -412,7 +427,7 @@ func getJobsList(build1 string) string {
 		//url := "http://172.23.109.245:8093/query/service"
 		qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + build1 + "\""
 		//fmt.Println("query=" + qry)
-		localFileName := "result.json"
+		localFileName := "jobslistresult.json"
 		if err := executeN1QLStmt(localFileName, url, qry); err != nil {
 			panic(err)
 		}
