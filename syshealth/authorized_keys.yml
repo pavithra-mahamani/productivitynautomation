@@ -1,0 +1,5 @@
+- hosts: all
+  tasks:
+  - authorized_key:
+      state: present
+      key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
