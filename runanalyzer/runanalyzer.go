@@ -796,6 +796,7 @@ func lastabortedjobs() {
 			return
 		}
 		var qryString = ""
+		fmt.Printf("Builds: ")
 		for i := 0; i < len(cbbuilds); i++ {
 			fmt.Printf(cbbuilds[i].Build + " ")
 			qryString += "select raw a.name from server a where lower(a.os) like \"" + cbplatform + "\" and a.result=\"ABORTED\" and a.`build`=\"" + cbbuilds[i].Build + "\""
