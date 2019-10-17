@@ -100,6 +100,7 @@ var finallimits string
 var totalmachines string
 var qryfilter string
 var workspace string
+var cbrelease string
 
 func main() {
 	fmt.Println("*** Helper Tool ***")
@@ -118,6 +119,7 @@ func main() {
 	totalmachinesInput := flag.String("totalmachines", "false", usage())
 	qryfilterInput := flag.String("qryfilter", " ", usage())
 	workspaceInput := flag.String("workspace", "testrunner", usage())
+	cbreleaseInput := flag.String("cbrelease", "6.5", usage())
 
 	flag.Parse()
 	dest = *destInput
@@ -134,6 +136,7 @@ func main() {
 	totalmachines = *totalmachinesInput
 	qryfilter = *qryfilterInput
 	workspace = *workspaceInput
+	cbrelease = *cbreleaseInput
 
 	//fmt.Println("original dest=", dest, "--", *destInput)
 	//time.Sleep(10 * time.Second)
@@ -156,7 +159,7 @@ func main() {
 func usage() string {
 	fileName, _ := os.Executable()
 	return "Usage: " + fileName + " -h | --help \nEnter action value. \n" +
-		"-action lastaborted 6.5.0-4106 6.5.0-4059 6.5.0-4000  : to get the aborted jobs common across last 3 builds\n" +
+		"-action lastaborted 6.5.0-4106 6.5.0-4059 6.5.0-4000  : to get the aborted jobs common across last 3 builds. Options: --cbrelease [6.5]specificbuilds --limits 3 --qryfilter 'where numofjobs>900' \n" +
 		"-action savejoblogs 6.5.0-4106  : to download the jenkins logs and save in S3 for a given build. " +
 		"Options: --dest [local]|s3|none --src csvfile --os centos --overwrite [no]|yes --updateurl [no]|yes --includes [console,config,parameters,testresult],archive" +
 		"--s3bucket cb-logs-qe --cbqueryurl [http://172.23.109.245:8093/query/service]\n" +
@@ -459,6 +462,9 @@ func getJobsList(build1 string) string {
 				//	result.Results[i].URLbuild, "\n")
 				_, err = fmt.Fprintf(w, "%s,%s,%d\n", strings.TrimSpace(result.Results[i].Aname), strings.TrimSpace(strings.ReplaceAll(result.Results[i].JURL, ",", "")),
 					result.Results[i].URLbuild)
+				if err != nil {
+					log.Println(err)
+				}
 			}
 			w.Flush()
 			f.Close()
@@ -767,23 +773,42 @@ func executeCommand(command string, input string) string {
 
 func lastabortedjobs() {
 	fmt.Println("action: lastaborted")
+
 	var build1 string
 	var build2 string
 	var build3 string
-	if len(os.Args) < 4 {
-		fmt.Println("Enter the last 3 builds and first being the latest.")
-		os.Exit(1)
-	} else {
+	var qry string
+	if cbrelease == "specificbuilds" {
 		build1 = os.Args[len(os.Args)-3]
 		build2 = os.Args[len(os.Args)-2]
 		build3 = os.Args[len(os.Args)-1]
 		cbbuild = build1
+		qry = "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os) like \"" + cbplatform + "\" and b.result=\"ABORTED\" and b.`build`=\"" +
+			build1 + "\" and b.name in (select raw a.name from server a where lower(a.os) like \"" + cbplatform + "\" and a.result=\"ABORTED\" and a.`build`=\"" +
+			build2 + "\" intersect select raw name from server where lower(os) like \"" + cbplatform + "\" and result=\"ABORTED\" and `build`=\"" +
+			build3 + "\" intersect select raw name from server where lower(os) like \"" + cbplatform + "\" and result=\"ABORTED\" and `build`=\"" + build1 + "\")"
+	} else {
+		// Get latest builds
+		log.Println("Finding latest builds ")
+		cbbuilds := getLatestBuilds(cbrelease)
+		if len(cbbuilds) < 1 {
+			fmt.Println("No builds found!")
+			return
+		}
+		var qryString = ""
+		for i := 0; i < len(cbbuilds); i++ {
+			fmt.Printf(cbbuilds[i].Build + " ")
+			qryString += "select raw a.name from server a where lower(a.os) like \"" + cbplatform + "\" and a.result=\"ABORTED\" and a.`build`=\"" + cbbuilds[i].Build + "\""
+			if i < len(cbbuilds)-1 {
+				qryString += " intersect "
+			}
+		}
+		qry = "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os) like \"" + cbplatform + "\" and b.result=\"ABORTED\" and b.`build`=\"" +
+			cbbuilds[0].Build + "\" and b.name in (" + qryString + " )"
+		fmt.Println("query=" + qry)
 	}
 
-	//url := "http://172.23.109.245:8093/query/service"
-	qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os) like \"" + cbplatform + "\" and b.result=\"ABORTED\" and b.`build`=\"" + build1 + "\" and b.name in (select raw a.name from server a where lower(a.os) like \"" + cbplatform + "\" and a.result=\"ABORTED\" and a.`build`=\"" + build2 + "\" intersect select raw name from server where lower(os) like \"" + cbplatform + "\" and result=\"ABORTED\" and `build`=\"" + build3 + "\" intersect select raw name from server where lower(os) like \"" + cbplatform + "\" and result=\"ABORTED\" and `build`=\"" + build1 + "\")"
-	fmt.Println("query=" + qry)
-	localFileName := "result.json"
+	localFileName := "abortedresult.json"
 	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
 		panic(err)
 	}
@@ -809,11 +834,11 @@ func lastabortedjobs() {
 		fmt.Println("Count: ", len(result.Results))
 		for i := 0; i < len(result.Results); i++ {
 			//fmt.Println((i + 1), result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
-			fmt.Print(strings.TrimSpace(result.Results[i].Aname), "\t", strings.TrimSpace(result.Results[i].JURL), "\t",
-				result.Results[i].URLbuild)
+			fmt.Printf("\n%s\t%s\t%d", result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
 			_, err = fmt.Fprintf(w, "%s,%s,%d\n", strings.TrimSpace(result.Results[i].Aname), strings.TrimSpace(result.Results[i].JURL),
 				result.Results[i].URLbuild)
 		}
+		fmt.Println("")
 		w.Flush()
 
 	} else {
@@ -853,6 +878,31 @@ func executeN1QLStmt(localFilePath string, remoteURL string, statement string) e
 		return err
 	}
 
+}
+
+func getLatestBuilds(cbrelease string) []TotalCycleTime {
+	// get last limits number of builds
+	qry := "select `build`, numofjobs, totaltime, failcount, totalcount from (select b.`build`, count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b " +
+		"where lower(b.os) like \"" + cbplatform + "\" and b.`build` like \"" + cbrelease + "%\" group by b.`build` order by b.`build` desc) as result " + qryfilter + " limit " + limits
+	//fmt.Println("\nquery=" + qry)
+	localFileName := cbrelease + "_lastbuilds.json"
+	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
+		//panic(err)
+		log.Println(err)
+	}
+	resultFile, err := os.Open(localFileName)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer resultFile.Close()
+
+	byteValue, _ := ioutil.ReadAll(resultFile)
+
+	var result TotalCycleTimeQryResult
+
+	err = json.Unmarshal(byteValue, &result)
+
+	return result.Results
 }
 
 // DownloadFile2 will download the given url to the given file.
