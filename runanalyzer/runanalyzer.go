@@ -805,7 +805,7 @@ func lastabortedjobs() {
 		}
 		qry = "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os) like \"" + cbplatform + "\" and b.result=\"ABORTED\" and b.`build`=\"" +
 			cbbuilds[0].Build + "\" and b.name in (" + qryString + " )"
-		fmt.Println("query=" + qry)
+		fmt.Println("\nquery=" + qry)
 	}
 
 	localFileName := "abortedresult.json"
