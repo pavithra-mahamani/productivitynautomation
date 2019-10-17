@@ -778,6 +778,7 @@ func lastabortedjobs() {
 	var build2 string
 	var build3 string
 	var qry string
+	var builds = ""
 	if cbrelease == "specificbuilds" {
 		build1 = os.Args[len(os.Args)-3]
 		build2 = os.Args[len(os.Args)-2]
@@ -796,9 +797,11 @@ func lastabortedjobs() {
 			return
 		}
 		var qryString = ""
+
 		fmt.Printf("Builds: ")
 		for i := 0; i < len(cbbuilds); i++ {
 			fmt.Printf(cbbuilds[i].Build + " ")
+			builds += cbbuilds[i].Build + " "
 			qryString += "select raw a.name from server a where lower(a.os) like \"" + cbplatform + "\" and a.result=\"ABORTED\" and a.`build`=\"" + cbbuilds[i].Build + "\""
 			if i < len(cbbuilds)-1 {
 				qryString += " intersect "
@@ -832,7 +835,7 @@ func lastabortedjobs() {
 
 	w := bufio.NewWriter(f)
 	if result.Status == "success" {
-		fmt.Println("Count: ", len(result.Results))
+		fmt.Printf("Aborts: %d in %s\n", len(result.Results), builds)
 		for i := 0; i < len(result.Results); i++ {
 			//fmt.Println((i + 1), result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
 			fmt.Printf("\n%s\t%s\t%d", result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
