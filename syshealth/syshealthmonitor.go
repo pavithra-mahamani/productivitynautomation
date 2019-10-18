@@ -19,16 +19,12 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"math"
 	"net/http"
 	"os"
 	"os/exec"
-	"path"
 	"sort"
 	"strconv"
 	"strings"
-
-	"github.com/magiconair/properties"
 )
 
 // N1QLQryResult type
@@ -119,17 +115,14 @@ func main() {
 
 	//fmt.Println("original dest=", dest, "--", *destInput)
 	//time.Sleep(10 * time.Second)
-	if *action == "lastaborted" {
-		lastabortedjobs()
-	} else if *action == "savejoblogs" {
-		savejoblogs()
-	} else if *action == "totalduration" {
-		fmt.Println("Total duration: ", gettotalbuildcycleduration(os.Args[3]))
-	} else if *action == "runquery" {
+	if *action == "runquery" {
 		fmt.Println("Query Result: ", runquery(os.Args[len(os.Args)-1]))
 	} else if *action == "getserverpoolhosts" {
 		fmt.Println("Server Pool Hosts: ")
 		GetServerPoolHosts()
+	} else if *action == "getserverpoolinfo" {
+		fmt.Println("GetServerPools info: ")
+		GetServerPoolforIPs(os.Args[len(os.Args)-1])
 	} else if *action == "healthchecks" {
 		fmt.Println("HealthChecks: ")
 		HealthChecks()
@@ -141,14 +134,10 @@ func main() {
 func usage() string {
 	fileName, _ := os.Executable()
 	return "Usage: " + fileName + " -h | --help \nEnter action value. \n" +
-		"-action lastaborted 6.5.0-4106 6.5.0-4059 6.5.0-4000  : to get the aborted jobs common across last 3 builds\n" +
-		"-action savejoblogs 6.5.0-4106  : to download the jenkins logs and save in S3 for a given build. " +
-		"Options: --dest [local]|s3|none --src csvfile --os centos --overwrite [no]|yes --updateurl [no]|yes " +
-		"--s3bucket cb-logs-qe --cbqueryurl [http://172.23.109.245:8093/query/service]\n" +
-		"-action totalduration 6.5.0-4106  : to get the total time duration for a build cyle\n" +
 		"-action runquery 'select * from server where lower(`os`)=\"centos\" and `build`=\"6.5.0-4106\"' : to run a given query statement\n" +
-		"-action getserverpoolhosts : to get the server pool host ips" +
-		"-action healthchecks : to assess the VMs health"
+		"-action getserverpoolhosts : to get the server pool host ips\n" +
+		"-action getserverpoolinfo filename : to get the server pool info for given ips list file\n" +
+		"-action healthchecks : to assess the VMs health\n"
 }
 func runquery(qry string) string {
 	//url := "http://172.23.109.245:8093/query/service"
@@ -170,120 +159,6 @@ func runquery(qry string) string {
 	return string(byteValue)
 }
 
-func gettotalbuildcycleduration(buildN string) string {
-	fmt.Println("action: totalduration")
-
-	var build1 string
-	if len(os.Args) < 2 {
-		fmt.Println("Enter the build to save the jenkins job logs.")
-		os.Exit(1)
-	} else {
-		build1 = os.Args[len(os.Args)-1]
-		cbbuild = build1
-	}
-
-	//url := "http://172.23.109.245:8093/query/service"
-	qry := "select sum(duration) as totaltime from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\""
-	fmt.Println("query=" + qry)
-	localFileName := "duration.json"
-	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
-		panic(err)
-	}
-
-	resultFile, err := os.Open(localFileName)
-	if err != nil {
-		fmt.Println(err)
-	}
-	defer resultFile.Close()
-
-	byteValue, _ := ioutil.ReadAll(resultFile)
-
-	var result TotalCycleTimeQryResult
-
-	err = json.Unmarshal(byteValue, &result)
-	var ttime string
-	if result.Status == "success" {
-		fmt.Println("Total time in millis: ", result.Results[0].Totaltime)
-
-		hours := math.Floor(float64(result.Results[0].Totaltime) / 1000 / 60 / 60)
-		secs := result.Results[0].Totaltime % (1000 * 60 * 60)
-		mins := math.Floor(float64(secs) / 60 / 1000)
-		secs = result.Results[0].Totaltime * 1000 % 60
-		fmt.Printf("%02d hrs : %02d mins :%02d secs", int64(hours), int64(mins), int64(secs))
-		//ttime = string(hours) + ": " + string(mins) + ": " + string(secs)
-	} else {
-		fmt.Println("Status: Failed")
-	}
-
-	return ttime
-
-}
-
-func savejoblogs() {
-	fmt.Println("action: savejoblogs")
-	var build1 string
-	if len(os.Args) < 2 {
-		fmt.Println("Enter the build to save the jenkins job logs.")
-		os.Exit(1)
-	} else {
-		build1 = os.Args[len(os.Args)-1]
-		cbbuild = build1
-	}
-	var jobCsvFile string
-	if src == "cbserver" {
-		//url := "http://172.23.109.245:8093/query/service"
-		qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + build1 + "\""
-		fmt.Println("query=" + qry)
-		localFileName := "result.json"
-		if err := executeN1QLStmt(localFileName, url, qry); err != nil {
-			panic(err)
-		}
-
-		resultFile, err := os.Open(localFileName)
-		if err != nil {
-			fmt.Println(err)
-		}
-		defer resultFile.Close()
-
-		byteValue, _ := ioutil.ReadAll(resultFile)
-
-		var result N1QLQryResult
-
-		err = json.Unmarshal(byteValue, &result)
-		//fmt.Println("Status=" + result.Status)
-		//fmt.Println(err)
-		jobCsvFile = cbbuild + "_all_jobs.csv"
-		f, err := os.Create(jobCsvFile)
-		defer f.Close()
-
-		w := bufio.NewWriter(f)
-
-		if result.Status == "success" {
-			fmt.Println("Count: ", len(result.Results))
-			for i := 0; i < len(result.Results); i++ {
-				//fmt.Println((i + 1), result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
-				fmt.Print(strings.TrimSpace(result.Results[i].Aname), ",", strings.TrimSpace(result.Results[i].JURL), ",",
-					result.Results[i].URLbuild, "\n")
-				_, err = fmt.Fprintf(w, "%s,%s,%d\n", strings.TrimSpace(result.Results[i].Aname), strings.TrimSpace(result.Results[i].JURL),
-					result.Results[i].URLbuild)
-			}
-			w.Flush()
-			fmt.Println("Count: ", len(result.Results))
-
-		} else {
-			fmt.Println("Status: Failed")
-		}
-	} else {
-		jobCsvFile = src
-	}
-
-	// Download the files
-	if !strings.Contains(strings.ToLower(dest), "none") {
-		DownloadJenkinsFiles(jobCsvFile)
-	}
-
-}
-
 // executeCommand ...
 func executeCommand(command string, input string) string {
 	cmdFileWithArgs := strings.Split(command, " ")
@@ -301,62 +176,6 @@ func executeCommand(command string, input string) string {
 		}
 	}
 	return out.String()
-}
-
-func lastabortedjobs() {
-	fmt.Println("action: lastaborted")
-	var build1 string
-	var build2 string
-	var build3 string
-	if len(os.Args) < 4 {
-		fmt.Println("Enter the last 3 builds and first being the latest.")
-		os.Exit(1)
-	} else {
-		build1 = os.Args[len(os.Args)-3]
-		build2 = os.Args[len(os.Args)-2]
-		build3 = os.Args[len(os.Args)-1]
-		cbbuild = build1
-	}
-
-	//url := "http://172.23.109.245:8093/query/service"
-	qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os) like \"" + cbplatform + "\" and b.result=\"ABORTED\" and b.`build`=\"" + build1 + "\" and b.name in (select raw a.name from server a where lower(a.os) like \"" + cbplatform + "\" and a.result=\"ABORTED\" and a.`build`=\"" + build2 + "\" intersect select raw name from server where lower(os) like \"" + cbplatform + "\" and result=\"ABORTED\" and `build`=\"" + build3 + "\" intersect select raw name from server where lower(os) like \"" + cbplatform + "\" and result=\"ABORTED\" and `build`=\"" + build1 + "\")"
-	fmt.Println("query=" + qry)
-	localFileName := "result.json"
-	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
-		panic(err)
-	}
-
-	resultFile, err := os.Open(localFileName)
-	if err != nil {
-		fmt.Println(err)
-	}
-	defer resultFile.Close()
-
-	byteValue, _ := ioutil.ReadAll(resultFile)
-
-	var result N1QLQryResult
-
-	err = json.Unmarshal(byteValue, &result)
-	//fmt.Println("Status=" + result.Status)
-	//fmt.Println(err)
-	f, err := os.Create("aborted_jobs.csv")
-	defer f.Close()
-
-	w := bufio.NewWriter(f)
-	if result.Status == "success" {
-		fmt.Println("Count: ", len(result.Results))
-		for i := 0; i < len(result.Results); i++ {
-			//fmt.Println((i + 1), result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
-			fmt.Print(strings.TrimSpace(result.Results[i].Aname), "\t", strings.TrimSpace(result.Results[i].JURL), "\t",
-				result.Results[i].URLbuild)
-			_, err = fmt.Fprintf(w, "%s,%s,%d\n", strings.TrimSpace(result.Results[i].Aname), strings.TrimSpace(result.Results[i].JURL),
-				result.Results[i].URLbuild)
-		}
-		w.Flush()
-
-	} else {
-		fmt.Println("Status: Failed")
-	}
 }
 
 // VMPoolsCSV ...
@@ -413,7 +232,7 @@ func GetServerPoolHosts() {
 
 	err = json.Unmarshal(byteValue, &result)
 
-	of, _ := os.Create("vms_os.txt")
+	of, _ := os.Create("vms_os_count.txt")
 	defer of.Close()
 	ofw := bufio.NewWriter(of)
 
@@ -433,6 +252,96 @@ func GetServerPoolHosts() {
 			}
 		}
 		ofw.Flush()
+	}
+}
+
+//GetServerPoolforIPs ...
+func GetServerPoolforIPs(filename string) {
+
+	url := "http://172.23.105.177:8093/query/service"
+
+	//read from file
+	f1, err1 := os.Open(filename)
+	if err1 != nil {
+		log.Println(err1)
+	}
+	defer f1.Close()
+
+	// Splits on newlines by default.
+	scanner := bufio.NewReader(f1)
+
+	line := 0
+	linestring := ""
+	ipaddresses := ""
+
+	// https://golang.org/pkg/bufio/#Scanner.Scan
+	for {
+		linestring, err1 = scanner.ReadString('\n')
+		if err1 != nil {
+			f1.Close()
+			break
+		}
+		ipaddresses += "\"" + strings.TrimSpace(linestring) + "\","
+		line++
+	}
+
+	/*for i := 0; i < len(IPs); i++ {
+		ipaddresses += "\"" + IPs[i] + "\""
+		if i < len(IPs)-1 {
+			ipaddresses += ","
+		}
+	}*/
+	index1 := strings.LastIndex(ipaddresses, ",")
+	ipaddresses = ipaddresses[:index1]
+	qry := "select ipaddr,origin,os as hostos,poolId as spoolId, poolId,state from `QE-server-pool` where ipaddr in [" + ipaddresses + "]"
+	fmt.Println("query=" + qry)
+	localFileName := "ipsresult.json"
+	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
+		panic(err)
+	}
+
+	resultFile, err := os.Open(localFileName)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer resultFile.Close()
+
+	byteValue, _ := ioutil.ReadAll(resultFile)
+
+	var result PoolN1QLQryResult
+
+	err = json.Unmarshal(byteValue, &result)
+	//fmt.Println("Status=" + result.Status)
+	//fmt.Println(err)
+	f, err := os.Create("ips_pools_info.txt")
+	defer f.Close()
+
+	w := bufio.NewWriter(f)
+	if result.Status == "success" {
+		fmt.Println("Count: ", len(result.Results))
+		for i := 0; i < len(result.Results); i++ {
+			if result.Results[i].SpoolID != "" {
+				//pools[result.Results[i].IPaddr] = pools[result.Results[i].SpoolID] + result.Results[i].IPaddr + "\n"
+				fmt.Printf("%s,%s,%s,%s\n", result.Results[i].IPaddr, result.Results[i].HostOS, result.Results[i].SpoolID, result.Results[i].State)
+				fmt.Fprintf(w, "%s,%s,%s,%s\n", result.Results[i].IPaddr, result.Results[i].HostOS, result.Results[i].SpoolID, result.Results[i].State)
+			} else {
+				poolids := ""
+				for j := 0; j < len(result.Results[i].PoolID); j++ {
+					//pools[result.Results[i].IPaddr] = pools[result.Results[i].PoolID[j]] + result.Results[i].IPaddr + "\n"
+					poolids += result.Results[i].PoolID[j]
+					if j < len(result.Results[i].PoolID)-1 {
+						poolids += ";"
+					}
+				}
+				fmt.Printf("%s,%s,%s,%s\n", result.Results[i].IPaddr, result.Results[i].HostOS, poolids, result.Results[i].State)
+				fmt.Fprintf(w, "%s,%s,%s,%s\n", result.Results[i].IPaddr, result.Results[i].HostOS, poolids, result.Results[i].State)
+			}
+			w.Flush()
+		}
+		f.Close()
+
+	} else {
+		fmt.Println("Status: Failed")
 	}
 }
 
@@ -461,7 +370,7 @@ func GetServerPoolVMsPerPlatform(osplatform string) {
 	err = json.Unmarshal(byteValue, &result)
 	//fmt.Println("Status=" + result.Status)
 	//fmt.Println(err)
-	f, err := os.Create("cbqe_vms_per_pool_" + osplatform + ".ini")
+	f, err := os.Create("vmpools_" + osplatform + "_ips.ini")
 	defer f.Close()
 
 	w := bufio.NewWriter(f)
@@ -530,7 +439,7 @@ func GetServerPoolVMsPerPlatform(osplatform string) {
 		}
 		sort.Strings(keys)
 		totalHosts := 0
-		pf, _ := os.Create("vmpools_" + osplatform + ".txt")
+		pf, _ := os.Create("vmpools_" + osplatform + "_counts.txt")
 		defer pf.Close()
 		pfw := bufio.NewWriter(pf)
 
@@ -551,7 +460,7 @@ func GetServerPoolVMsPerPlatform(osplatform string) {
 
 		fmt.Println("\nBy State")
 		fmt.Println("----------")
-		f1, err1 := os.Create("cbqe_vms_per_state_" + osplatform + ".ini")
+		f1, err1 := os.Create("vmstates_" + osplatform + "_ips.ini")
 		if err1 != nil {
 			log.Println(err1)
 		}
@@ -564,7 +473,7 @@ func GetServerPoolVMsPerPlatform(osplatform string) {
 		}
 		sort.Strings(skeys)
 		totalHosts = 0
-		sf, _ := os.Create("vmstates_" + osplatform + ".txt")
+		sf, _ := os.Create("vmstates_" + osplatform + "_counts.txt")
 		defer sf.Close()
 		sfw := bufio.NewWriter(sf)
 		for _, k := range skeys {
@@ -583,7 +492,7 @@ func GetServerPoolVMsPerPlatform(osplatform string) {
 
 		fmt.Println("\nBy Pools with State")
 		fmt.Println("---------------------")
-		f2, err2 := os.Create("cbqe_vms_per_poolswithstate_" + osplatform + ".ini")
+		f2, err2 := os.Create("vmpoolswithstates_" + osplatform + "_ips.ini")
 		if err2 != nil {
 			log.Println(err2)
 		}
@@ -596,7 +505,7 @@ func GetServerPoolVMsPerPlatform(osplatform string) {
 		}
 		sort.Strings(pskeys)
 		totalHosts = 0
-		psf, _ := os.Create("vmpoolswithstates_" + osplatform + ".txt")
+		psf, _ := os.Create("vmpoolswithstates_" + osplatform + "_counts.txt")
 		defer psf.Close()
 		psfw := bufio.NewWriter(psf)
 		for _, k := range pskeys {
@@ -614,7 +523,7 @@ func GetServerPoolVMsPerPlatform(osplatform string) {
 
 		fmt.Println("\nBy VMs")
 		fmt.Println("---------------------")
-		f3, err3 := os.Create("cbqe_vms_list_" + osplatform + ".ini")
+		f3, err3 := os.Create("vms_list_" + osplatform + "_ips.ini")
 		if err3 != nil {
 			log.Println(err3)
 		}
@@ -627,7 +536,7 @@ func GetServerPoolVMsPerPlatform(osplatform string) {
 		}
 		sort.Strings(vmkeys)
 		totalHosts = 0
-		vmsf, _ := os.Create("vms_list_" + osplatform + ".txt")
+		vmsf, _ := os.Create("vms_list_" + osplatform + "_counts.txt")
 		defer vmsf.Close()
 		vmsfw := bufio.NewWriter(vmsf)
 		for _, k := range vmkeys {
@@ -746,130 +655,6 @@ type CSVJob struct {
 	BuildID  string
 }
 
-//DownloadJenkinsFiles ...
-func DownloadJenkinsFiles(csvFile string) {
-	props := properties.MustLoadFile("${HOME}/.jenkins_env.properties", properties.UTF8)
-	//jenkinsServer := props.MustGetString("QA_JENKINS_SERVER")
-	//jenkinsUser := props.MustGetString("QA_JENKINS_USER")
-	//jenkinsUserPwd := props.MustGetString("QA_JENKINS_TOKEN")
-
-	lines, err := ReadCsv(csvFile)
-	if err != nil {
-		panic(err)
-	}
-	index := 0
-	for _, line := range lines {
-		data := CSVJob{
-			TestName: line[0],
-			JobURL:   line[1],
-			BuildID:  line[2],
-		}
-		index++
-		fmt.Println("\n" + strconv.Itoa(index) + "/" + strconv.Itoa(len(lines)) + ". " + data.TestName + " " + data.JobURL + " " + data.BuildID)
-
-		// Start downloading
-		req, _ := http.NewRequest("GET", data.JobURL, nil)
-		JobName := path.Base(req.URL.Path)
-		if JobName == data.BuildID {
-			JobName = path.Base(req.URL.Path + "/..")
-			data.JobURL = data.JobURL + ".."
-		}
-
-		// Update original URL in CB server if required to restore
-		if strings.Contains(strings.ToLower(updateOrgURL), "yes") {
-			qry := "update `server` set url='" + data.JobURL + "/" + JobName + "/' where `build`='" +
-				cbbuild + "' and url like '%/" + JobName + "/' and  build_id=" + data.BuildID
-			fmt.Println("CB update is in progress with qry= " + qry)
-			if err := executeN1QLPostStmt(url, qry); err != nil {
-				panic(err)
-			}
-			continue
-		}
-
-		JobDir := cbbuild + "/" + "jenkins_logs" + "/" + JobName + "/" + data.BuildID
-		err := os.MkdirAll(JobDir, 0755)
-		if err != nil {
-			fmt.Println(err)
-		}
-
-		ConfigFile := JobDir + "/" + "config.xml"
-		JobFile := JobDir + "/" + "jobinfo.json"
-		ResultFile := JobDir + "/" + "testresult.json"
-		LogFile := JobDir + "/" + "consoleText.txt"
-		//ArchiveZipFile := JobDir + "/" + "archive.zip"
-
-		URLParts := strings.Split(data.JobURL, "/")
-		jenkinsServer := strings.ToUpper(strings.Split(URLParts[2], ".")[0])
-
-		if strings.Contains(strings.ToLower(jenkinsServer), s3bucket) {
-			log.Println("CB Server run url is already pointing to S3.")
-			continue
-		}
-		//fmt.Println("Jenkins Server: ", jenkinsServer)
-		jenkinsUser := props.MustGetString(jenkinsServer + "_JENKINS_USER")
-		jenkinsUserPwd := props.MustGetString(jenkinsServer + "_JENKINS_TOKEN")
-
-		DownloadFileWithBasicAuth(ConfigFile, data.JobURL+"/config.xml", jenkinsUser, jenkinsUserPwd)
-		DownloadFileWithBasicAuth(JobFile, data.JobURL+data.BuildID+"/api/json?pretty=true", jenkinsUser, jenkinsUserPwd)
-		DownloadFileWithBasicAuth(ResultFile, data.JobURL+data.BuildID+"/testReport/api/json?pretty=true", jenkinsUser, jenkinsUserPwd)
-		DownloadFileWithBasicAuth(LogFile, data.JobURL+data.BuildID+"/consoleText", jenkinsUser, jenkinsUserPwd)
-		//DownloadFileWithBasicAuth(ArchiveZipFile, data.JobURL+data.BuildID+"/artifact/*zip*/archive.zip", jenkinsUser, jenkinsUserPwd)
-
-		// Create index.html file
-		indexFile := JobDir + "/" + "index.html"
-		index, _ := os.Create(indexFile)
-		defer index.Close()
-
-		indexBuffer := bufio.NewWriter(index)
-		fmt.Fprintf(indexBuffer, "<h1>CB Server build: %s</h1>\n<ul>", cbbuild)
-		fmt.Fprintf(indexBuffer, "<h2>OS: %s</h2>\n<ul>", cbplatform)
-		fmt.Fprintf(indexBuffer, "<h3>Test Suite: %s</h3>\n<ul>", data.TestName)
-		// Save in AWS S3
-		if strings.Contains(dest, "s3") {
-			log.Println("Saving to S3 ...")
-			//SaveInAwsS3(ConfigFile)
-			if fileExists(LogFile) {
-				SaveInAwsS3(LogFile)
-				fmt.Fprintf(indexBuffer, "\n<li><a href=\"consoleText.txt\" target=\"_blank\">Jenkins job console log</a>")
-			}
-			if fileExists(ResultFile) {
-				SaveInAwsS3(ResultFile)
-				fmt.Fprintf(indexBuffer, "\n<li><a href=\"testresult.json\" target=\"_blank\">Test result json</a>")
-			}
-			if fileExists(ConfigFile) {
-				SaveInAwsS3(ConfigFile)
-				fmt.Fprintf(indexBuffer, "\n<li><a href=\"config.xml\" target=\"_blank\">Jenkins job config</a>")
-			}
-			if fileExists(JobFile) {
-				SaveInAwsS3(JobFile)
-				fmt.Fprintf(indexBuffer, "\n<li><a href=\"jobinfo.json\" target=\"_blank\">Jenkins job parameters</a>")
-			}
-			fmt.Fprintf(indexBuffer, "\n</ul>")
-			//SaveInAwsS3(ConfigFile, JobFile, ResultFile, LogFile)
-			indexBuffer.Flush()
-
-			if fileExists(indexFile) {
-				SaveInAwsS3(indexFile)
-				log.Println("Original URL: " + data.JobURL + data.BuildID + "/")
-				log.Println("S3 URL: http://" + s3bucket + ".s3-website-us-west-2.amazonaws.com/" +
-					cbbuild + "/" + "jenkins_logs" + "/" + JobName + "/" + data.BuildID + "/")
-				// Update URL in CB server
-				if strings.Contains(strings.ToLower(updateURL), "yes") && !strings.Contains(strings.ToLower(data.JobURL), s3bucket) {
-					qry := "update `server` set url='http://" + s3bucket + ".s3-website-us-west-2.amazonaws.com/" +
-						cbbuild + "/" + "jenkins_logs" + "/" + JobName + "/' where `build`='" +
-						cbbuild + "' and url like '%/" + JobName + "/' and  build_id=" + data.BuildID
-					fmt.Println("CB update in progress with qry= " + qry)
-					if err := executeN1QLPostStmt(url, qry); err != nil {
-						panic(err)
-					}
-				}
-			}
-		}
-
-	}
-
-}
-
 // fileExists ...
 func fileExists(filename string) bool {
 	info, err := os.Stat(filename)
@@ -877,45 +662,6 @@ func fileExists(filename string) bool {
 		return false
 	}
 	return !info.IsDir()
-}
-
-// SaveInAwsS3 ...
-func SaveInAwsS3(files ...string) {
-	for i := 0; i < len(files); i++ {
-		if overwrite == "no" {
-			cmd1 := "aws s3 ls " + "s3://" + s3bucket + "/" + files[i]
-			//fmt.Println(cmd1)
-			cmd1Out := executeCommand(cmd1, "")
-			//fmt.Println(cmd1, "--"+cmd1Out)
-			fileParts := strings.Split(files[i], "/")
-			fileName := fileParts[len(fileParts)-1]
-			//fmt.Println("fileName=", fileName)
-			if strings.Contains(cmd1Out, fileName) && overwrite == "no" {
-				log.Println("Warning: Upload skip as AWS S3 already contains " + files[i] + " and overwrite=no")
-			} else {
-				SaveFileToS3(files[i])
-			}
-		} else {
-			SaveFileToS3(files[i])
-		}
-	}
-}
-
-// SaveFileToS3 ...
-func SaveFileToS3(objectName string) {
-	cmd := "aws s3 cp " + objectName + " s3://" + s3bucket + "/" + objectName
-	//fmt.Println("cmd=", cmd)
-	outmesg := executeCommand(cmd, "")
-	if outmesg != "" {
-		log.Println(outmesg)
-	}
-	// read permission - only needed if bucket policy is not there
-	//cmd = "aws s3api put-object-acl --bucket " + s3bucket + " --key " + objectName + " --acl public-read "
-	//fmt.Println("cmd=", cmd)
-	//outmesg = executeCommand(cmd, "")
-	//if outmesg != "" {
-	//	log.Println(outmesg)
-	//}
 }
 
 // ReadCsv ... read csv file as double dimension array
