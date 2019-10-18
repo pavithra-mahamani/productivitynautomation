@@ -101,6 +101,7 @@ var totalmachines string
 var qryfilter string
 var workspace string
 var cbrelease string
+var s3url string
 
 func main() {
 	fmt.Println("*** Helper Tool ***")
@@ -111,6 +112,7 @@ func main() {
 	updateURLInput := flag.String("updateurl", "no", usage())
 	cbplatformInput := flag.String("os", "centos", usage())
 	s3bucketInput := flag.String("s3bucket", "cb-logs-qe", usage())
+	s3urlInput := flag.String("s3url", "http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/", usage())
 	urlInput := flag.String("cbqueryurl", "http://172.23.109.245:8093/query/service", usage())
 	updateOrgURLInput := flag.String("updateorgurl", "no", usage())
 	includesInput := flag.String("includes", "console,config,parameters,testresult", usage())
@@ -128,6 +130,7 @@ func main() {
 	updateURL = *updateURLInput
 	cbplatform = *cbplatformInput
 	s3bucket = *s3bucketInput
+	s3url = *s3urlInput
 	url = *urlInput
 	updateOrgURL = *updateOrgURLInput
 	includes = *includesInput
@@ -162,7 +165,7 @@ func usage() string {
 		"-action lastaborted 6.5.0-4106 6.5.0-4059 6.5.0-4000  : to get the aborted jobs common across last 3 builds. Options: --cbrelease [6.5]specificbuilds --limits 3 --qryfilter 'where numofjobs>900' \n" +
 		"-action savejoblogs 6.5.0-4106  : to download the jenkins logs and save in S3 for a given build. " +
 		"Options: --dest [local]|s3|none --src csvfile --os centos --overwrite [no]|yes --updateurl [no]|yes --includes [console,config,parameters,testresult],archive" +
-		"--s3bucket cb-logs-qe --cbqueryurl [http://172.23.109.245:8093/query/service]\n" +
+		"--s3bucket cb-logs-qe --s3url http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/ --cbqueryurl [http://172.23.109.245:8093/query/service]\n" +
 		"-action totaltime 6.5  : to get the total number of jobs, time duration for a given set of  builds in a release, " +
 		"Options: --limits [100] --qryfilter 'where result.numofjobs>900 and (totalcount-failcount)*100/totalcount>90'\n" +
 		"-action runquery 'select * from server where lower(`os`)=\"centos\" and `build`=\"6.5.0-4106\"' : to run a given query statement"
@@ -654,7 +657,7 @@ func DownloadJenkinsJobInfo(csvFile string) int {
 						//log.Println("out=", out, "error=", err)
 						if out != "" {
 							//log.Println("Jenkins log is not available. Let us check at S3...")
-							s3consolelogurl := "http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/" + cbbuild + "/jenkins_logs/" + JobName + "/" + data.BuildID + "/consoleText.txt"
+							s3consolelogurl := strings.ReplaceAll(s3url, "cb-logs-qe", s3bucket) + cbbuild + "/jenkins_logs/" + JobName + "/" + data.BuildID + "/consoleText.txt"
 							//log.Println("Downloading from " + s3consolelogurl)
 							DownloadFile(LogFile, s3consolelogurl)
 							if !fileExists(LogFile) {
