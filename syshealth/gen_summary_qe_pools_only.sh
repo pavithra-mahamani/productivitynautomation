@@ -1,33 +1,48 @@
-#!/bin/bash 
+#!/bin/bash -x
+############################################################################
+# Description: Get the IPs ssh ping and statistics
+#
+############################################################################
 
 OS="$1"
 USED_POOLS="$2"
+
+if [ "$USED_POOLS" = "" ]; then
+  echo "Usage $0 os used_pools_file"
+  echo "Example: $0 centos file"
+  exit 1
+fi
+
 echo 'Pool : (Timedout) Unreachable + OK = Total'
 echo "----------------------------------------"
 TTIMED=0
 INDEX=1
 OUT_TIMEDOUT=required_pools_timedout.ini
 cat /dev/null>${OUT_TIMEDOUT}
-for line in `cat vmpools_${OS}.txt|cut -f1 -d':'`
+cat vmpools_${OS}_counts.txt
+for line in `cat vmpools_${OS}_counts.txt|cut -f1 -d':'`
 do
   POOL="$line"
-  #echo ansible ${POOL} -i cbqe_vms_per_pool_${OS}.ini -u root -m ping
-  #ansible ${POOL} -i cbqe_vms_per_pool_${OS}.ini -u root -m ping |tee ping_log_${OS}_${POOL}.txt
+  NPOOL="`echo $line|sed -e 's/ //' -e 's/-//g'`"
+  echo NPOOL
+  LOG_FILE=ping_log_${OS}_${NPOOL}.txt
+  echo ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m ping
+  ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m ping >${LOG_FILE}
  
   REQ_POOL="`grep -iw $POOL ${USED_POOLS}`"
   if [ ! "$REQ_POOL" = "" ]; then
     echo RequiredPool: $REQ_POOL
-    TIMEDOUT="`egrep timed ping_log_${OS}_${POOL}.txt | cut -f4 -d':' |cut -f5 -d' '|wc -l|xargs`"
-    UNREACH="`egrep UNREACHABLE ping_log_${OS}_${POOL}.txt | cut -f5 -d':' |cut -f5 -d' '|wc -l`"
-    SUCCESS="`egrep SUCCESS ping_log_${OS}_${POOL}.txt | cut -f5 -d':' |cut -f5 -d' '|wc -l`"
-    TOTAL="`egrep '=>' ping_log_${OS}_${POOL}.txt | cut -f5 -d':' |cut -f5 -d' '|wc -l`"
+    TIMEDOUT="`egrep timed ${LOG_FILE} | cut -f4 -d':' |cut -f5 -d' '|wc -l|xargs`"
+    UNREACH="`egrep UNREACHABLE ${LOG_FILE} | cut -f5 -d':' |cut -f5 -d' '|wc -l`"
+    SUCCESS="`egrep SUCCESS ${LOG_FILE}| cut -f5 -d':' |cut -f5 -d' '|wc -l`"
+    TOTAL="`egrep '=>' ${LOG_FILE}| cut -f5 -d':' |cut -f5 -d' '|wc -l`"
     echo " "
     echo $INDEX. $POOL : '('$TIMEDOUT')' $UNREACH +$SUCCESS = $TOTAL
     TTIMED=`expr $TIMEDOUT + $TTIMED`
     if [ ! "${TIMEDOUT}" = "0" ]; then
      echo "  Timedout VMs: "
-     egrep timed ping_log_${OS}_${POOL}.txt | cut -f4 -d':' |cut -f5 -d' '
-     egrep timed ping_log_${OS}_${POOL}.txt | cut -f4 -d':' |cut -f5 -d' ' >>${OUT_TIMEDOUT}
+     egrep timed ${LOG_FILE} | cut -f4 -d':' |cut -f5 -d' '
+     egrep timed ${LOG_FILE} | cut -f4 -d':' |cut -f5 -d' ' >>${OUT_TIMEDOUT}
     fi
     echo " "
     INDEX=`expr $INDEX + 1`

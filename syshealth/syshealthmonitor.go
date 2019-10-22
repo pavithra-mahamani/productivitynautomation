@@ -171,7 +171,7 @@ func executeCommand(command string, input string) string {
 	err := cmd.Run()
 	if err != nil {
 		//log.Fatal(err)
-		if out.String() != "" {
+		if err.Error() != "" {
 			log.Println(err)
 		}
 	}
@@ -187,23 +187,25 @@ type VMPoolsCSV struct {
 // HealthChecks ...
 func HealthChecks() {
 	fmt.Println("action: healthcheck")
-	poolsFile := "vmpools_centos.txt"
-	iniFile := "cbqe_vms_per_pool_centos.ini"
+	poolsFile := "vmpools_centos_counts.txt"
+	iniFile := "vmpools_centos_ips.ini"
 	lines, err := ReadCsv(poolsFile)
 	if err != nil {
 		panic(err)
 	}
 	index := 0
 	for _, line := range lines {
+		fmt.Printf("%s -->", line[0])
+
 		data := VMPoolsCSV{
-			PoolName: line[0],
+			PoolName: strings.Split(line[0], ":")[0],
 		}
 		index++
 		fmt.Println("\n" + strconv.Itoa(index) + "/" + strconv.Itoa(len(lines)) + ". " + data.PoolName)
 		//cmd := "ansible " + data.PoolName + " -i " + iniFile + " -u root -m ping |tee ping_output_" + data.PoolName + ".txt"
 		cmd := "ansible " + data.PoolName + " -i " + iniFile + " -u root -m ping "
-		fmt.Println("cmd= " + cmd)
-		cmdOut := executeCommand("ansible "+data.PoolName+" -i "+iniFile+" -u root -m ping ", "")
+		fmt.Println("cmd=" + cmd)
+		cmdOut := executeCommand("ansible "+data.PoolName[:len(data.PoolName)-1]+" -i "+iniFile+" -u root -m ping ", "")
 		fmt.Println(cmdOut)
 	}
 }
