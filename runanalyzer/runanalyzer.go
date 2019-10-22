@@ -148,8 +148,8 @@ func main() {
 	} else if *action == "savejoblogs" {
 		savejoblogs()
 	} else if *action == "totaltime" {
-		//gettotalbuildcycleduration(os.Args[3])
-		fmt.Printf("\n\t\t\t\t\t\t\t\t\t\t\tGrand total time: %d hours\n", gettotalbuildcycleduration(os.Args[3]))
+		gettotalbuildcycleduration(os.Args[3])
+		//fmt.Printf("\n\t\t\t\t\t\t\t\t\t\t\tGrand total time: %d hours\n", gettotalbuildcycleduration(os.Args[3]))
 	} else if *action == "runquery" {
 		fmt.Println("Query Result: ", runquery(os.Args[3]))
 	} else if *action == "usage" {
@@ -248,8 +248,8 @@ func gettotalbuildcycleduration(buildN string) int {
 	outW := bufio.NewWriter(outFile)
 	defer outFile.Close()
 
-	fmt.Printf("\nSummary report of regression cycles on the last %s build(s) in %s %s\n", limits, cbbuild, qryfilter)
-	fmt.Fprintf(outW, "\nSummary report of regression cycles on the last %s build(s) in %s %s\n", limits, cbbuild, qryfilter)
+	fmt.Printf("\nSummary report of regression cycles on the last %s build(s) in %s %s on %s\n", limits, cbbuild, qryfilter, cbplatform)
+	fmt.Fprintf(outW, "\nSummary report of regression cycles on the last %s build(s) in %s %s on %s\n", limits, cbbuild, qryfilter, cbplatform)
 
 	if totalmachines == "true" {
 		fmt.Println("---------------------------------------------------------------------------------------------------------------------------------------------------------------------")
@@ -352,7 +352,8 @@ func gettotalbuildcycleduration(buildN string) int {
 	p := fmt.Println
 	t := time.Now()
 	p(t.Format(time.RFC3339))
-	fmt.Fprintf(outW, "\n%s\t\t\t\t\t\t\t\t\t\tGrand total time=%6d hours\n", t.Format(time.RFC3339), totalhours)
+	fmt.Fprintf(outW, "\n%s\n", t.Format(time.RFC3339))
+	//fmt.Fprintf(outW, "\n%s\t\t\t\t\t\t\t\t\t\tGrand total time=%6d hours\n", t.Format(time.RFC3339), totalhours)
 
 	outW.Flush()
 
