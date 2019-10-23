@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 ############################################################################
 # Description: Get the IPs ssh ping and statistics
 #
@@ -13,25 +13,30 @@ if [ "$USED_POOLS" = "" ]; then
   exit 1
 fi
 
-echo 'Pool : (Timedout) Unreachable + OK = Total'
+OS_COUNT="`grep ${OS} vms_os_count.txt`"
+echo "Total VMs on ${OS_COUNT}"
+echo "----------------------------------------"
+echo "Summary of Server Pools on ${OS}"
+echo "----------------------------------------"
+cat vmpools_${OS}_counts.txt
+echo "----------------------------------------"
+echo 'Pool Name : (TimedoutCount) UnreachableCount + OKCount = TotalCount'
 echo "----------------------------------------"
 TTIMED=0
 INDEX=1
 OUT_TIMEDOUT=required_pools_timedout.ini
 cat /dev/null>${OUT_TIMEDOUT}
-cat vmpools_${OS}_counts.txt
 for line in `cat vmpools_${OS}_counts.txt|cut -f1 -d':'`
 do
   POOL="$line"
   NPOOL="`echo $line|sed -e 's/ //' -e 's/-//g'`"
-  echo NPOOL
   LOG_FILE=ping_log_${OS}_${NPOOL}.txt
-  echo ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m ping
-  ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m ping >${LOG_FILE}
+  #echo ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m ping
+  #ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m ping >${LOG_FILE}
  
   REQ_POOL="`grep -iw $POOL ${USED_POOLS}`"
   if [ ! "$REQ_POOL" = "" ]; then
-    echo RequiredPool: $REQ_POOL
+    #echo RequiredPool: $REQ_POOL
     TIMEDOUT="`egrep timed ${LOG_FILE} | cut -f4 -d':' |cut -f5 -d' '|wc -l|xargs`"
     UNREACH="`egrep UNREACHABLE ${LOG_FILE} | cut -f5 -d':' |cut -f5 -d' '|wc -l`"
     SUCCESS="`egrep SUCCESS ${LOG_FILE}| cut -f5 -d':' |cut -f5 -d' '|wc -l`"
@@ -41,16 +46,22 @@ do
     TTIMED=`expr $TIMEDOUT + $TTIMED`
     if [ ! "${TIMEDOUT}" = "0" ]; then
      echo "  Timedout VMs: "
-     egrep timed ${LOG_FILE} | cut -f4 -d':' |cut -f5 -d' '
+     TIMEDOUT_IPS="`egrep timed ${LOG_FILE} | cut -f4 -d':' |cut -f5 -d' '`"
      egrep timed ${LOG_FILE} | cut -f4 -d':' |cut -f5 -d' ' >>${OUT_TIMEDOUT}
+     for IP in `echo ${TIMEDOUT_IPS}`
+     do
+         egrep $IP vms_list_${OS}_ips.ini
+     done
     fi
     echo " "
     INDEX=`expr $INDEX + 1`
   fi
 done
 echo "----------------------------------------"
-echo "[TIMEDOUT]">required_final_timedout.ini
-sort $OUT_TIMEDOUT|uniq >>required_final_timedout.ini
-UNIQUE=`cat required_final_timedout.ini|egrep -v '\[' |wc -l |xargs`
-echo : $UNIQUE '('$TTIMED')' Unreachable + OK = Total
+FINAL_INI=required_final_timedout.ini
+echo "[TIMEDOUT]">${FINAL_INI}
+sort $OUT_TIMEDOUT|uniq >>${FINAL_INI}
+UNIQUE=`cat ${FINAL_INI}|egrep -v '\[' |wc -l |xargs`
+echo Unique Timedout IPs: $UNIQUE '(Overall='$TTIMED')'
 
+echo Please check ${FINAL_INI} file for exact IPs.
