@@ -31,7 +31,7 @@ do
   POOL="$line"
   NPOOL="`echo $line|sed -e 's/ //' -e 's/-//g'`"
   LOG_FILE=ping_log_${OS}_${NPOOL}.txt
-  echo ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m ping
+  #echo ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m ping
   if [ -f ~/.ansible_vars.ini ]; then
     VAR_FOUND="`grep 'ansible_user' vmpools_${OS}_ips.ini`"
     if [ "${VAR_FOUND}" = "" ]; then
