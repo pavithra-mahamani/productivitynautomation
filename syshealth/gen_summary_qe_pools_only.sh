@@ -110,7 +110,7 @@ done
 echo "----------------------------------------"
 FINAL_INI=unreachablelist_ips.ini
 echo "[UNREACHABLE]">${FINAL_INI}
-sort $OUT_ALL_UNREACHABLE|uniq|egrep -v '\[' >>${FINAL_INI}
+sort $OUT_ALL_UNREACHABLE|uniq|egrep -v '\['|egrep "\S" >>${FINAL_INI}
 UNIQUE=`cat ${FINAL_INI}|wc -l |xargs`
 
 echo "*** Final list of unreachable IPs,poolids,state ***"
@@ -123,6 +123,11 @@ do
  echo "$IPINFO" >>$OUT_FINAL_UNREACHABLE
 done
 
+OUT_FINAL_UNIQUE_UNREACHABLE=unreachable_final_list.txt
+cat $OUT_FINAL_UNREACHABLE|sort|uniq|egrep "\S" > $OUT_FINAL_UNIQUE_UNREACHABLE
+
+cat $OUT_FINAL_UNIQUE_UNREACHABLE
+
 echo Unique unreachable IPs: $UNIQUE '(Overall unreachable:'$TUNREACH')' '(Total:'$GRAND')'
-echo Please check ${FINAL_INI} file for exact IPs and $OUT_FINAL_UNREACHABLE along with state.
+echo Please check ${FINAL_INI} file for exact IPs and $OUT_FINAL_UNIQUE_UNREACHABLE along with state.
 date
