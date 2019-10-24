@@ -24,12 +24,15 @@ TTIMED=0
 TUNREACH=0
 INDEX=1
 GRAND=0
+UINDEX=1
 OUT_ALL_UNREACHABLE=unreachable_all_${NPOOL}.ini
 cat /dev/null>$OUT_ALL_UNREACHABLE
-for line in `cat vmpools_${OS}_counts.txt|cut -f1 -d':'`
+OUT_ALL_STATE_UNREACHABLE=unreachable_all_state.txt
+cat /dev/null>$OUT_ALL_STATE_UNREACHABLE
+for line in `cat ${USED_POOLS}`
 do
   POOL="$line"
-  REQ_POOL="`grep -iw $POOL ${USED_POOLS}`"
+  REQ_POOL="`grep -iw $POOL vmpools_${OS}_counts.txt`"
   if [ ! "$REQ_POOL" = "" ]; then
     echo "$INDEX. Server Pool: $POOL"
     NPOOL="`echo $line|sed -e 's/ //' -e 's/-//g'`"
@@ -90,7 +93,9 @@ do
          IPQ2="`echo ${IP} |sed 's/\./\\\./g'` "
          UNREACH_MSG="`egrep UNREACHABLE ${LOG_FILE} -A 3|egrep ${IPQ2} | egrep msg|cut -f2- -d':'|cut -f1 -d','`"
          echo "   ${I2}. $IPINFO : ${UNREACH_MSG}"
+         echo "$IPINFO : ${UNREACH_MSG}" >>$OUT_ALL_STATE_UNREACHABLE
          I2=`expr ${I2} + 1`
+         UINDEX=`expr ${UINDEX} + 1`
      done
     fi
     echo " "
@@ -105,9 +110,19 @@ done
 echo "----------------------------------------"
 FINAL_INI=unreachablelist_ips.ini
 echo "[UNREACHABLE]">${FINAL_INI}
-sort $OUT_ALL_UNREACHABLE|uniq >>${FINAL_INI}
-UNIQUE=`cat ${FINAL_INI}|egrep -v '\[' |wc -l |xargs`
-echo Unique unreachable IPs: $UNIQUE '(Overall unreachable:'$TUNREACH')' '(Total:'$GRAND')'
+sort $OUT_ALL_UNREACHABLE|uniq|egrep -v '\[' >>${FINAL_INI}
+UNIQUE=`cat ${FINAL_INI}|wc -l |xargs`
 
-echo Please check ${FINAL_INI} file for exact IPs.
+echo "*** Final list of unreachable IPs,poolids,state ***"
+OUT_FINAL_UNREACHABLE=unreachable_final_list.txt
+cat /dev/null>$OUT_FINAL_UNREACHABLE
+for IP in `cat ${FINAL_INI}|xargs`
+do
+ IPQ=`echo ${IP}: |sed 's/\./\\\./g'`
+ IPINFO="`egrep ${IPQ} $OUT_ALL_STATE_UNREACHABLE`"
+ echo "$IPINFO" >>$OUT_FINAL_UNREACHABLE
+done
+
+echo Unique unreachable IPs: $UNIQUE '(Overall unreachable:'$TUNREACH')' '(Total:'$GRAND')'
+echo Please check ${FINAL_INI} file for exact IPs and $OUT_FINAL_UNREACHABLE along with state.
 date
