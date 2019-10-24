@@ -123,7 +123,7 @@ do
  echo "$IPINFO" >>$OUT_FINAL_UNREACHABLE
 done
 
-OUT_FINAL_UNIQUE_UNREACHABLE=unreachable_final_list.txt
+OUT_FINAL_UNIQUE_UNREACHABLE=unreachable_final_unique_list.txt
 cat $OUT_FINAL_UNREACHABLE|sort|uniq|egrep "\S" > $OUT_FINAL_UNIQUE_UNREACHABLE
 
 cat $OUT_FINAL_UNIQUE_UNREACHABLE
