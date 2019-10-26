@@ -21,6 +21,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	gourl "net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -102,6 +103,7 @@ var qryfilter string
 var workspace string
 var cbrelease string
 var s3url string
+var defaultSuiteType string
 
 func main() {
 	fmt.Println("*** Helper Tool ***")
@@ -122,6 +124,7 @@ func main() {
 	qryfilterInput := flag.String("qryfilter", " ", usage())
 	workspaceInput := flag.String("workspace", "testrunner", usage())
 	cbreleaseInput := flag.String("cbrelease", "6.5", usage())
+	defaultSuiteTypeInput := flag.String("suite", "12hour", usage())
 
 	flag.Parse()
 	dest = *destInput
@@ -140,6 +143,7 @@ func main() {
 	qryfilter = *qryfilterInput
 	workspace = *workspaceInput
 	cbrelease = *cbreleaseInput
+	defaultSuiteType = *defaultSuiteTypeInput
 
 	//fmt.Println("original dest=", dest, "--", *destInput)
 	//time.Sleep(10 * time.Second)
@@ -152,6 +156,8 @@ func main() {
 		//fmt.Printf("\n\t\t\t\t\t\t\t\t\t\t\tGrand total time: %d hours\n", gettotalbuildcycleduration(os.Args[3]))
 	} else if *action == "runquery" {
 		fmt.Println("Query Result: ", runquery(os.Args[3]))
+	} else if *action == "getrunprogress" {
+		GenSummaryForRunProgress(os.Args[len(os.Args)-1])
 	} else if *action == "usage" {
 		fmt.Println(usage())
 	} else {
@@ -168,7 +174,9 @@ func usage() string {
 		"--s3bucket cb-logs-qe --s3url http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/ --cbqueryurl [http://172.23.109.245:8093/query/service]\n" +
 		"-action totaltime 6.5  : to get the total number of jobs, time duration for a given set of  builds in a release, " +
 		"Options: --limits [100] --qryfilter 'where result.numofjobs>900 and (totalcount-failcount)*100/totalcount>90'\n" +
+		"-action getrunprogress triggeredurls : to get the summary report on the kickedoff runs for a build" +
 		"-action runquery 'select * from server where lower(`os`)=\"centos\" and `build`=\"6.5.0-4106\"' : to run a given query statement"
+
 }
 func runquery(qry string) string {
 	//url := "http://172.23.109.245:8093/query/service"
@@ -1144,6 +1152,140 @@ func DownloadJenkinsFiles(csvFile string) {
 
 	}
 
+}
+
+// TestSuiteN1QLQryResult type
+type TestSuiteN1QLQryResult struct {
+	Status  string
+	Results []TestSuites
+}
+
+// TestSuites type
+type TestSuites struct {
+	TotalSuiteCount int
+}
+
+//GenSummaryForRunProgress ...
+func GenSummaryForRunProgress(filename string) {
+
+	fmt.Println("Generating summary for run progress ...")
+	url := "http://172.23.105.177:8093/query/service"
+
+	//read triggered urls from file
+	f1, err1 := os.Open(filename)
+	if err1 != nil {
+		log.Println(err1)
+	}
+	defer f1.Close()
+
+	// Splits on newlines by default.
+	scanner := bufio.NewReader(f1)
+
+	line := 0
+	linestring := ""
+
+	totalExpectedSuites := 0
+
+	f, _ := os.Create("component_testsuites.txt")
+	defer f.Close()
+
+	w := bufio.NewWriter(f)
+	// https://golang.org/pkg/bufio/#Scanner.Scan
+	for {
+		linestring, err1 = scanner.ReadString('\n')
+		if err1 != nil {
+			f1.Close()
+			break
+		}
+		linestring1 := strings.ReplaceAll(strings.ReplaceAll(linestring, "$", ""), "\n", "")
+		//fmt.Println("url=" + linestring1)
+		u, err2 := gourl.Parse(linestring1)
+		if err2 != nil {
+			fmt.Println(err2)
+		}
+		m, _ := gourl.ParseQuery(u.RawQuery)
+		suiteType := ""
+		if m["suite"] != nil {
+			suiteType = m["suite"][0]
+		} /*else {
+			suiteType = defaultSuiteType
+		}*/
+		components := ""
+		if m["component"] != nil {
+			component1 := strings.Split(m["component"][0], ",")
+			for i := 0; i < len(component1); i++ {
+				components += "\"" + strings.TrimSpace(component1[i]) + "\","
+			}
+			index1 := strings.LastIndex(components, ",")
+			components = components[:index1]
+		}
+		subcomponents := ""
+		if m["subcomponent"] != nil {
+			subcomponent1 := strings.Split(m["subcomponent"][0], ",")
+			for i := 0; i < len(subcomponent1); i++ {
+				subcomponents += "\"" + strings.TrimSpace(subcomponent1[i]) + "\","
+			}
+			index1 := strings.LastIndex(subcomponents, ",")
+			subcomponents = subcomponents[:index1]
+		}
+
+		//run cb query
+		qry := ""
+		if suiteType != "" {
+			if components != "" && subcomponents != "" {
+				qry = "select count(*) as TotalSuiteCount from `QE-Test-Suites` where \"" + suiteType + "\" in partOf and component in [" + components + "] and subcomponent in [" + subcomponents + "]"
+			} else if components != "" {
+				qry = "select count(*) as TotalSuiteCount from `QE-Test-Suites` where \"" + suiteType + "\" in partOf and component in [" + components + "]"
+			} else {
+				continue //skip for now if no component
+			}
+		} else {
+			if components != "" && subcomponents != "" {
+				qry = "select count(*) as TotalSuiteCount from `QE-Test-Suites` where component in [" + components + "] and subcomponent in [" + subcomponents + "]"
+			} else if components != "" {
+				qry = "select count(*) as TotalSuiteCount from `QE-Test-Suites` where component in [" + components + "]"
+			} else {
+				continue //skip for now if no component
+			}
+		}
+
+		//fmt.Println("query=" + qry)
+		localFileName := "suiteresult.json"
+		if err := executeN1QLStmt(localFileName, url, qry); err != nil {
+			panic(err)
+		}
+
+		resultFile, err := os.Open(localFileName)
+		if err != nil {
+			fmt.Println(err)
+		}
+		defer resultFile.Close()
+
+		byteValue, _ := ioutil.ReadAll(resultFile)
+
+		var result TestSuiteN1QLQryResult
+
+		err = json.Unmarshal(byteValue, &result)
+		//fmt.Println("Status=" + result.Status)
+		//fmt.Println(err)
+		if result.Status == "success" {
+			//fmt.Println("Count: ", len(result.Results))
+			fmt.Fprintf(w, "\n%s\t %s\t%3d\n", components, subcomponents, result.Results[0].TotalSuiteCount)
+		} else {
+			fmt.Println("CB Query failed!")
+		}
+
+		totalExpectedSuites += result.Results[0].TotalSuiteCount
+
+		line++
+	}
+
+	fmt.Fprintf(w, "\nTotal #of Jobs Kicked off: %3d\n", totalExpectedSuites)
+	fmt.Printf("\n----------------------------------------")
+	fmt.Printf("\n#of Jobs Kicked off\t#of Jobs in Queue")
+	fmt.Printf("\n----------------------------------------")
+	fmt.Printf("\n\t%3d\t\n", totalExpectedSuites)
+	w.Flush()
 }
 
 // fileExists ...
