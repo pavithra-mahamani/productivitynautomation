@@ -21,7 +21,6 @@ import (
 	"log"
 	"math"
 	"net/http"
-	gourl "net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -61,6 +60,17 @@ type TotalCycleTime struct {
 	Totalcount int
 }
 
+// TotalJobsQryResult type
+type TotalJobsQryResult struct {
+	Status  string
+	Results []TotalJobs
+}
+
+// TotalJobs type
+type TotalJobs struct {
+	TotalNumofjobs int
+}
+
 // CBBuildQryResult type
 type CBBuildQryResult struct {
 	Status  string
@@ -84,6 +94,22 @@ type JobStatus struct {
 	Numofjobs int
 }
 
+// JenkinsComputerQryResult type
+type JenkinsComputerQryResult struct {
+	BusyExecutors  int
+	Computer       []JenkinsComputer
+	TotalExecutors int
+}
+
+// JenkinsComputer type
+type JenkinsComputer struct {
+	AssignedLabels     []string
+	DisplayName        string
+	NumExecutros       int
+	Offline            string
+	temporarilyOffline string
+}
+
 //const url = "http://172.23.109.245:8093/query/service"
 
 var cbbuild string
@@ -104,6 +130,7 @@ var workspace string
 var cbrelease string
 var s3url string
 var defaultSuiteType string
+var qaJenkinsURL string
 
 func main() {
 	fmt.Println("*** Helper Tool ***")
@@ -116,6 +143,7 @@ func main() {
 	s3bucketInput := flag.String("s3bucket", "cb-logs-qe", usage())
 	s3urlInput := flag.String("s3url", "http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/", usage())
 	urlInput := flag.String("cbqueryurl", "http://172.23.109.245:8093/query/service", usage())
+	qaJenkinsURLInput := flag.String("qajenkins", "http://qa.sc.couchbase.com/", usage())
 	updateOrgURLInput := flag.String("updateorgurl", "no", usage())
 	includesInput := flag.String("includes", "console,config,parameters,testresult", usage())
 	limitsInput := flag.String("limits", "100", usage())
@@ -144,6 +172,7 @@ func main() {
 	workspace = *workspaceInput
 	cbrelease = *cbreleaseInput
 	defaultSuiteType = *defaultSuiteTypeInput
+	qaJenkinsURL = *qaJenkinsURLInput
 
 	//fmt.Println("original dest=", dest, "--", *destInput)
 	//time.Sleep(10 * time.Second)
@@ -157,7 +186,8 @@ func main() {
 	} else if *action == "runquery" {
 		fmt.Println("Query Result: ", runquery(os.Args[3]))
 	} else if *action == "getrunprogress" {
-		GenSummaryForRunProgress(os.Args[len(os.Args)-2], os.Args[len(os.Args)-1])
+		//GenSummaryForRunProgress(os.Args[len(os.Args)-2], os.Args[len(os.Args)-1])
+		GenSummaryForRunProgress(os.Args[len(os.Args)-1])
 	} else if *action == "usage" {
 		fmt.Println(usage())
 	} else {
@@ -174,7 +204,7 @@ func usage() string {
 		"--s3bucket cb-logs-qe --s3url http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/ --cbqueryurl [http://172.23.109.245:8093/query/service]\n" +
 		"-action totaltime 6.5  : to get the total number of jobs, time duration for a given set of  builds in a release, " +
 		"Options: --limits [100] --qryfilter 'where result.numofjobs>900 and (totalcount-failcount)*100/totalcount>90'\n" +
-		"-action getrunprogress triggeredurls : to get the summary report on the kickedoff runs for a build" +
+		"-action getrunprogress build : to get the summary report on the kickedoff runs for a build" +
 		"-action runquery 'select * from server where lower(`os`)=\"centos\" and `build`=\"6.5.0-4106\"' : to run a given query statement"
 
 }
@@ -1166,126 +1196,157 @@ type TestSuites struct {
 }
 
 //GenSummaryForRunProgress ...
-func GenSummaryForRunProgress(filename string, cbbuild string) {
+//func GenSummaryForRunProgress(filename string, cbbuild string) {
+func GenSummaryForRunProgress(cbbuild string) {
 
 	fmt.Println("Generating summary for run progress ...")
 	servercburl := url
-	serverpoolcburl := "http://172.23.105.177:8093/query/service"
-
-	//read triggered urls from file
-	f1, err1 := os.Open(filename)
-	if err1 != nil {
-		log.Println(err1)
-	}
-	defer f1.Close()
-
-	// Splits on newlines by default.
-	scanner := bufio.NewReader(f1)
-
-	line := 0
-	linestring := ""
-
-	totalExpectedSuites := 0
-
+	//serverpoolcburl := "http://172.23.105.177:8093/query/service"
+	sno := 1
 	f, _ := os.Create("component_testsuites.txt")
 	defer f.Close()
-	sno := 1
 	w := bufio.NewWriter(f)
-	// https://golang.org/pkg/bufio/#Scanner.Scan
-	for {
-		linestring, err1 = scanner.ReadString('\n')
+	/*
+		//read triggered urls from file
+		f1, err1 := os.Open(filename)
 		if err1 != nil {
-			f1.Close()
-			break
+			log.Println(err1)
 		}
-		linestring1 := strings.ReplaceAll(strings.ReplaceAll(linestring, "$", ""), "\n", "")
-		//fmt.Println("url=" + linestring1)
-		u, err2 := gourl.Parse(linestring1)
-		if err2 != nil {
-			fmt.Println(err2)
-		}
-		m, _ := gourl.ParseQuery(u.RawQuery)
-		suiteType := ""
-		if m["suite"] != nil {
-			suiteType = m["suite"][0]
-		} /*else {
-			suiteType = defaultSuiteType
+		defer f1.Close()
+
+		// Splits on newlines by default.
+		scanner := bufio.NewReader(f1)
+
+		line := 0
+		linestring := ""
+
+		totalExpectedSuites := 0
+
+		f, _ := os.Create("component_testsuites.txt")
+		defer f.Close()
+		sno := 1
+		w := bufio.NewWriter(f)
+		// https://golang.org/pkg/bufio/#Scanner.Scan
+		for {
+			linestring, err1 = scanner.ReadString('\n')
+			if err1 != nil {
+				f1.Close()
+				break
+			}
+			linestring1 := strings.ReplaceAll(strings.ReplaceAll(linestring, "$", ""), "\n", "")
+			//fmt.Println("url=" + linestring1)
+			u, err2 := gourl.Parse(linestring1)
+			if err2 != nil {
+				fmt.Println(err2)
+			}
+			m, _ := gourl.ParseQuery(u.RawQuery)
+			suiteType := ""
+			if m["suite"] != nil {
+				suiteType = m["suite"][0]
+			}
+			//else {
+			//	suiteType = defaultSuiteType
+			//}
+			components := ""
+			if m["component"] != nil {
+				component1 := strings.Split(m["component"][0], ",")
+				for i := 0; i < len(component1); i++ {
+					components += "\"" + strings.TrimSpace(component1[i]) + "\","
+				}
+				index1 := strings.LastIndex(components, ",")
+				components = components[:index1]
+			}
+			subcomponents := ""
+			if m["subcomponent"] != nil {
+				subcomponent1 := strings.Split(m["subcomponent"][0], ",")
+				for i := 0; i < len(subcomponent1); i++ {
+					subcomponents += "\"" + strings.TrimSpace(subcomponent1[i]) + "\","
+				}
+				index1 := strings.LastIndex(subcomponents, ",")
+				subcomponents = subcomponents[:index1]
+			}
+
+			//run cb query
+			qry := ""
+			if suiteType != "" {
+				if components != "" && subcomponents != "" {
+					qry = "select count(*) as TotalSuiteCount from `QE-Test-Suites` where \"" + suiteType + "\" in partOf and component in [" + components + "] and subcomponent in [" + subcomponents + "]"
+				} else if components != "" {
+					qry = "select count(*) as TotalSuiteCount from `QE-Test-Suites` where \"" + suiteType + "\" in partOf and component in [" + components + "]"
+				} else {
+					continue //skip for now if no component
+				}
+			} else {
+				if components != "" && subcomponents != "" {
+					qry = "select count(*) as TotalSuiteCount from `QE-Test-Suites` where component in [" + components + "] and subcomponent in [" + subcomponents + "]"
+				} else if components != "" {
+					qry = "select count(*) as TotalSuiteCount from `QE-Test-Suites` where component in [" + components + "]"
+				} else {
+					continue //skip for now if no component
+				}
+			}
+
+			//fmt.Println("query=" + qry)
+			localFileName := "suiteresult.json"
+			if err := executeN1QLStmt(localFileName, serverpoolcburl, qry); err != nil {
+				panic(err)
+			}
+
+			resultFile, err := os.Open(localFileName)
+			if err != nil {
+				fmt.Println(err)
+			}
+			defer resultFile.Close()
+
+			byteValue, _ := ioutil.ReadAll(resultFile)
+
+			var result TestSuiteN1QLQryResult
+
+			err = json.Unmarshal(byteValue, &result)
+			//fmt.Println("Status=" + result.Status)
+			//fmt.Println(err)
+			if result.Status == "success" {
+				//fmt.Println("Count: ", len(result.Results))
+				fmt.Fprintf(w, "\n%s\t %s\t%3d\n", components, subcomponents, result.Results[0].TotalSuiteCount)
+			} else {
+				fmt.Println("CB Query failed!")
+			}
+
+			totalExpectedSuites += result.Results[0].TotalSuiteCount
+
+			line++
 		}*/
-		components := ""
-		if m["component"] != nil {
-			component1 := strings.Split(m["component"][0], ",")
-			for i := 0; i < len(component1); i++ {
-				components += "\"" + strings.TrimSpace(component1[i]) + "\","
-			}
-			index1 := strings.LastIndex(components, ",")
-			components = components[:index1]
-		}
-		subcomponents := ""
-		if m["subcomponent"] != nil {
-			subcomponent1 := strings.Split(m["subcomponent"][0], ",")
-			for i := 0; i < len(subcomponent1); i++ {
-				subcomponents += "\"" + strings.TrimSpace(subcomponent1[i]) + "\","
-			}
-			index1 := strings.LastIndex(subcomponents, ",")
-			subcomponents = subcomponents[:index1]
-		}
 
-		//run cb query
-		qry := ""
-		if suiteType != "" {
-			if components != "" && subcomponents != "" {
-				qry = "select count(*) as TotalSuiteCount from `QE-Test-Suites` where \"" + suiteType + "\" in partOf and component in [" + components + "] and subcomponent in [" + subcomponents + "]"
-			} else if components != "" {
-				qry = "select count(*) as TotalSuiteCount from `QE-Test-Suites` where \"" + suiteType + "\" in partOf and component in [" + components + "]"
-			} else {
-				continue //skip for now if no component
-			}
-		} else {
-			if components != "" && subcomponents != "" {
-				qry = "select count(*) as TotalSuiteCount from `QE-Test-Suites` where component in [" + components + "] and subcomponent in [" + subcomponents + "]"
-			} else if components != "" {
-				qry = "select count(*) as TotalSuiteCount from `QE-Test-Suites` where component in [" + components + "]"
-			} else {
-				continue //skip for now if no component
-			}
-		}
-
-		//fmt.Println("query=" + qry)
-		localFileName := "suiteresult.json"
-		if err := executeN1QLStmt(localFileName, serverpoolcburl, qry); err != nil {
-			panic(err)
-		}
-
-		resultFile, err := os.Open(localFileName)
-		if err != nil {
-			fmt.Println(err)
-		}
-		defer resultFile.Close()
-
-		byteValue, _ := ioutil.ReadAll(resultFile)
-
-		var result TestSuiteN1QLQryResult
-
-		err = json.Unmarshal(byteValue, &result)
-		//fmt.Println("Status=" + result.Status)
-		//fmt.Println(err)
-		if result.Status == "success" {
-			//fmt.Println("Count: ", len(result.Results))
-			fmt.Fprintf(w, "\n%s\t %s\t%3d\n", components, subcomponents, result.Results[0].TotalSuiteCount)
-		} else {
-			fmt.Println("CB Query failed!")
-		}
-
-		totalExpectedSuites += result.Results[0].TotalSuiteCount
-
-		line++
+	// 1. Get total number of jobs: unique number of jobs across the release.
+	cbrelease = strings.Split(cbbuild, "-")[0]
+	jtqry := "select count(distinct name) as TotalNumofjobs from `server` " +
+		"where lower(os) like \"" + cbplatform + "\" and `build` like \"" + cbrelease + "%\""
+	//fmt.Println("\nquery=" + jtqry)
+	//fmt.Println("\nurl=" + url)
+	jtlocalFileName := "totaluniqjobs_" + cbrelease + ".json"
+	if jterr := executeN1QLStmt(jtlocalFileName, servercburl, jtqry); jterr != nil {
+		//panic(err)
+		log.Println(jterr)
 	}
 
-	//Get total jobs
+	jtresultFile, jterr := os.Open(jtlocalFileName)
+	if jterr != nil {
+		fmt.Println(jterr)
+	}
+	defer jtresultFile.Close()
+	jtbyteValue, _ := ioutil.ReadAll(jtresultFile)
+	var jtresult TotalJobsQryResult
+	jterr = json.Unmarshal(jtbyteValue, &jtresult)
+	totalReleasejobs := 0
+	if jtresult.Status == "success" {
+		totalReleasejobs = jtresult.Results[0].TotalNumofjobs
+	}
+
+	//2. Get number of completed and pending jobs
 	jqry := "select `build`, numofjobs, totaltime, failcount, totalcount from (select b.`build`, count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b " +
 		"where lower(b.os) like \"" + cbplatform + "\" and b.`build` like \"" + cbbuild + "%\" group by b.`build` order by b.`build` desc) as result " + qryfilter + " limit " + limits
-	fmt.Println("\nquery=" + jqry)
-	fmt.Println("\nurl=" + url)
+	//fmt.Println("\nquery=" + jqry)
+	//fmt.Println("\nurl=" + url)
 	jlocalFileName := "buildprogressdetails.json"
 	if jerr := executeN1QLStmt(jlocalFileName, servercburl, jqry); jerr != nil {
 		//panic(err)
@@ -1308,7 +1369,7 @@ func GenSummaryForRunProgress(filename string, cbbuild string) {
 	var totalTime int64
 	jerr = json.Unmarshal(jbyteValue, &jresult)
 	if jresult.Status == "success" {
-		fmt.Println(" Total time in millis: ", jresult.Results[0].Totaltime)
+		//fmt.Println(" Total time in millis: ", jresult.Results[0].Totaltime)
 		totalhours := 0
 		for i := 0; i < len(jresult.Results); i++ {
 			cbbuild = jresult.Results[i].Build
@@ -1326,42 +1387,51 @@ func GenSummaryForRunProgress(filename string, cbbuild string) {
 			totalCount = jresult.Results[i].Totalcount
 			failCount = jresult.Results[i].Failcount
 			totalTime = jresult.Results[i].Totaltime
-
-			//fmt.Printf("\n%3d.\t%s\t%5d\t\t%5d\t\t%5d\t\t%6.2f%%\t\t%3d(%3d,%3d,%3d,%3d)\t%4d hrs %2d mins (%11d millis)",
-			//	(sno), cbbuild, jresult.Results[i].Totalcount, passCount, jresult.Results[i].Failcount,
-			//	(float32(passCount)/float32(jresult.Results[i].Totalcount))*100, jresult.Results[i].Numofjobs, abortedJobs, failureJobs, unstableJobs,
-			//	successJobs, int64(hours), int64(mins), jresult.Results[i].Totaltime)
-			//fmt.Fprintf(outW, "\n%3d.\t%s\t%5d\t\t%5d\t\t%5d\t\t%6.2f%%\t\t%3d(%3d,%3d,%3d,%3d)\t%4d hrs %2d mins (%11d millis)",
-			//	(sno), cbbuild, jresult.Results[i].Totalcount, passCount, jresult.Results[i].Failcount,
-			//	(float32(passCount)/float32(jresult.Results[i].Totalcount))*100, jresult.Results[i].Numofjobs, abortedJobs, failureJobs, unstableJobs,
-			//	successJobs, int64(hours), int64(mins), jresult.Results[i].Totaltime)
-
 		}
 	}
 
+	//Get the slaves information
+	props := properties.MustLoadFile("${HOME}/.jenkins_env.properties", properties.UTF8)
+	jenkinsServer := "QA"
+	jenkinsUser := props.MustGetString(jenkinsServer + "_JENKINS_USER")
+	jenkinsUserPwd := props.MustGetString(jenkinsServer + "_JENKINS_TOKEN")
+	jenkinsSlavesURL := qaJenkinsURL + "computer/api/json?pretty=true"
+	slavesFile := "jenkins_slaves.json"
+	DownloadFileWithBasicAuth(slavesFile, jenkinsSlavesURL, jenkinsUser, jenkinsUserPwd)
+	queuedJobs := totalReleasejobs - numofjobs
+	currentTime := time.Now().Format(time.RFC3339)
+
 	//Print Summary
-
 	//fmt.Fprintf(w, "\nTotal #of Jobs Kicked off: %3d\n", totalExpectedSuites)
-	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------")
-	fmt.Printf("\nS.No\tTimestamp\t#of jobs kickedoff\t#of jobs completed\t#of jobs queued\t#of slaves available\t#of slaves used\t" +
-		"#of server vms available\t#of server VMs used\t#of tests executed, \t#passed, \t#failed \tPass Rate \tTotaltime")
-	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------")
-	queuedJobs := totalExpectedSuites - numofjobs
-	fmt.Printf("\n%2d\t%s\t%3d\t%3d(%3d,%3d,%3d,%3d)\t%3d\t-\t-\t-\t-\t%5d\t%5d\t\t%5d\t\t%6.2f%%\t\t%4d hrs %2d mins (%11d millis)\n",
-		sno, time.Now().Format("Mon, 2 Jan 2006 15:04:05 PST"), totalExpectedSuites,
-		numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, queuedJobs, totalCount,
-		passCount, failCount,
-		(float32(passCount)/float32(totalCount))*100, int64(hours), int64(mins), totalTime)
 
+	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------" +
+		"--------------------------------------------------------------------------------------------------------------\n")
+	fmt.Printf("\nS.No\tTimestamp\t\t#ofJobsKickedoff\t#ofJobsCompleted\t#ofJobsQueued\t#ofSlavesAvailable\t#ofSlavesUsed\t" +
+		"#ofServerVMsAvailable\t#ofServerVMsUsed\t#ofTestsExecuted\t#Passed\t#Failed\tPassRate\tTotaltime")
+	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------" +
+		"--------------------------------------------------------------------------------------------------------------\n")
+
+	fmt.Printf("\n%2d\t%s\t%3d\t\t%3d(%3d,%3d,%3d,%3d)\t%3d\t-\t-\t-\t-\t%5d\t%5d\t\t%5d\t\t%6.2f%%\t\t%4d hrs %2d mins (%11d millis)\n",
+		sno, currentTime, totalReleasejobs,
+		numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, queuedJobs, totalCount,
+		passCount, failCount,
+		(float32(passCount)/float32(totalCount))*100, int64(hours), int64(mins), totalTime)
+	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------" +
+		"--------------------------------------------------------------------------------------------------------------\n")
+	// save in the file
 	fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
-		"-------------------------------------------------------------------------------------------------------------------")
-	fmt.Fprintf(w, "\n%2d\t%s\t%3d\t%3d(%3d,%3d,%3d,%3d)\t%3d\t-\t-\t-\t-\t%5d\t%5d\t\t%5d\t\t%6.2f%%\t\t%4d hrs %2d mins (%11d millis)\n",
-		sno, time.Now().Format("Mon, 2 Jan 2006 15:04:05 PST"), totalExpectedSuites,
+		"--------------------------------------------------------------------------------------------------------------\n")
+	fmt.Fprintf(w, "\nS.No\tTimestamp\t\t#ofJobsKickedoff\t#ofJobsCompleted\t#ofJobsQueued\t#ofSlavesAvailable\t#ofSlavesUsed\t"+
+		"#ofServerVMsAvailable\t#ofServerVMsUsed\t#ofTestsExecuted\t#Passed\t#Failed\tPassRate\tTotaltime")
+	fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
+		"--------------------------------------------------------------------------------------------------------------\n")
+	fmt.Fprintf(w, "\n%2d\t%s\t%3d\t\t%3d(%3d,%3d,%3d,%3d)\t%3d\t-\t-\t-\t-\t%5d\t%5d\t\t%5d\t\t%6.2f%%\t\t%4d hrs %2d mins (%11d millis)\n",
+		sno, currentTime, totalReleasejobs,
 		numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, queuedJobs, totalCount,
 		passCount, failCount,
 		(float32(passCount)/float32(totalCount))*100, int64(hours), int64(mins), totalTime)
 	fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
-		"-------------------------------------------------------------------------------------------------------------------\n")
+		"--------------------------------------------------------------------------------------------------------------\n")
 	w.Flush()
 	f.Close()
 }
