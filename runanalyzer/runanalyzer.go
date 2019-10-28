@@ -157,7 +157,7 @@ func main() {
 	} else if *action == "runquery" {
 		fmt.Println("Query Result: ", runquery(os.Args[3]))
 	} else if *action == "getrunprogress" {
-		GenSummaryForRunProgress(os.Args[len(os.Args)-1])
+		GenSummaryForRunProgress(os.Args[len(os.Args)-2], os.Args[len(os.Args)-1])
 	} else if *action == "usage" {
 		fmt.Println(usage())
 	} else {
@@ -1166,10 +1166,11 @@ type TestSuites struct {
 }
 
 //GenSummaryForRunProgress ...
-func GenSummaryForRunProgress(filename string) {
+func GenSummaryForRunProgress(filename string, cbbuild string) {
 
 	fmt.Println("Generating summary for run progress ...")
-	url := "http://172.23.105.177:8093/query/service"
+	servercburl := url
+	serverpoolcburl := "http://172.23.105.177:8093/query/service"
 
 	//read triggered urls from file
 	f1, err1 := os.Open(filename)
@@ -1188,7 +1189,7 @@ func GenSummaryForRunProgress(filename string) {
 
 	f, _ := os.Create("component_testsuites.txt")
 	defer f.Close()
-
+	sno := 1
 	w := bufio.NewWriter(f)
 	// https://golang.org/pkg/bufio/#Scanner.Scan
 	for {
@@ -1251,7 +1252,7 @@ func GenSummaryForRunProgress(filename string) {
 
 		//fmt.Println("query=" + qry)
 		localFileName := "suiteresult.json"
-		if err := executeN1QLStmt(localFileName, url, qry); err != nil {
+		if err := executeN1QLStmt(localFileName, serverpoolcburl, qry); err != nil {
 			panic(err)
 		}
 
@@ -1280,12 +1281,89 @@ func GenSummaryForRunProgress(filename string) {
 		line++
 	}
 
-	fmt.Fprintf(w, "\nTotal #of Jobs Kicked off: %3d\n", totalExpectedSuites)
-	fmt.Printf("\n----------------------------------------")
-	fmt.Printf("\n#of Jobs Kicked off\t#of Jobs in Queue")
-	fmt.Printf("\n----------------------------------------")
-	fmt.Printf("\n\t%3d\t\n", totalExpectedSuites)
+	//Get total jobs
+	jqry := "select `build`, numofjobs, totaltime, failcount, totalcount from (select b.`build`, count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b " +
+		"where lower(b.os) like \"" + cbplatform + "\" and b.`build` like \"" + cbbuild + "%\" group by b.`build` order by b.`build` desc) as result " + qryfilter + " limit " + limits
+	fmt.Println("\nquery=" + jqry)
+	fmt.Println("\nurl=" + url)
+	jlocalFileName := "buildprogressdetails.json"
+	if jerr := executeN1QLStmt(jlocalFileName, servercburl, jqry); jerr != nil {
+		//panic(err)
+		log.Println(jerr)
+	}
+	jresultFile, jerr := os.Open(jlocalFileName)
+	if jerr != nil {
+		fmt.Println(jerr)
+	}
+	defer jresultFile.Close()
+
+	jbyteValue, _ := ioutil.ReadAll(jresultFile)
+
+	var jresult TotalCycleTimeQryResult
+	var numofjobs int
+	var abortedJobs, failureJobs, unstableJobs, successJobs int
+	var passCount, failCount, totalCount int
+	var hours, mins float64
+	var secs int64
+	var totalTime int64
+	jerr = json.Unmarshal(jbyteValue, &jresult)
+	if jresult.Status == "success" {
+		fmt.Println(" Total time in millis: ", jresult.Results[0].Totaltime)
+		totalhours := 0
+		for i := 0; i < len(jresult.Results); i++ {
+			cbbuild = jresult.Results[i].Build
+
+			// get jobs status
+			abortedJobs, failureJobs, unstableJobs, successJobs = getJobsStatusList(cbbuild)
+
+			hours = math.Floor(float64(jresult.Results[i].Totaltime) / 1000 / 60 / 60)
+			totalhours += int(hours)
+			secs = jresult.Results[i].Totaltime % (1000 * 60 * 60)
+			mins = math.Floor(float64(secs) / 60 / 1000)
+			//secs = result.Results[i].Totaltime * 1000 % 60
+			passCount = jresult.Results[i].Totalcount - jresult.Results[i].Failcount
+			numofjobs = jresult.Results[i].Numofjobs
+			totalCount = jresult.Results[i].Totalcount
+			failCount = jresult.Results[i].Failcount
+			totalTime = jresult.Results[i].Totaltime
+
+			//fmt.Printf("\n%3d.\t%s\t%5d\t\t%5d\t\t%5d\t\t%6.2f%%\t\t%3d(%3d,%3d,%3d,%3d)\t%4d hrs %2d mins (%11d millis)",
+			//	(sno), cbbuild, jresult.Results[i].Totalcount, passCount, jresult.Results[i].Failcount,
+			//	(float32(passCount)/float32(jresult.Results[i].Totalcount))*100, jresult.Results[i].Numofjobs, abortedJobs, failureJobs, unstableJobs,
+			//	successJobs, int64(hours), int64(mins), jresult.Results[i].Totaltime)
+			//fmt.Fprintf(outW, "\n%3d.\t%s\t%5d\t\t%5d\t\t%5d\t\t%6.2f%%\t\t%3d(%3d,%3d,%3d,%3d)\t%4d hrs %2d mins (%11d millis)",
+			//	(sno), cbbuild, jresult.Results[i].Totalcount, passCount, jresult.Results[i].Failcount,
+			//	(float32(passCount)/float32(jresult.Results[i].Totalcount))*100, jresult.Results[i].Numofjobs, abortedJobs, failureJobs, unstableJobs,
+			//	successJobs, int64(hours), int64(mins), jresult.Results[i].Totaltime)
+
+		}
+	}
+
+	//Print Summary
+
+	//fmt.Fprintf(w, "\nTotal #of Jobs Kicked off: %3d\n", totalExpectedSuites)
+	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------")
+	fmt.Printf("\nS.No\tTimestamp\t#of jobs kickedoff\t#of jobs completed\t#of jobs queued\t#of slaves available\t#of slaves used\t" +
+		"#of server vms available\t#of server VMs used\t#of tests executed, \t#passed, \t#failed \tPass Rate \tTotaltime")
+	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------")
+	queuedJobs := totalExpectedSuites - numofjobs
+	fmt.Printf("\n%2d\t%s\t%3d\t%3d(%3d,%3d,%3d,%3d)\t%3d\t-\t-\t-\t-\t%5d\t%5d\t\t%5d\t\t%6.2f%%\t\t%4d hrs %2d mins (%11d millis)\n",
+		sno, time.Now().Format("Mon, 2 Jan 2006 15:04:05 PST"), totalExpectedSuites,
+		numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, queuedJobs, totalCount,
+		passCount, failCount,
+		(float32(passCount)/float32(totalCount))*100, int64(hours), int64(mins), totalTime)
+
+	fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
+		"-------------------------------------------------------------------------------------------------------------------")
+	fmt.Fprintf(w, "\n%2d\t%s\t%3d\t%3d(%3d,%3d,%3d,%3d)\t%3d\t-\t-\t-\t-\t%5d\t%5d\t\t%5d\t\t%6.2f%%\t\t%4d hrs %2d mins (%11d millis)\n",
+		sno, time.Now().Format("Mon, 2 Jan 2006 15:04:05 PST"), totalExpectedSuites,
+		numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, queuedJobs, totalCount,
+		passCount, failCount,
+		(float32(passCount)/float32(totalCount))*100, int64(hours), int64(mins), totalTime)
+	fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
+		"-------------------------------------------------------------------------------------------------------------------\n")
 	w.Flush()
+	f.Close()
 }
 
 // fileExists ...
