@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -136,6 +137,8 @@ var cbrelease string
 var s3url string
 var defaultSuiteType string
 var qaJenkinsURL string
+var requiredServerPools string
+var requiredStates string
 
 func main() {
 	fmt.Println("*** Helper Tool ***")
@@ -158,6 +161,9 @@ func main() {
 	workspaceInput := flag.String("workspace", "testrunner", usage())
 	cbreleaseInput := flag.String("cbrelease", "6.5", usage())
 	defaultSuiteTypeInput := flag.String("suite", "12hour", usage())
+	requiredServerPoolsInput := flag.String("reqserverpools",
+		"regression,durability,ipv6,ipv6-raw,ipv6-fqdn,ipv6-mix,jre-less,jre,security,elastic-fts,elastic-xdcr", usage())
+	requiredStatesInput := flag.String("reqstates", "available,booked", usage())
 
 	flag.Parse()
 	dest = *destInput
@@ -178,6 +184,8 @@ func main() {
 	cbrelease = *cbreleaseInput
 	defaultSuiteType = *defaultSuiteTypeInput
 	qaJenkinsURL = *qaJenkinsURLInput
+	requiredServerPools = *requiredServerPoolsInput
+	requiredStates = *requiredStatesInput
 
 	//fmt.Println("original dest=", dest, "--", *destInput)
 	//time.Sleep(10 * time.Second)
@@ -209,7 +217,8 @@ func usage() string {
 		"--s3bucket cb-logs-qe --s3url http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/ --cbqueryurl [http://172.23.109.245:8093/query/service]\n" +
 		"-action totaltime 6.5  : to get the total number of jobs, time duration for a given set of  builds in a release, " +
 		"Options: --limits [100] --qryfilter 'where result.numofjobs>900 and (totalcount-failcount)*100/totalcount>90'\n" +
-		"-action getrunprogress build : to get the summary report on the kickedoff runs for a build" +
+		"-action getrunprogress build : to get the summary report on the kickedoff runs for a build. " +
+		" Options: --reqserverpools=[regression,durability,ipv6,ipv6-raw,ipv6-fqdn,ipv6-mix,jre-less,jre,security,elastic-fts,elastic-xdcr] --reqstates=[available,booked]" +
 		"-action runquery 'select * from server where lower(`os`)=\"centos\" and `build`=\"6.5.0-4106\"' : to run a given query statement"
 
 }
@@ -1414,7 +1423,7 @@ func GenSummaryForRunProgress(cbbuild string) {
 	var jeresult JenkinsComputerQryResult
 	jeerr = json.Unmarshal(jebyteValue, &jeresult)
 	totalNumofSlaves := len(jeresult.Computer) - 1
-	fmt.Printf("\nslaves total executors=%d\tbusy executors=%d\tslaves count=%d", jeresult.TotalExecutors, jeresult.BusyExecutors, totalNumofSlaves)
+	//fmt.Printf("\nslaves total executors=%d\tbusy executors=%d\tslaves count=%d", jeresult.TotalExecutors, jeresult.BusyExecutors, totalNumofSlaves)
 
 	p0SlavesLabels := "P0"
 	numberofP0Slaves := 0
@@ -1440,42 +1449,48 @@ func GenSummaryForRunProgress(cbbuild string) {
 
 			}
 		}
-		fmt.Printf("\n%s\t%t\t%t\t%d", jeresult.Computer[i].DisplayName, jeresult.Computer[i].Offline, jeresult.Computer[i].temporarilyOffline,
-			jeresult.Computer[i].NumExecutors)
+		//fmt.Printf("\n%s\t%t\t%t\t%d", jeresult.Computer[i].DisplayName, jeresult.Computer[i].Offline, jeresult.Computer[i].temporarilyOffline,
+		//	jeresult.Computer[i].NumExecutors)
 
 	}
 
-	fmt.Printf("\n%3d\t%3d\t%3d\t%3d\t%3d\t%3d", numberofP0Slaves, numberofP0Executors, numberofP0offline, numberofP0available, numberofP0availableExecutors, numberofP0offlineExecutors)
+	//fmt.Printf("\n%3d\t%3d\t%3d\t%3d\t%3d\t%3d", numberofP0Slaves, numberofP0Executors, numberofP0offline, numberofP0available, numberofP0availableExecutors, numberofP0offlineExecutors)
 
-	//4. Print Summary
+	//4. Get server VMs for the required pools
+	vmsCount := GetServerPoolVMs(cbplatform, requiredServerPools, requiredStates)
+
+	//5. Print Summary
 	//fmt.Fprintf(w, "\nTotal #of Jobs Kicked off: %3d\n", totalExpectedSuites)
-
+	fmt.Printf("\nTest execution progress summary report\n Build: %s\n Server pools:%s", cbbuild, requiredServerPools)
 	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------" +
 		"--------------------------------------------------------------------------------------------------------------\n")
 	fmt.Printf("\nS.No\tTimestamp\t\t#ofJobsKickedoff\t#ofJobsCompleted\t#ofJobsQueued\t#ofP0SlavesAvailable(E)\t#ofSlavesUsed(E)\t" +
-		"#ofServerVMsAvailable\t#ofServerVMsUsed\t#ofTestsExecuted\t#Passed\t#Failed\tPassRate\tTotaltime")
+		"#ofServerVMsAvailable\t#ofServerVMsUsed\t#ofTestsExecuted\t#Passed\t#Failed \tPassRate\tTotaltime")
 	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------" +
 		"--------------------------------------------------------------------------------------------------------------\n")
 
-	fmt.Printf("\n%2d\t%s\t%3d\t\t%3d(%3d,%3d,%3d,%3d)\t%3d\t\t%3d/%3d(%3d/%3d)\t%s/%3d(%3d/%3d)\t\t-\t\t-\t\t%5d\t%5d\t\t%5d\t\t%6.2f%%\t\t%4d hrs %2d mins (%11d millis)\n",
+	fmt.Printf("\n%2d\t%s\t%3d\t\t%3d(%3d,%3d,%3d,%3d)\t%3d\t\t%3d/%3d(%3d/%3d)\t%s/%3d(%3d/%3d)\t\t%3d\t\t\t%3d\t\t\t%5d\t\t\t%5d\t%5d \t%6.2f%%\t%4d hrs %2d mins (%11d millis)\n",
 		sno, currentTime, totalReleasejobs,
 		numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, queuedJobs,
 		numberofP0available, numberofP0Slaves, numberofP0availableExecutors, numberofP0Executors, "-", totalNumofSlaves, jeresult.BusyExecutors, jeresult.TotalExecutors,
+		vmsCount[0], vmsCount[1],
 		totalCount, passCount, failCount,
 		(float32(passCount)/float32(totalCount))*100, int64(hours), int64(mins), totalTime)
 	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------" +
 		"--------------------------------------------------------------------------------------------------------------\n")
 	// 4.2. save in the file
+	fmt.Fprintf(w, "\nTest execution progress summary report\n Build: %s\n Server pools:%s", cbbuild, requiredServerPools)
 	fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
 		"--------------------------------------------------------------------------------------------------------------\n")
 	fmt.Fprintf(w, "\nS.No\tTimestamp\t\t#ofJobsKickedoff\t#ofJobsCompleted\t#ofJobsQueued\t#ofP0SlavesAvailable(E)\t#ofSlavesUsed(E)\t"+
-		"#ofServerVMsAvailable\t#ofServerVMsUsed\t#ofTestsExecuted\t#Passed\t#Failed\tPassRate\tTotaltime")
+		"#ofServerVMsAvailable\t#ofServerVMsUsed\t#ofTestsExecuted\t#Passed\t#Failed \tPassRate\tTotaltime")
 	fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
 		"--------------------------------------------------------------------------------------------------------------\n")
-	fmt.Fprintf(w, "\n%2d\t%s\t%3d\t\t%3d(%3d,%3d,%3d,%3d)\t%3d\t\t%3d/%3d(%3d/%3d)\t%s/%3d(%3d/%3d)\t\t-\t\t-\t\t%5d\t%5d\t\t%5d\t\t%6.2f%%\t\t%4d hrs %2d mins (%11d millis)\n",
+	fmt.Fprintf(w, "\n%2d\t%s\t%3d\t\t%3d(%3d,%3d,%3d,%3d)\t%3d\t\t%3d/%3d(%3d/%3d)\t%s/%3d(%3d/%3d)\t\t%3d\t\t\t%3d\t\t\t%5d\t\t\t%5d\t%5d\t%6.2f%%\t%4d hrs %2d mins (%11d millis)\n",
 		sno, currentTime, totalReleasejobs,
 		numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, queuedJobs,
 		numberofP0available, numberofP0Slaves, numberofP0availableExecutors, numberofP0Executors, "-", totalNumofSlaves, jeresult.BusyExecutors, jeresult.TotalExecutors,
+		vmsCount[0], vmsCount[1],
 		totalCount, passCount, failCount,
 		(float32(passCount)/float32(totalCount))*100, int64(hours), int64(mins), totalTime)
 	fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
@@ -1484,6 +1499,164 @@ func GenSummaryForRunProgress(cbbuild string) {
 	f.Close()
 
 	fmt.Println("Check the summary file at " + f.Name())
+}
+
+// PoolN1QLQryResult type
+type PoolN1QLQryResult struct {
+	Status  string
+	Results []QEServerPool
+}
+
+// QEServerPool type
+type QEServerPool struct {
+	IPaddr  string
+	Origin  string
+	HostOS  string
+	SpoolID string
+	PoolID  []string
+	State   string
+}
+
+// HostOSN1QLQryResult type
+type HostOSN1QLQryResult struct {
+	Status  string
+	Results []HostOSCount
+}
+
+// HostOSCount type
+type HostOSCount struct {
+	HostOS string
+	Count  int16
+}
+
+//GetServerPoolVMs ...
+func GetServerPoolVMs(osplatform string, reqserverpools string, reqstates string) []int {
+
+	url := "http://172.23.105.177:8093/query/service"
+	//osplatform := "centos"
+	qry := "select ipaddr,origin,os as hostos,poolId as spoolId, poolId,state from `QE-server-pool` where lower(`os`)='" + osplatform + "'"
+	//fmt.Println("query=" + qry)
+	localFileName := "result.json"
+	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
+		panic(err)
+	}
+
+	resultFile, err := os.Open(localFileName)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer resultFile.Close()
+
+	byteValue, _ := ioutil.ReadAll(resultFile)
+	var result PoolN1QLQryResult
+	err = json.Unmarshal(byteValue, &result)
+	var counts []int
+	counts = make([]int, 0)
+	if result.Status == "success" {
+		//fmt.Println("Count: ", len(result.Results))
+		var pools map[string]string
+		pools = make(map[string]string)
+		var states map[string]string
+		states = make(map[string]string)
+		var poolswithstates map[string]string
+		poolswithstates = make(map[string]string)
+		var vms map[string]string
+		vms = make(map[string]string)
+
+		for i := 0; i < len(result.Results); i++ {
+			//fmt.Println((i + 1), result.Results[i].Aname, result.Results[i].JURL, result.Results[i].URLbuild)
+			//fmt.Print(result.Results[i].IPaddr, ", ", result.Results[i].HostOS, ", ", result.Results[i].State, ", [")
+			//for j := 0; j < len(result.Results[i].PoolID); j++ {
+			//	fmt.Print(result.Results[i].PoolID[j], ", ")
+			//}
+			//fmt.Println("]")
+			//_, err = fmt.Fprintf(w, "%s,%s,%s\n", result.Results[i].IPaddr,
+			//	result.Results[i].HostOS, result.Results[i].State)
+
+			//pools level
+			if result.Results[i].SpoolID != "" {
+				//pools[result.Results[i].SpoolID+result.Results[i].HostOS] = pools[result.Results[i].SpoolID+result.Results[i].HostOS] + result.Results[i].IPaddr + "\n"
+				pools[result.Results[i].SpoolID] = pools[result.Results[i].SpoolID] + result.Results[i].IPaddr + "\n"
+				poolswithstates[result.Results[i].SpoolID+result.Results[i].State] = poolswithstates[result.Results[i].SpoolID+result.Results[i].State] + result.Results[i].IPaddr + "\n"
+				vms[result.Results[i].IPaddr] = vms[result.Results[i].IPaddr] + result.Results[i].SpoolID + ","
+
+				//fmt.Println("result.Results[i].SpoolID=", result.Results[i].SpoolID+", PoolID length=", len(result.Results[i].PoolID))
+			} else {
+				for j := 0; j < len(result.Results[i].PoolID); j++ {
+					if !strings.Contains(result.Results[i].IPaddr, "[f") {
+						pools[result.Results[i].PoolID[j]] = pools[result.Results[i].PoolID[j]] + result.Results[i].IPaddr + "\n"
+						poolswithstates[result.Results[i].PoolID[j]+result.Results[i].State] = poolswithstates[result.Results[i].PoolID[j]+result.Results[i].State] + result.Results[i].IPaddr + "\n"
+						vms[result.Results[i].IPaddr] = vms[result.Results[i].IPaddr] + result.Results[i].PoolID[j] + ","
+					} else {
+						pools[result.Results[i].PoolID[j]] = pools[result.Results[i].PoolID[j]] + "#" + result.Results[i].IPaddr + "\n"
+						poolswithstates[result.Results[i].PoolID[j]+result.Results[i].State] = poolswithstates[result.Results[i].PoolID[j]+result.Results[i].State] + "#" + result.Results[i].IPaddr + "\n"
+						vms[result.Results[i].IPaddr] = vms[result.Results[i].IPaddr] + result.Results[i].PoolID[j] + ","
+					}
+					//_, err = fmt.Fprintf(w, ",%s", result.Results[i].PoolID[j])
+					//fmt.Println("result.Results[i].SpoolID=", result.Results[i].SpoolID+", PoolID length=", len(result.Results[i].PoolID))
+				}
+
+			}
+			vms[result.Results[i].IPaddr] = vms[result.Results[i].IPaddr] + result.Results[i].State
+
+			// states level
+			if !strings.Contains(result.Results[i].IPaddr, "[f") {
+				states[result.Results[i].State] = states[result.Results[i].State] + result.Results[i].IPaddr + "\n"
+			} else {
+				states[result.Results[i].State] = states[result.Results[i].State] + "#" + result.Results[i].IPaddr + "\n"
+			}
+
+		}
+		//summary and generation of .ini - write to file
+
+		//fmt.Println("\nBy Pools with State")
+		//fmt.Println("---------------------")
+		f2, err2 := os.Create("vmpoolswithstates_" + osplatform + "_ips.ini")
+		if err2 != nil {
+			log.Println(err2)
+		}
+		defer f2.Close()
+		w2 := bufio.NewWriter(f2)
+
+		var pskeys []string
+		for k := range poolswithstates {
+			pskeys = append(pskeys, k)
+		}
+		sort.Strings(pskeys)
+		totalHosts := 0
+		psf, _ := os.Create("vmpoolswithstates_" + osplatform + "_counts.txt")
+		defer psf.Close()
+		psfw := bufio.NewWriter(psf)
+
+		reqstates1 := strings.Split(reqstates, ",")
+		reqserverpools1 := strings.Split(reqserverpools, ",")
+		for i := 0; i < len(reqstates1); i++ {
+			count := 0
+			for j := 0; j < len(reqserverpools1); j++ {
+				k := reqserverpools1[j] + reqstates1[i]
+				count += len(strings.Split(poolswithstates[k], "\n")) - 1
+				//fmt.Printf("reqserverpools[j]=%s,reqstates[i]=%s,k=%s, count=%d", reqserverpools1[j], reqstates1[i], k, count)
+			}
+
+			counts = append(counts, count)
+		}
+		for _, k := range pskeys {
+			nk := strings.ReplaceAll(k, " ", "")
+			nk = strings.ReplaceAll(nk, "-", "")
+			_, err = fmt.Fprintf(w2, "\n[%s]\n%s", nk, poolswithstates[k])
+			count := len(strings.Split(poolswithstates[k], "\n")) - 1
+			totalHosts += count
+			//fmt.Printf("%s: %d\n", nk, count)
+			fmt.Fprintf(psfw, "%s: %d\n", nk, count)
+		}
+		//fmt.Println("\n Total: ", totalHosts)
+		w2.Flush()
+		psfw.Flush()
+
+	} else {
+		fmt.Println("CBQuery Status: Failed")
+	}
+	return counts
 }
 
 // fileExists ...
