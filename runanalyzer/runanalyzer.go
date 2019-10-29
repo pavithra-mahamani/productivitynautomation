@@ -1460,33 +1460,44 @@ func GenSummaryForRunProgress(cbbuild string) {
 	//fmt.Fprintf(w, "\nTotal #of Jobs Kicked off: %3d\n", totalExpectedSuites)
 	sno := 1
 	reportOutputFileName := "summary_progress_" + cbbuild + ".txt"
-	snoFile := ".sno_" + cbbuild + ".txt"
+	//userHome, _ := os.UserHomeDir()
+	//snoFile := userHome + string(os.PathSeparator) + ".sno_" + cbbuild + ".txt"
 	f, err := os.OpenFile(reportOutputFileName, os.O_APPEND|os.O_WRONLY, 0600)
 	isNewFile := false
 	if err != nil {
 		f, _ = os.Create(reportOutputFileName)
 		isNewFile = true
 		sno = 1
-		writeContent(snoFile, strconv.Itoa(sno))
+		//writeContent(snoFile, strconv.Itoa(sno))
 	} else {
 		// read last record to get the sno
-		ssno, _ := readContent(snoFile)
-		sno, _ = strconv.Atoi(strings.TrimSpace(ssno))
+		//ssno, _ := readContent(snoFile)
+		//sno, _ = strconv.Atoi(strings.TrimSpace(ssno))
 		//fmt.Printf("ssno=%s,sno=%d", ssno, sno)
-		sno++
+		//sno++
+
+		lastsnostr, _ := readTailN(reportOutputFileName, 2)
+		if lastsnostr != "" {
+			ssno := strings.TrimSpace(strings.Split(lastsnostr, ".")[0])
+			sno, _ = strconv.Atoi(strings.TrimSpace(ssno))
+			//fmt.Printf("lastsnostr=%s,ssno=%s,sno=%d", lastsnostr, ssno, sno)
+			sno++
+		}
+
 	}
 	defer f.Close()
 	w := bufio.NewWriter(f)
 
-	fmt.Printf("\n*** Test execution progress summary report ***\n Build: %s\n Server pools:%s", cbbuild, requiredServerPools)
+	//fmt.Printf("\n*** Test execution progress summary report ***\n Build: %s\n Server pools:%s", cbbuild, requiredServerPools)
+	fmt.Printf("\n*** Test execution progress summary report for build#%s ***", cbbuild)
 	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------" +
-		"--------------------------------------------------------------------------------------------------------------\n")
-	fmt.Printf("\nS.No\tTimestamp\t\t#ofJobsKickedoff\t#ofJobsCompleted\t#ofJobsQueued\t#ofP0SlavesAvailable(E)\t#ofSlavesUsed(E)\t" +
+		"--------------------------------------------------------------------------------------------------------------")
+	fmt.Printf("\nS.No.\tTimestamp\t\t#ofJobsKickedoff\t#ofJobsCompleted\t#ofJobsQueued\t#ofP0SlavesAvailable(E)\t#ofSlavesUsed(E)\t" +
 		"#ofServerVMsAvailable\t#ofServerVMsUsed\t#ofTestsExecuted\t#Passed\t#Failed \tPassRate\tTotaltime")
 	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------" +
-		"--------------------------------------------------------------------------------------------------------------\n")
+		"--------------------------------------------------------------------------------------------------------------")
 
-	fmt.Printf("\n%2d\t%s\t%3d\t\t%3d(%3d,%3d,%3d,%3d)\t%3d\t\t%3d/%3d(%3d/%3d)\t%s/%3d(%3d/%3d)\t\t%3d\t\t\t%3d\t\t\t%5d\t\t\t%5d\t%5d \t%6.2f%%\t%4d hrs %2d mins (%11d millis)\n",
+	fmt.Printf("\n%2d.\t%s\t%3d\t\t%3d(%3d,%3d,%3d,%3d)\t%3d\t\t%3d/%3d(%3d/%3d)\t%s/%3d(%3d/%3d)\t\t%3d\t\t\t%3d\t\t\t%5d\t\t\t%5d\t%5d \t%6.2f%%\t%4d hrs %2d mins (%11d millis)",
 		sno, currentTime, totalReleasejobs,
 		numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, queuedJobs,
 		numberofP0available, numberofP0Slaves, numberofP0availableExecutors, numberofP0Executors, "-", totalNumofSlaves, jeresult.BusyExecutors, jeresult.TotalExecutors,
@@ -1497,15 +1508,15 @@ func GenSummaryForRunProgress(cbbuild string) {
 		"--------------------------------------------------------------------------------------------------------------\n")
 	// 4.2. save in the file
 	if isNewFile {
-		fmt.Fprintf(w, "\n*** Test execution progress summary report ***\n Build: %s\n Server pools:%s", cbbuild, requiredServerPools)
+		fmt.Fprintf(w, "\n*** Test execution progress summary report for build#%s ***", cbbuild)
 		fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
-			"--------------------------------------------------------------------------------------------------------------\n")
+			"--------------------------------------------------------------------------------------------------------------")
 		fmt.Fprintf(w, "\nS.No\tTimestamp\t\t#ofJobsKickedoff\t#ofJobsCompleted\t#ofJobsQueued\t#ofP0SlavesAvailable(E)\t#ofSlavesUsed(E)\t"+
 			"#ofServerVMsAvailable\t#ofServerVMsUsed\t#ofTestsExecuted\t#Passed\t#Failed \tPassRate\tTotaltime")
 		fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
-			"--------------------------------------------------------------------------------------------------------------\n")
+			"--------------------------------------------------------------------------------------------------------------")
 	}
-	fmt.Fprintf(w, "\n%2d\t%s\t%3d\t\t%3d(%3d,%3d,%3d,%3d)\t%3d\t\t%3d/%3d(%3d/%3d)\t%s/%3d(%3d/%3d)\t\t%3d\t\t\t%3d\t\t\t%5d\t\t\t%5d\t%5d\t%6.2f%%\t%4d hrs %2d mins (%11d millis)\n",
+	fmt.Fprintf(w, "\n%2d.\t%s\t%3d\t\t%3d(%3d,%3d,%3d,%3d)\t%3d\t\t%3d/%3d(%3d/%3d)\t%s/%3d(%3d/%3d)\t\t%3d\t\t\t%3d\t\t\t%5d\t\t\t%5d\t%5d\t%6.2f%%\t%4d hrs %2d mins (%11d millis)",
 		sno, currentTime, totalReleasejobs,
 		numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, queuedJobs,
 		numberofP0available, numberofP0Slaves, numberofP0availableExecutors, numberofP0Executors, "-", totalNumofSlaves, jeresult.BusyExecutors, jeresult.TotalExecutors,
@@ -1516,8 +1527,8 @@ func GenSummaryForRunProgress(cbbuild string) {
 		"--------------------------------------------------------------------------------------------------------------\n")
 	w.Flush()
 	f.Close()
-	writeContent(snoFile, strconv.Itoa(sno))
-	fmt.Println("Check the summary file at " + f.Name())
+	//writeContent(snoFile, strconv.Itoa(sno))
+	fmt.Println("NOTE: Please check the final progress summary report file at " + f.Name())
 }
 
 // PoolN1QLQryResult type
@@ -1920,4 +1931,39 @@ func writeContent(filename string, content string) {
 	fmt.Fprintf(outW, "%s\n", content)
 	outW.Flush()
 	outFile.Close()
+}
+
+//readTailN ...
+func readTailN(filename string, n int) (string, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	// Splits on newlines by default.
+	scanner := bufio.NewReader(f)
+
+	line := 0
+	linestring := ""
+
+	var content []string
+	content = make([]string, 0)
+	// https://golang.org/pkg/bufio/#Scanner.Scan
+	for {
+		linestring, err = scanner.ReadString('\n')
+
+		if err == io.EOF {
+			f.Close()
+			//fmt.Printf("Returning..last#%d - %s", (line - n), content[line-n])
+			return content[line-n], err
+		} else if err != nil {
+			fmt.Println(err)
+			return content[line-n], err
+		}
+		//fmt.Printf("Appending...line#%d - %s", line, linestring)
+		content = append(content, linestring)
+		line++
+		//return content[line-n-1], err
+	}
 }
