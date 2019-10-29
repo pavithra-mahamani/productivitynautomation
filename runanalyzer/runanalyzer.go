@@ -1216,10 +1216,7 @@ func GenSummaryForRunProgress(cbbuild string) {
 	fmt.Println("Generating summary for run progress ...")
 	servercburl := url
 	//serverpoolcburl := "http://172.23.105.177:8093/query/service"
-	sno := 1
-	f, _ := os.Create("summary_progress_" + cbbuild + ".txt")
-	defer f.Close()
-	w := bufio.NewWriter(f)
+
 	/*
 		//read triggered urls from file
 		f1, err1 := os.Open(filename)
@@ -1461,7 +1458,27 @@ func GenSummaryForRunProgress(cbbuild string) {
 
 	//5. Print Summary
 	//fmt.Fprintf(w, "\nTotal #of Jobs Kicked off: %3d\n", totalExpectedSuites)
-	fmt.Printf("\nTest execution progress summary report\n Build: %s\n Server pools:%s", cbbuild, requiredServerPools)
+	sno := 1
+	reportOutputFileName := "summary_progress_" + cbbuild + ".txt"
+	snoFile := ".sno_" + cbbuild + ".txt"
+	f, err := os.OpenFile(reportOutputFileName, os.O_APPEND|os.O_WRONLY, 0600)
+	isNewFile := false
+	if err != nil {
+		f, _ = os.Create(reportOutputFileName)
+		isNewFile = true
+		sno = 1
+		writeContent(snoFile, strconv.Itoa(sno))
+	} else {
+		// read last record to get the sno
+		ssno, _ := readContent(snoFile)
+		sno, _ = strconv.Atoi(strings.TrimSpace(ssno))
+		//fmt.Printf("ssno=%s,sno=%d", ssno, sno)
+		sno++
+	}
+	defer f.Close()
+	w := bufio.NewWriter(f)
+
+	fmt.Printf("\n*** Test execution progress summary report ***\n Build: %s\n Server pools:%s", cbbuild, requiredServerPools)
 	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------" +
 		"--------------------------------------------------------------------------------------------------------------\n")
 	fmt.Printf("\nS.No\tTimestamp\t\t#ofJobsKickedoff\t#ofJobsCompleted\t#ofJobsQueued\t#ofP0SlavesAvailable(E)\t#ofSlavesUsed(E)\t" +
@@ -1479,13 +1496,15 @@ func GenSummaryForRunProgress(cbbuild string) {
 	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------" +
 		"--------------------------------------------------------------------------------------------------------------\n")
 	// 4.2. save in the file
-	fmt.Fprintf(w, "\nTest execution progress summary report\n Build: %s\n Server pools:%s", cbbuild, requiredServerPools)
-	fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
-		"--------------------------------------------------------------------------------------------------------------\n")
-	fmt.Fprintf(w, "\nS.No\tTimestamp\t\t#ofJobsKickedoff\t#ofJobsCompleted\t#ofJobsQueued\t#ofP0SlavesAvailable(E)\t#ofSlavesUsed(E)\t"+
-		"#ofServerVMsAvailable\t#ofServerVMsUsed\t#ofTestsExecuted\t#Passed\t#Failed \tPassRate\tTotaltime")
-	fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
-		"--------------------------------------------------------------------------------------------------------------\n")
+	if isNewFile {
+		fmt.Fprintf(w, "\n*** Test execution progress summary report ***\n Build: %s\n Server pools:%s", cbbuild, requiredServerPools)
+		fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
+			"--------------------------------------------------------------------------------------------------------------\n")
+		fmt.Fprintf(w, "\nS.No\tTimestamp\t\t#ofJobsKickedoff\t#ofJobsCompleted\t#ofJobsQueued\t#ofP0SlavesAvailable(E)\t#ofSlavesUsed(E)\t"+
+			"#ofServerVMsAvailable\t#ofServerVMsUsed\t#ofTestsExecuted\t#Passed\t#Failed \tPassRate\tTotaltime")
+		fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
+			"--------------------------------------------------------------------------------------------------------------\n")
+	}
 	fmt.Fprintf(w, "\n%2d\t%s\t%3d\t\t%3d(%3d,%3d,%3d,%3d)\t%3d\t\t%3d/%3d(%3d/%3d)\t%s/%3d(%3d/%3d)\t\t%3d\t\t\t%3d\t\t\t%5d\t\t\t%5d\t%5d\t%6.2f%%\t%4d hrs %2d mins (%11d millis)\n",
 		sno, currentTime, totalReleasejobs,
 		numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, queuedJobs,
@@ -1497,7 +1516,7 @@ func GenSummaryForRunProgress(cbbuild string) {
 		"--------------------------------------------------------------------------------------------------------------\n")
 	w.Flush()
 	f.Close()
-
+	writeContent(snoFile, strconv.Itoa(sno))
 	fmt.Println("Check the summary file at " + f.Name())
 }
 
@@ -1864,4 +1883,41 @@ func SearchFileNextLines2(filename string, substring string) (string, error) {
 		line++
 	}
 
+}
+
+//readContent ...
+func readContent(filename string) (string, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	// Splits on newlines by default.
+	scanner := bufio.NewReader(f)
+
+	//line := 1
+	linestring := ""
+	content := ""
+	// https://golang.org/pkg/bufio/#Scanner.Scan
+	for {
+		linestring, err = scanner.ReadString('\n')
+		if err != nil {
+			f.Close()
+			return "", err
+		}
+		content += linestring
+		//line++
+		return content, err
+	}
+}
+
+//writeContent ...
+func writeContent(filename string, content string) {
+	outFile, _ := os.Create(filename)
+	outW := bufio.NewWriter(outFile)
+	defer outFile.Close()
+	fmt.Fprintf(outW, "%s\n", content)
+	outW.Flush()
+	outFile.Close()
 }
