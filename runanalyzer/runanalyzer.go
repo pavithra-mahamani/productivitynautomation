@@ -103,11 +103,16 @@ type JenkinsComputerQryResult struct {
 
 // JenkinsComputer type
 type JenkinsComputer struct {
-	AssignedLabels     []string
+	AssignedLabels     []AssignedLabelName
 	DisplayName        string
-	NumExecutros       int
-	Offline            string
-	temporarilyOffline string
+	NumExecutors       int
+	Offline            bool
+	temporarilyOffline bool
+}
+
+// AssignedLabelName type
+type AssignedLabelName struct {
+	Name string
 }
 
 //const url = "http://172.23.109.245:8093/query/service"
@@ -1203,7 +1208,7 @@ func GenSummaryForRunProgress(cbbuild string) {
 	servercburl := url
 	//serverpoolcburl := "http://172.23.105.177:8093/query/service"
 	sno := 1
-	f, _ := os.Create("component_testsuites.txt")
+	f, _ := os.Create("summary_progress_" + cbbuild + ".txt")
 	defer f.Close()
 	w := bufio.NewWriter(f)
 	/*
@@ -1389,8 +1394,10 @@ func GenSummaryForRunProgress(cbbuild string) {
 			totalTime = jresult.Results[i].Totaltime
 		}
 	}
+	queuedJobs := totalReleasejobs - numofjobs
+	currentTime := time.Now().Format(time.RFC3339)
 
-	//Get the slaves information
+	//3. Get the slaves information
 	props := properties.MustLoadFile("${HOME}/.jenkins_env.properties", properties.UTF8)
 	jenkinsServer := "QA"
 	jenkinsUser := props.MustGetString(jenkinsServer + "_JENKINS_USER")
@@ -1398,42 +1405,85 @@ func GenSummaryForRunProgress(cbbuild string) {
 	jenkinsSlavesURL := qaJenkinsURL + "computer/api/json?pretty=true"
 	slavesFile := "jenkins_slaves.json"
 	DownloadFileWithBasicAuth(slavesFile, jenkinsSlavesURL, jenkinsUser, jenkinsUserPwd)
-	queuedJobs := totalReleasejobs - numofjobs
-	currentTime := time.Now().Format(time.RFC3339)
+	jeresultFile, jeerr := os.Open(slavesFile)
+	if jeerr != nil {
+		fmt.Println(jeerr)
+	}
+	defer jeresultFile.Close()
+	jebyteValue, _ := ioutil.ReadAll(jeresultFile)
+	var jeresult JenkinsComputerQryResult
+	jeerr = json.Unmarshal(jebyteValue, &jeresult)
+	totalNumofSlaves := len(jeresult.Computer) - 1
+	fmt.Printf("\nslaves total executors=%d\tbusy executors=%d\tslaves count=%d", jeresult.TotalExecutors, jeresult.BusyExecutors, totalNumofSlaves)
 
-	//Print Summary
+	p0SlavesLabels := "P0"
+	numberofP0Slaves := 0
+	numberofP0Executors := 0
+	numberofP0offline := 0
+	numberofP0available := 0
+	numberofP0availableExecutors := 0
+	numberofP0offlineExecutors := 0
+
+	for i := 0; i < totalNumofSlaves; i++ {
+		for j := 0; j < len(jeresult.Computer[i].AssignedLabels); j++ {
+			if strings.Contains(jeresult.Computer[i].AssignedLabels[j].Name, p0SlavesLabels) {
+				numberofP0Slaves++
+				numberofP0Executors += jeresult.Computer[i].NumExecutors
+				if jeresult.Computer[i].Offline || jeresult.Computer[i].temporarilyOffline {
+					numberofP0offline++
+					numberofP0offlineExecutors += jeresult.Computer[i].NumExecutors
+				} else {
+					numberofP0available++
+					numberofP0availableExecutors += jeresult.Computer[i].NumExecutors
+				}
+				break
+
+			}
+		}
+		fmt.Printf("\n%s\t%t\t%t\t%d", jeresult.Computer[i].DisplayName, jeresult.Computer[i].Offline, jeresult.Computer[i].temporarilyOffline,
+			jeresult.Computer[i].NumExecutors)
+
+	}
+
+	fmt.Printf("\n%3d\t%3d\t%3d\t%3d\t%3d\t%3d", numberofP0Slaves, numberofP0Executors, numberofP0offline, numberofP0available, numberofP0availableExecutors, numberofP0offlineExecutors)
+
+	//4. Print Summary
 	//fmt.Fprintf(w, "\nTotal #of Jobs Kicked off: %3d\n", totalExpectedSuites)
 
 	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------" +
 		"--------------------------------------------------------------------------------------------------------------\n")
-	fmt.Printf("\nS.No\tTimestamp\t\t#ofJobsKickedoff\t#ofJobsCompleted\t#ofJobsQueued\t#ofSlavesAvailable\t#ofSlavesUsed\t" +
+	fmt.Printf("\nS.No\tTimestamp\t\t#ofJobsKickedoff\t#ofJobsCompleted\t#ofJobsQueued\t#ofP0SlavesAvailable(E)\t#ofSlavesUsed(E)\t" +
 		"#ofServerVMsAvailable\t#ofServerVMsUsed\t#ofTestsExecuted\t#Passed\t#Failed\tPassRate\tTotaltime")
 	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------" +
 		"--------------------------------------------------------------------------------------------------------------\n")
 
-	fmt.Printf("\n%2d\t%s\t%3d\t\t%3d(%3d,%3d,%3d,%3d)\t%3d\t-\t-\t-\t-\t%5d\t%5d\t\t%5d\t\t%6.2f%%\t\t%4d hrs %2d mins (%11d millis)\n",
+	fmt.Printf("\n%2d\t%s\t%3d\t\t%3d(%3d,%3d,%3d,%3d)\t%3d\t\t%3d/%3d(%3d/%3d)\t%s/%3d(%3d/%3d)\t\t-\t\t-\t\t%5d\t%5d\t\t%5d\t\t%6.2f%%\t\t%4d hrs %2d mins (%11d millis)\n",
 		sno, currentTime, totalReleasejobs,
-		numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, queuedJobs, totalCount,
-		passCount, failCount,
+		numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, queuedJobs,
+		numberofP0available, numberofP0Slaves, numberofP0availableExecutors, numberofP0Executors, "-", totalNumofSlaves, jeresult.BusyExecutors, jeresult.TotalExecutors,
+		totalCount, passCount, failCount,
 		(float32(passCount)/float32(totalCount))*100, int64(hours), int64(mins), totalTime)
 	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------" +
 		"--------------------------------------------------------------------------------------------------------------\n")
-	// save in the file
+	// 4.2. save in the file
 	fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
 		"--------------------------------------------------------------------------------------------------------------\n")
-	fmt.Fprintf(w, "\nS.No\tTimestamp\t\t#ofJobsKickedoff\t#ofJobsCompleted\t#ofJobsQueued\t#ofSlavesAvailable\t#ofSlavesUsed\t"+
+	fmt.Fprintf(w, "\nS.No\tTimestamp\t\t#ofJobsKickedoff\t#ofJobsCompleted\t#ofJobsQueued\t#ofP0SlavesAvailable(E)\t#ofSlavesUsed(E)\t"+
 		"#ofServerVMsAvailable\t#ofServerVMsUsed\t#ofTestsExecuted\t#Passed\t#Failed\tPassRate\tTotaltime")
 	fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
 		"--------------------------------------------------------------------------------------------------------------\n")
-	fmt.Fprintf(w, "\n%2d\t%s\t%3d\t\t%3d(%3d,%3d,%3d,%3d)\t%3d\t-\t-\t-\t-\t%5d\t%5d\t\t%5d\t\t%6.2f%%\t\t%4d hrs %2d mins (%11d millis)\n",
+	fmt.Fprintf(w, "\n%2d\t%s\t%3d\t\t%3d(%3d,%3d,%3d,%3d)\t%3d\t\t%3d/%3d(%3d/%3d)\t%s/%3d(%3d/%3d)\t\t-\t\t-\t\t%5d\t%5d\t\t%5d\t\t%6.2f%%\t\t%4d hrs %2d mins (%11d millis)\n",
 		sno, currentTime, totalReleasejobs,
-		numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, queuedJobs, totalCount,
-		passCount, failCount,
+		numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, queuedJobs,
+		numberofP0available, numberofP0Slaves, numberofP0availableExecutors, numberofP0Executors, "-", totalNumofSlaves, jeresult.BusyExecutors, jeresult.TotalExecutors,
+		totalCount, passCount, failCount,
 		(float32(passCount)/float32(totalCount))*100, int64(hours), int64(mins), totalTime)
 	fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
 		"--------------------------------------------------------------------------------------------------------------\n")
 	w.Flush()
 	f.Close()
+
+	fmt.Println("Check the summary file at " + f.Name())
 }
 
 // fileExists ...
