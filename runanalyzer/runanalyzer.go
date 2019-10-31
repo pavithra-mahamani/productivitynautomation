@@ -200,7 +200,13 @@ func main() {
 		fmt.Println("Query Result: ", runquery(os.Args[3]))
 	} else if *action == "getrunprogress" {
 		//GenSummaryForRunProgress(os.Args[len(os.Args)-2], os.Args[len(os.Args)-1])
-		GenSummaryForRunProgress(os.Args[len(os.Args)-1])
+		cbbuild = os.Args[len(os.Args)-1]
+		if strings.HasPrefix(cbbuild, "http") {
+			fmt.Println("Getting the build from description of build url: " + cbbuild)
+			cbbuild = GetJenkinsLastBuildFromDesc(cbbuild + "/api/json")
+		}
+		fmt.Println("cbbuild=" + cbbuild)
+		GenSummaryForRunProgress(cbbuild)
 	} else if *action == "usage" {
 		fmt.Println(usage())
 	} else {
@@ -1196,6 +1202,64 @@ func DownloadJenkinsFiles(csvFile string) {
 
 	}
 
+}
+
+// DownloadFromJenkins ...
+func DownloadFromJenkins(outFileName string, fromURL string) {
+	URLParts := strings.Split(fromURL, "/")
+	jenkinsServer := strings.ToUpper(strings.Split(URLParts[2], ".")[0])
+
+	//fmt.Println("Jenkins Server: ", jenkinsServer)
+	props := properties.MustLoadFile("${HOME}/.jenkins_env.properties", properties.UTF8)
+	jenkinsUser := props.MustGetString(jenkinsServer + "_JENKINS_USER")
+	jenkinsUserPwd := props.MustGetString(jenkinsServer + "_JENKINS_TOKEN")
+
+	DownloadFileWithBasicAuth(outFileName, fromURL, jenkinsUser, jenkinsUserPwd)
+}
+
+// JenkinsBuildResult type
+type JenkinsBuildResult struct {
+	Actions     []JenkinsActions
+	Description string
+	Result      string
+}
+
+// JenkinsActions type
+type JenkinsActions struct {
+	Parameters []JenkinsParameters
+}
+
+// JenkinsParameters type
+type JenkinsParameters struct {
+	Name  string
+	Value interface{}
+}
+
+//GetJenkinsLastBuildFromDesc - Get the last jenkins build number
+func GetJenkinsLastBuildFromDesc(buildURL string) string {
+	jenkinsLastBuildFile := "jenkins_lastbuild.json"
+	DownloadFromJenkins(jenkinsLastBuildFile, buildURL)
+	resultFile, err := os.Open(jenkinsLastBuildFile)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer resultFile.Close()
+
+	byteValue, _ := ioutil.ReadAll(resultFile)
+
+	var result JenkinsBuildResult
+
+	err = json.Unmarshal(byteValue, &result)
+	cbbuildFromJenkins := ""
+	if err == nil {
+		if "SUCCESS" == result.Result {
+			cbbuildFromJenkins = result.Description
+		}
+	} else {
+		cbbuildFromJenkins = ""
+		fmt.Println(err)
+	}
+	return strings.TrimSpace(cbbuildFromJenkins)
 }
 
 // TestSuiteN1QLQryResult type
