@@ -1494,25 +1494,27 @@ func GenSummaryForRunProgress(cbbuild string) {
 		"--------------------------------------------------------------------------------------------------------------")
 	//fmt.Printf("\nS.No.\tTimestamp\t\t#ofJobsKickedoff\t#ofJobsCompleted(A,F,U,S)\t#ofJobsQueued\t#ofP0SlavesAvailable(E)\t#ofSlavesUsed(E)\t" +
 	//	"#ofServerVMsAvailable\t#ofServerVMsUsed\t#ofTestsExecuted\t#Passed\t#Failed \tPassRate\tTotaltime")
-	fmt.Printf("\nS.No.\tTimestamp\t\t\t#of Jobs\t#of Jobs\t\t#of Jobs\t#ofP0Slaves\t#ofSlaves\t" +
-		"#ofServerVMs\t#ofServerVMs\t#ofTests\t#Passed\t#Failed PassRate\tTotaltime")
-	fmt.Printf("\n\t\t\t\t\tKickedoff\tCompleted(A,F,U,S)\t#Queued\t\tAvailable(E)\tUsed(E)\t\t" +
-		"Available\tUsed\t\tExecuted\t\t\t\t")
+	fmt.Printf("\nS.No.\tTimestamp\t\t\t#of Jobs\t#of Jobs\t\t#of Jobs\t#ofTests\t#Passed\t#Failed PassRate Totaltime\t\t#ofP0Slaves\t#ofSlaves\t" +
+		"#ofServerVMs\t#ofServerVMs")
+	fmt.Printf("\n\t\t\t\t\tKickedoff\tCompleted(A,F,U,S)\t#Queued\t\tExecuted\t\t\t\t\t\t\tAvailable(E)\tUsed(E)\t\t" +
+		"Available\tUsed")
 	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------" +
 		"--------------------------------------------------------------------------------------------------------------")
 
 	fmt.Printf("\n%2d.\t%s\t%3d\t\t"+
 		"%3d(%3d,%3d,%3d,%3d)\t%3d\t\t"+
+		"%5d\t\t%5d\t%5d\t"+
+		"%6.2f%%\t"+
+		"%4d hrs %2d mins\t"+
 		"%3d/%3d(%3d/%3d) %s/%3d(%3d/%3d)\t"+
-		"%3d\t\t%3d\t\t"+
-		"%5d\t\t%5d\t%5d \t"+
-		"%6.2f%% \t%4d hrs %2d mins",
+		"%3d\t\t%3d\t\t",
 		sno, currentTime, totalReleasejobs,
 		numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, queuedJobs,
-		numberofP0available, numberofP0Slaves, numberofP0availableExecutors, numberofP0Executors, "-", totalNumofSlaves, jeresult.BusyExecutors, jeresult.TotalExecutors,
-		vmsCount[0], vmsCount[1],
 		totalCount, passCount, failCount,
-		(float32(passCount)/float32(totalCount))*100, int64(hours), int64(mins))
+		(float32(passCount)/float32(totalCount))*100,
+		int64(hours), int64(mins),
+		numberofP0available, numberofP0Slaves, numberofP0availableExecutors, numberofP0Executors, "-", totalNumofSlaves, jeresult.BusyExecutors, jeresult.TotalExecutors,
+		vmsCount[0], vmsCount[1])
 	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------" +
 		"--------------------------------------------------------------------------------------------------------------\n")
 	// 4.2. save in the file
@@ -1520,25 +1522,27 @@ func GenSummaryForRunProgress(cbbuild string) {
 		fmt.Fprintf(w, "\n*** Test execution progress summary report for build#%s on %s ***", cbbuild, cbplatform)
 		fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
 			"--------------------------------------------------------------------------------------------------------------")
-		fmt.Fprintf(w, "\nS.No.\tTimestamp\t\t\t#of Jobs\t#of Jobs\t\t#of Jobs\t#ofP0Slaves\t#ofSlaves\t"+
-			"#ofServerVMs\t#ofServerVMs\t#ofTests\t#Passed\t#Failed PassRate\tTotaltime")
-		fmt.Fprintf(w, "\n\t\t\t\t\tKickedoff\tCompleted(A,F,U,S)\t#Queued\t\tAvailable(E)\tUsed(E)\t\t"+
-			"Available\tUsed\t\tExecuted\t\t\t\t")
+		fmt.Fprintf(w, "\nS.No.\tTimestamp\t\t\t#of Jobs\t#of Jobs\t\t#of Jobs\t#ofTests\t#Passed\t#Failed PassRate Totaltime\t\t#ofP0Slaves\t#ofSlaves\t"+
+			"#ofServerVMs\t#ofServerVMs")
+		fmt.Fprintf(w, "\n\t\t\t\t\tKickedoff\tCompleted(A,F,U,S)\t#Queued\t\tExecuted\t\t\t\t\t\t\tAvailable(E)\tUsed(E)\t\t"+
+			"Available\tUsed")
 		fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
 			"--------------------------------------------------------------------------------------------------------------")
 	}
 	fmt.Fprintf(w, "\n%2d.\t%s\t%3d\t\t"+
 		"%3d(%3d,%3d,%3d,%3d)\t%3d\t\t"+
+		"%5d\t\t%5d\t%5d\t"+
+		"%6.2f%%\t"+
+		"%4d hrs %2d mins\t"+
 		"%3d/%3d(%3d/%3d) %s/%3d(%3d/%3d)\t"+
-		"%3d\t\t%3d\t\t"+
-		"%5d\t\t%5d\t%5d \t"+
-		"%6.2f%% \t%4d hrs %2d mins",
+		"%3d\t\t%3d\t\t",
 		sno, currentTime, totalReleasejobs,
 		numofjobs, abortedJobs, failureJobs, unstableJobs, successJobs, queuedJobs,
-		numberofP0available, numberofP0Slaves, numberofP0availableExecutors, numberofP0Executors, "-", totalNumofSlaves, jeresult.BusyExecutors, jeresult.TotalExecutors,
-		vmsCount[0], vmsCount[1],
 		totalCount, passCount, failCount,
-		(float32(passCount)/float32(totalCount))*100, int64(hours), int64(mins))
+		(float32(passCount)/float32(totalCount))*100,
+		int64(hours), int64(mins),
+		numberofP0available, numberofP0Slaves, numberofP0availableExecutors, numberofP0Executors, "-", totalNumofSlaves, jeresult.BusyExecutors, jeresult.TotalExecutors,
+		vmsCount[0], vmsCount[1])
 	fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
 		"--------------------------------------------------------------------------------------------------------------\n")
 	w.Flush()
