@@ -1489,7 +1489,7 @@ func GenSummaryForRunProgress(cbbuild string) {
 	w := bufio.NewWriter(f)
 
 	//fmt.Printf("\n*** Test execution progress summary report ***\n Build: %s\n Server pools:%s", cbbuild, requiredServerPools)
-	fmt.Printf("\n*** Test execution progress summary report for build#%s ***", cbbuild)
+	fmt.Printf("\n*** Test execution progress summary report for build#%s on %s ***", cbbuild, cbplatform)
 	fmt.Printf("\n-------------------------------------------------------------------------------------------------------------------" +
 		"--------------------------------------------------------------------------------------------------------------")
 	//fmt.Printf("\nS.No.\tTimestamp\t\t#ofJobsKickedoff\t#ofJobsCompleted(A,F,U,S)\t#ofJobsQueued\t#ofP0SlavesAvailable(E)\t#ofSlavesUsed(E)\t" +
@@ -1517,7 +1517,7 @@ func GenSummaryForRunProgress(cbbuild string) {
 		"--------------------------------------------------------------------------------------------------------------\n")
 	// 4.2. save in the file
 	if isNewFile {
-		fmt.Fprintf(w, "\n*** Test execution progress summary report for build#%s ***", cbbuild)
+		fmt.Fprintf(w, "\n*** Test execution progress summary report for build#%s on %s ***", cbbuild, cbplatform)
 		fmt.Fprintf(w, "\n-------------------------------------------------------------------------------------------------------------------"+
 			"--------------------------------------------------------------------------------------------------------------")
 		fmt.Fprintf(w, "\nS.No.\tTimestamp\t\t\t#of Jobs\t#of Jobs\t\t#of Jobs\t#ofP0Slaves\t#ofSlaves\t"+
