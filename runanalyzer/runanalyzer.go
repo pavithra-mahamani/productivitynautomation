@@ -206,7 +206,11 @@ func main() {
 			cbbuild = GetJenkinsLastBuildFromDesc(cbbuild + "/api/json")
 		}
 		fmt.Println("cbbuild=" + cbbuild)
-		GenSummaryForRunProgress(cbbuild)
+		if cbbuild != "" {
+			GenSummaryForRunProgress(cbbuild)
+		} else {
+			fmt.Println("Warning: No CB build, skipping...")
+		}
 	} else if *action == "usage" {
 		fmt.Println(usage())
 	} else {
