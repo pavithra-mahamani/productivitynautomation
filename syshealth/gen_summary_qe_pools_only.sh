@@ -111,6 +111,9 @@ do
          IPINFO="`egrep ${IPQ} vms_list_${OS}_ips.ini`"
          IPQ2="`echo ${IP} |sed 's/\./\\\./g'` "
          UNREACH_MSG="`egrep UNREACHABLE ${LOG_FILE} -A 3|egrep ${IPQ2} | egrep msg|cut -f2- -d':'|cut -f1 -d','`"
+         if [ "$UNREACH_MSG" = ""]; then
+            UNREACH_MSG="`egrep UNREACHABLE ${LOG_FILE} -A 3| egrep msg|cut -f2- -d':'|cut -f1 -d','`"
+         fi
          echo "   ${I2}. $IPINFO : ${UNREACH_MSG}"
          echo "$IPINFO : ${UNREACH_MSG}" >>$OUT_ALL_STATE_UNREACHABLE
          I2=`expr ${I2} + 1`
