@@ -4,33 +4,52 @@
 #
 ############################################################################
 
-OS="$1"
+LOS="$1"
 USED_POOLS="$2"
 
 if [ "$USED_POOLS" = "" ]; then
   echo "Usage $0 os used_pools_file"
-  echo "Example: $0 centos file"
+  echo "Example: $0 linux_or_centos_or_comma_listed_platforms file"
+  echo "Example: $0 linux file"
+  echo "Example: $0 centos,suse12 file"
   exit 1
 fi
 
-OS_COUNT="`grep ${OS} vms_os_count.txt`"
-echo "Total VMs on ${OS_COUNT}"
-echo "----------------------------------------"
-echo "Server pools list on ${OS}"
-echo "----------------------------------------"
-cat vmpools_${OS}_counts.txt
-echo "----------------------------------------"
-TTIMED=0
-TUNREACH=0
-INDEX=1
-GRAND=0
-UINDEX=1
-OUT_ALL_UNREACHABLE=unreachable_all_${NPOOL}.ini
-cat /dev/null>$OUT_ALL_UNREACHABLE
-OUT_ALL_STATE_UNREACHABLE=unreachable_all_state.txt
-cat /dev/null>$OUT_ALL_STATE_UNREACHABLE
-for line in `cat ${USED_POOLS}`
+VMS_COUNT_FILE=vms_os_count.txt
+echo "*** Summary of QE ServerPool VMs ***"
+cat ${VMS_COUNT_FILE}
+echo "------------------------------------"
+
+ALL_FINAL_UNIQUE_UNREACHABLE=unreachable_all_platforms.txt
+cat /dev/null>${ALL_FINAL_UNIQUE_UNREACHABLE}
+OINDEX=1
+if [ "$LOS" = "linux" ]; then
+  LOS="`cat ${VMS_COUNT_FILE} |cut -f1 -d":"|egrep -v win |xargs|sed 's/ /,/g'`"
+fi
+
+echo "NOTE: Selected list of QE server pool platforms: ${LOS}"
+for OS in `echo $LOS|sed 's/,/ /g'`
 do
+ OS_COUNT="`grep -w ${OS} vms_os_count.txt`"
+ echo
+ echo "*** Platform#${OINDEX}. Total VMs on ${OS_COUNT}"
+ echo "----------------------------------------"
+ echo "Server pools list on ${OS}"
+ echo "----------------------------------------"
+ cat vmpools_${OS}_counts.txt
+ echo "----------------------------------------"
+ TTIMED=0
+ TUNREACH=0
+ INDEX=1
+ GRAND=0
+ UINDEX=1
+ OUT_ALL_UNREACHABLE=unreachable_all_${OS}.ini
+ cat /dev/null>$OUT_ALL_UNREACHABLE
+ OUT_ALL_STATE_UNREACHABLE=unreachable_all_state_${OS}.txt
+ cat /dev/null>$OUT_ALL_STATE_UNREACHABLE
+
+ for line in `cat ${USED_POOLS}`
+ do
   POOL="$line"
   REQ_POOL="`grep -iw $POOL vmpools_${OS}_counts.txt`"
   if [ ! "$REQ_POOL" = "" ]; then
@@ -106,28 +125,38 @@ do
         echo "" >>${OUT_ALL_UNREACHABLE}
     fi
   fi
+ done
+
+ echo "----------------------------------------"
+ FINAL_INI=unreachablelist_ips_${OS}.ini
+ echo "[UNREACHABLE]">${FINAL_INI}
+ sort $OUT_ALL_UNREACHABLE|uniq|egrep -v '\['|egrep "\S" >>${FINAL_INI}
+ UNIQUE=`cat ${FINAL_INI}|egrep -v '\['|wc -l |xargs`
+
+ echo "*** Final list of unreachable IPs,poolids,state ***"
+ OUT_FINAL_UNREACHABLE=unreachable_final_list_${OS}.txt
+ cat /dev/null>$OUT_FINAL_UNREACHABLE
+ for IP in `cat ${FINAL_INI}|xargs`
+ do
+  IPQ=`echo ${IP}: |sed 's/\./\\\./g'`
+  IPINFO="`egrep ${IPQ} $OUT_ALL_STATE_UNREACHABLE`"
+  echo "$IPINFO" >>$OUT_FINAL_UNREACHABLE
+ done
+
+ OUT_FINAL_UNIQUE_UNREACHABLE=unreachable_final_unique_list_${OS}.txt
+ cat $OUT_FINAL_UNREACHABLE|sort|uniq|egrep "\S" > $OUT_FINAL_UNIQUE_UNREACHABLE
+
+ cat $OUT_FINAL_UNIQUE_UNREACHABLE
+
+ echo Unique unreachable IPs: $UNIQUE '(Overall unreachable:'$TUNREACH')' '(Total:'$GRAND')'
+ echo Please check ${FINAL_INI} file for exact IPs and $OUT_FINAL_UNIQUE_UNREACHABLE along with state.
+ echo "*** Final Unreachable IPs on OS: ${OS} - ${UNIQUE} ***" >>${ALL_FINAL_UNIQUE_UNREACHABLE}
+ cat $OUT_FINAL_UNIQUE_UNREACHABLE >>${ALL_FINAL_UNIQUE_UNREACHABLE}
+ OINDEX=`expr ${OINDEX} + 1`
 done
-echo "----------------------------------------"
-FINAL_INI=unreachablelist_ips.ini
-echo "[UNREACHABLE]">${FINAL_INI}
-sort $OUT_ALL_UNREACHABLE|uniq|egrep -v '\['|egrep "\S" >>${FINAL_INI}
-UNIQUE=`cat ${FINAL_INI}|wc -l |xargs`
 
-echo "*** Final list of unreachable IPs,poolids,state ***"
-OUT_FINAL_UNREACHABLE=unreachable_final_list.txt
-cat /dev/null>$OUT_FINAL_UNREACHABLE
-for IP in `cat ${FINAL_INI}|xargs`
-do
- IPQ=`echo ${IP}: |sed 's/\./\\\./g'`
- IPINFO="`egrep ${IPQ} $OUT_ALL_STATE_UNREACHABLE`"
- echo "$IPINFO" >>$OUT_FINAL_UNREACHABLE
-done
+echo '*** Final Summary ***' >>unreachable_all_platforms.txt
+cat unreachable_all_platforms.txt
+echo "Check the overall unreachable summary file at ${ALL_FINAL_UNIQUE_UNREACHABLE}"
 
-OUT_FINAL_UNIQUE_UNREACHABLE=unreachable_final_unique_list.txt
-cat $OUT_FINAL_UNREACHABLE|sort|uniq|egrep "\S" > $OUT_FINAL_UNIQUE_UNREACHABLE
-
-cat $OUT_FINAL_UNIQUE_UNREACHABLE
-
-echo Unique unreachable IPs: $UNIQUE '(Overall unreachable:'$TUNREACH')' '(Total:'$GRAND')'
-echo Please check ${FINAL_INI} file for exact IPs and $OUT_FINAL_UNIQUE_UNREACHABLE along with state.
 date
