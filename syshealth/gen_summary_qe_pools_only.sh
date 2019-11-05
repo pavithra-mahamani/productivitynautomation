@@ -88,6 +88,8 @@ do
     if [ -f ${INVENTORY_FILE}_1 ]; then
       rm ${INVENTORY_FILE}_1
     fi
+    ansible-cmdb -t csv --columns "ip,mem,cpus,uptime" ansible_out/ |egrep -v 'No' | tr -d '\r'|cut -f1- -d','|sed 's/"//g' >${OS}_${NPOOL}_mem_cpus_uptime.txt
+
     #echo RequiredPool: $REQ_POOL
     TIMEDOUT="`egrep timed ${LOG_FILE} | cut -f4 -d':' |cut -f5 -d' '|wc -l|xargs`"
     UNREACH="`egrep UNREACHABLE ${LOG_FILE} | cut -f5 -d':' |cut -f5 -d' '|wc -l|xargs`"
@@ -115,7 +117,9 @@ do
      do
         IPQ=`echo ${IP}: |sed 's/\./\\\./g'`
         IPINFO="`egrep ${IPQ} vms_list_${OS}_ips.ini`"
-        MEM_CPU_UPTIME="`ansible-cmdb -t csv --columns \"cpus,mem,uptime\" -l ${IP} ansible_out/ |tail -1|xargs|tr -d '\r'`"
+        IPQ2="`echo ${IPQ}|cut -f1 -d':'`"
+        #echo egrep ${IPQ2} ${OS}_${NPOOL}_mem_cpus_uptime.txt
+        MEM_CPU_UPTIME="`grep -w ${IPQ2} ${OS}_${NPOOL}_mem_cpus_uptime.txt|cut -f2- -d','`"
         echo "   ${I2}. $IPINFO, ${MEM_CPU_UPTIME}: SUCCESS"
         I2=`expr ${I2} + 1`
      done
@@ -134,7 +138,7 @@ do
          if [ "$UNREACH_MSG" = ""]; then
             UNREACH_MSG="`egrep UNREACHABLE ${LOG_FILE} -A 3| egrep msg|cut -f2- -d':'|cut -f1 -d','`"
          fi
-         MEM_CPU_UPTIME="`ansible-cmdb -t csv --columns \"cpus,mem,uptime\" -l ${IP} ansible_out/ |tail -1|xargs|tr -d '\r'`"
+         MEM_CPU_UPTIME="`egrep ${IPQ2} ${OS}_${NPOOL}_mem_cpus_uptime.txt|cut -f2- -d','`"
          echo "   ${I2}. $IPINFO, ${MEM_CPU_UPTIME} : ${UNREACH_MSG}"
          echo "$IPINFO : ${UNREACH_MSG}" >>$OUT_ALL_STATE_UNREACHABLE
          I2=`expr ${I2} + 1`
