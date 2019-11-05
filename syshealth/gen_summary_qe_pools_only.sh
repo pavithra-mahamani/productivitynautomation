@@ -75,8 +75,15 @@ do
     fi
  
     #generate overview fancy html
-    ansible-cmdb -t html_fancy -p local_js=1,collapsed=1 ansible_out/ > inventory_for_selectedpools.html
-
+    INVENTORY_FILE=inventory_for_selectedpools.html
+    ansible-cmdb -t html_fancy -p local_js=1,collapsed=1 ansible_out/ > $INVENTORY_FILE
+    #Fix the js
+    sed 's/.*<\/head>$/<script type="text\/javascript" charset="utf8" src="ansible_cmdb_static\/js\/jquery-1.10.2.min.js"><\/script><script type="text\/javascript" charset="utf8" src="ansible_cmdb_static\/js\/jquery.dataTables.js"><\/script><\/head>/g' ${INVENTORY_FILE} >${INVENTORY_FILE}_1 
+    ANSIBLE_CMDB_STATIC=`egrep static ${INVENTORY_FILE}_1 |egrep static |tail -1 |cut -f4 -d'='|cut -f2 -d':'|cut -f1 -d'"'|sed 's/\/\/\//\//g'|rev|cut -f3- -d'/'|rev`
+    if [ ! -d ansible_cmdb_static ]; then
+       cp -R ${ANSIBLE_CMDB_STATIC} ansible_cmdb_static
+    fi
+    cp -r ${INVENTORY_FILE}_1 ${INVENTORY_FILE}
     #echo RequiredPool: $REQ_POOL
     TIMEDOUT="`egrep timed ${LOG_FILE} | cut -f4 -d':' |cut -f5 -d' '|wc -l|xargs`"
     UNREACH="`egrep UNREACHABLE ${LOG_FILE} | cut -f5 -d':' |cut -f5 -d' '|wc -l|xargs`"
@@ -169,5 +176,5 @@ done
 echo '*** Final Summary ***' >>unreachable_all_platforms.txt
 cat unreachable_all_platforms.txt
 echo "Check the overall unreachable summary file at ${ALL_FINAL_UNIQUE_UNREACHABLE}"
-
+echo "  inventory details (cpus,mem, disk) file at ${INVENTORY_FILE}"
 date
