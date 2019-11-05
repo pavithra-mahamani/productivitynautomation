@@ -79,11 +79,15 @@ do
     ansible-cmdb -t html_fancy -p local_js=1,collapsed=1 ansible_out/ > $INVENTORY_FILE
     #Fix the js
     sed 's/.*<\/head>$/<script type="text\/javascript" charset="utf8" src="ansible_cmdb_static\/js\/jquery-1.10.2.min.js"><\/script><script type="text\/javascript" charset="utf8" src="ansible_cmdb_static\/js\/jquery.dataTables.js"><\/script><\/head>/g' ${INVENTORY_FILE} >${INVENTORY_FILE}_1 
-    ANSIBLE_CMDB_STATIC=`egrep static ${INVENTORY_FILE}_1 |egrep static |tail -1 |cut -f4 -d'='|cut -f2 -d':'|cut -f1 -d'"'|sed 's/\/\/\//\//g'|rev|cut -f3- -d'/'|rev`
-    if [ ! -d ansible_cmdb_static ]; then
+    ANSIBLE_CMDB_STATIC=`egrep static ${INVENTORY_FILE} |egrep static |tail -1 |cut -f4 -d'='|cut -f2 -d':'|cut -f1 -d'"'|sed 's/\/\/\//\//g'|rev|cut -f3- -d'/'|rev`
+    if [ ! -d ./ansible_cmdb_static ]; then
+       echo cp -R ${ANSIBLE_CMDB_STATIC} ansible_cmdb_static
        cp -R ${ANSIBLE_CMDB_STATIC} ansible_cmdb_static
     fi
     cp -r ${INVENTORY_FILE}_1 ${INVENTORY_FILE}
+    if [ -f ${INVENTORY_FILE}_1 ]; then
+      rm ${INVENTORY_FILE}_1
+    fi
     #echo RequiredPool: $REQ_POOL
     TIMEDOUT="`egrep timed ${LOG_FILE} | cut -f4 -d':' |cut -f5 -d' '|wc -l|xargs`"
     UNREACH="`egrep UNREACHABLE ${LOG_FILE} | cut -f5 -d':' |cut -f5 -d' '|wc -l|xargs`"
@@ -111,7 +115,8 @@ do
      do
         IPQ=`echo ${IP}: |sed 's/\./\\\./g'`
         IPINFO="`egrep ${IPQ} vms_list_${OS}_ips.ini`"
-        echo "   ${I2}. $IPINFO : SUCCESS"
+        MEM_CPU_UPTIME="`ansible-cmdb -t csv --columns \"cpus,mem,uptime\" -l ${IP} ansible_out/ |tail -1|xargs|tr -d '\r'`"
+        echo "   ${I2}. $IPINFO, ${MEM_CPU_UPTIME}: SUCCESS"
         I2=`expr ${I2} + 1`
      done
     fi
@@ -129,7 +134,8 @@ do
          if [ "$UNREACH_MSG" = ""]; then
             UNREACH_MSG="`egrep UNREACHABLE ${LOG_FILE} -A 3| egrep msg|cut -f2- -d':'|cut -f1 -d','`"
          fi
-         echo "   ${I2}. $IPINFO : ${UNREACH_MSG}"
+         MEM_CPU_UPTIME="`ansible-cmdb -t csv --columns \"cpus,mem,uptime\" -l ${IP} ansible_out/ |tail -1|xargs|tr -d '\r'`"
+         echo "   ${I2}. $IPINFO, ${MEM_CPU_UPTIME} : ${UNREACH_MSG}"
          echo "$IPINFO : ${UNREACH_MSG}" >>$OUT_ALL_STATE_UNREACHABLE
          I2=`expr ${I2} + 1`
          UINDEX=`expr ${UINDEX} + 1`
