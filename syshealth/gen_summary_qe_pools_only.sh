@@ -27,6 +27,11 @@ if [ "$LOS" = "linux" ]; then
   LOS="`cat ${VMS_COUNT_FILE} |cut -f1 -d":"|egrep -v win |xargs|sed 's/ /,/g'`"
 fi
 
+echo '*** Final Summary ***' >>${ALL_FINAL_UNIQUE_UNREACHABLE}
+
+FAILEDSTATE_LIST=failedstate_all.txt
+cat /dev/null>${FAILEDSTATE_LIST}
+
 echo "NOTE: Selected list of QE server pool platforms: ${LOS}"
 for OS in `echo $LOS|sed 's/,/ /g'`
 do
@@ -47,6 +52,7 @@ do
  cat /dev/null>$OUT_ALL_UNREACHABLE
  OUT_ALL_STATE_UNREACHABLE=unreachable_all_state_${OS}.txt
  cat /dev/null>$OUT_ALL_STATE_UNREACHABLE
+
 
  for line in `cat ${USED_POOLS}`
  do
@@ -88,7 +94,7 @@ do
     if [ -f ${INVENTORY_FILE}_1 ]; then
       rm ${INVENTORY_FILE}_1
     fi
-    ansible-cmdb -t csv --columns "ip,os,mem,cpus,disk_mounts,disk_avail,uptime" ansible_out/ |egrep -v 'No' | tr -d '\r'|cut -f1- -d',' >${OS}_${NPOOL}_mem_cpus_uptime.txt
+    ansible-cmdb -t csv --columns "ip,os,mem,memfree,cpus,disk_mounts,disk_avail,uptime" ansible_out/ |egrep -v 'No' | tr -d '\r'|cut -f1- -d',' >${OS}_${NPOOL}_mem_cpus_uptime.txt
 
     #echo RequiredPool: $REQ_POOL
     TIMEDOUT="`egrep timed ${LOG_FILE} | cut -f4 -d':' |cut -f5 -d' '|wc -l|xargs`"
@@ -121,6 +127,11 @@ do
         #echo egrep ${IPQ2} ${OS}_${NPOOL}_mem_cpus_uptime.txt
         MEM_CPU_UPTIME="`grep -w ${IPQ2} ${OS}_${NPOOL}_mem_cpus_uptime.txt|cut -f2- -d','`"
         echo "   ${I2}. $IPINFO, ${MEM_CPU_UPTIME}: SUCCESS"
+        FAILED_SUCCESS="`echo $IPINFO | egrep failedInstall`"
+        if [ ! "$FAILED_SUCCESS" = "" ]; then
+            #echo "Failed state........."
+            echo "   ${I2}. $IPINFO, ${MEM_CPU_UPTIME}: SUCCESS" >>${FAILEDSTATE_LIST}
+        fi
         I2=`expr ${I2} + 1`
      done
     fi
@@ -135,7 +146,7 @@ do
          IPINFO="`egrep ${IPQ} vms_list_${OS}_ips.ini`"
          IPQ2="`echo ${IP} |sed 's/\./\\\./g'` "
          UNREACH_MSG="`egrep UNREACHABLE ${LOG_FILE} -A 3|egrep ${IPQ2} | egrep msg|cut -f2- -d':'|cut -f1 -d','`"
-         if [ "$UNREACH_MSG" = ""]; then
+         if [ "$UNREACH_MSG" = "" ]; then
             UNREACH_MSG="`egrep UNREACHABLE ${LOG_FILE} -A 3| egrep msg|cut -f2- -d':'|cut -f1 -d','`"
          fi
          MEM_CPU_UPTIME="`egrep ${IPQ2} ${OS}_${NPOOL}_mem_cpus_uptime.txt|cut -f2- -d','`"
@@ -182,9 +193,13 @@ do
  cat $OUT_FINAL_UNIQUE_UNREACHABLE >>${ALL_FINAL_UNIQUE_UNREACHABLE}
  OINDEX=`expr ${OINDEX} + 1`
 done
-
-echo '*** Final Summary ***' >>unreachable_all_platforms.txt
-cat unreachable_all_platforms.txt
+echo
+cat ${ALL_FINAL_UNIQUE_UNREACHABLE}
+FAILEDSTATE_COUNT=`wc -l ${FAILEDSTATE_LIST} |xargs|cut -f1 -d' '`
+echo
+echo "  Final failedInstall with SUCCESS : ${FAILEDSTATE_COUNT}"
+cat ${FAILEDSTATE_LIST} |cut -f2- -d'.'
+echo 
 echo "Check the overall unreachable summary file at ${ALL_FINAL_UNIQUE_UNREACHABLE}"
 echo "  inventory details (cpus,mem, disk) file at ${INVENTORY_FILE}"
 date
