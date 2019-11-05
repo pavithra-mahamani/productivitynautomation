@@ -88,7 +88,7 @@ do
     if [ -f ${INVENTORY_FILE}_1 ]; then
       rm ${INVENTORY_FILE}_1
     fi
-    ansible-cmdb -t csv --columns "ip,mem,cpus,uptime" ansible_out/ |egrep -v 'No' | tr -d '\r'|cut -f1- -d','|sed 's/"//g' >${OS}_${NPOOL}_mem_cpus_uptime.txt
+    ansible-cmdb -t csv --columns "ip,os,mem,cpus,disk_mounts,disk_avail,uptime" ansible_out/ |egrep -v 'No' | tr -d '\r'|cut -f1- -d',' >${OS}_${NPOOL}_mem_cpus_uptime.txt
 
     #echo RequiredPool: $REQ_POOL
     TIMEDOUT="`egrep timed ${LOG_FILE} | cut -f4 -d':' |cut -f5 -d' '|wc -l|xargs`"
