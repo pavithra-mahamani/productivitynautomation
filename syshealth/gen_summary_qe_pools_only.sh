@@ -58,17 +58,25 @@ do
     LOG_FILE=ping_log_${OS}_${NPOOL}.txt
     OUT_UNREACHABLE=unreachable_${NPOOL}.ini
     #echo ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m ping
+    if [ ! -d ansible_out/ ]; then
+      mkdir ansible_out/
+    fi
     if [ -f ~/.ansible_vars.ini ]; then
       VAR_FOUND="`grep 'ansible_user' vmpools_${OS}_ips.ini`"
       if [ "${VAR_FOUND}" = "" ]; then
         cat vmpools_${OS}_ips.ini >vmpools_${OS}_ips2.ini
         cat ~/.ansible_vars.ini >>vmpools_${OS}_ips2.ini
-        ansible ${NPOOL} -i vmpools_${OS}_ips2.ini -u root -m ping >${LOG_FILE}
+        #ansible ${NPOOL} -i vmpools_${OS}_ips2.ini -u root -m ping >${LOG_FILE}
+        ansible ${NPOOL} -i vmpools_${OS}_ips2.ini -u root -m setup --tree ansible_out/ >${LOG_FILE}
       fi
     else
-      ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m ping >${LOG_FILE}
+      #ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m ping >${LOG_FILE}
+      ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m setup --tree ansible_out/ >${LOG_FILE}
     fi
  
+    #generate overview fancy html
+    ansible-cmdb -t html_fancy -p local_js=1,collapsed=1 ansible_out/ > inventory_for_selectedpools.html
+
     #echo RequiredPool: $REQ_POOL
     TIMEDOUT="`egrep timed ${LOG_FILE} | cut -f4 -d':' |cut -f5 -d' '|wc -l|xargs`"
     UNREACH="`egrep UNREACHABLE ${LOG_FILE} | cut -f5 -d':' |cut -f5 -d' '|wc -l|xargs`"
