@@ -31,9 +31,16 @@ echo '*** Final Summary ***' >>${ALL_FINAL_UNIQUE_UNREACHABLE}
 
 FAILEDSTATE_LIST=failedstate_all.txt
 cat /dev/null>${FAILEDSTATE_LIST}
-UPTIME_LIST=uptime_all.txt
-cat /dev/null>${UPTIME_LIST}
 UPTIME_THRESHOLD=100
+UPTIME_LIST=uptime_more_than_${UPTIME_THRESHOLD}days_all.txt
+cat /dev/null>${UPTIME_LIST}
+MEMTOTAL_THRESHOLD=100
+MEMTOTAL_LIST=memtotal_diff_more_${MEMTOTAL_THRESHOLD}mb_all.txt
+cat /dev/null>${MEMTOTAL_LIST}
+DISK_THRESHOLD=15
+DISK_LIST=disk_size_less_${DISK_THRESHOLD}gb_all.txt
+cat /dev/null>${MEMTOTAL_LIST}
+
 
 echo "NOTE: Selected list of QE server pool platforms: ${LOS}"
 for OS in `echo $LOS|sed 's/,/ /g'`
@@ -138,8 +145,22 @@ do
         #uptime threshold
         UPTIME=`echo ${MEM_CPU_UPTIME}|rev |cut -f1 -d','|rev|xargs`
         if [ ${UPTIME} -gt ${UPTIME_THRESHOLD} ]; then
-          echo "   ${I2}. $IPINFO, ${MEM_CPU_UPTIME}: SUCCESS" >>${UPTIME_LIST}
+          echo "   ${I2}. $IPINFO, ${MEM_CPU_UPTIME}: ---> More than ${UPTIME_THRESHOLD} days since booted" >>${UPTIME_LIST}
         fi
+        # memory threshold
+        MEMTOTAL=`echo ${MEM_CPU_UPTIME}|cut -f2 -d',' |xargs|tr -dc 0-9`
+        MEMMB=$(((MEMTOTAL/1024)*1024))
+        MEMDIFF=$((MEMMB-MEMTOTAL))
+        if [ $MEMDIFF -lt 0 ]; then
+          MEMMB=$((((MEMTOTAL/1024)+1)*1024))
+          MEMDIFF=$((MEMMB-MEMTOTAL))
+        fi
+        if [ $MEMDIFF -gt $MEMTOTAL_THRESHOLD ]; then
+          echo "   ${I2}. $IPINFO, ${MEM_CPU_UPTIME}: ---> ${MEMDIFF}mb than ${MEMTOTAL_THRESHOLD}mb difference in total of ${MEMMB}mb" >>${MEMTOTAL_LIST}
+        fi
+        # disk threshold
+        
+
         I2=`expr ${I2} + 1`
      done
     fi
@@ -212,10 +233,16 @@ echo
 # uptime threshold list
 UPTIME_COUNT=`wc -l ${UPTIME_LIST} |xargs|cut -f1 -d' '`
 echo
-echo "  Final Uptime > ${UPTIME_THRESHOLD} days with SUCCESS : ${UPTIME_COUNT}"
+echo "  Total Uptime > ${UPTIME_THRESHOLD} days : ${UPTIME_COUNT}"
 cat ${UPTIME_LIST} |cut -f2- -d'.'
 echo 
-#
+# uptime threshold list
+MEMDIFF_COUNT=`wc -l ${MEMTOTAL_LIST} |xargs|cut -f1 -d' '`
+echo
+echo "  Total RAM diff > ${MEMTOTAL_THRESHOLD}mb : ${MEMDIFF_COUNT}"
+cat ${MEMTOTAL_LIST} |cut -f2- -d'.'
+echo
+# 
 echo "Check the overall unreachable summary file at ${ALL_FINAL_UNIQUE_UNREACHABLE}"
 echo "  inventory details (cpus,mem, disk) file at ${INVENTORY_FILE}"
 date
