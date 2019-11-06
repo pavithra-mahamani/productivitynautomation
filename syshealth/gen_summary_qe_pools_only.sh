@@ -37,9 +37,9 @@ cat /dev/null>${UPTIME_LIST}
 MEMTOTAL_THRESHOLD=100
 MEMTOTAL_LIST=memtotal_diff_more_${MEMTOTAL_THRESHOLD}mb_all.txt
 cat /dev/null>${MEMTOTAL_LIST}
-DISK_THRESHOLD=15
+DISK_THRESHOLD=$((25))
 DISK_LIST=disk_size_less_${DISK_THRESHOLD}gb_all.txt
-cat /dev/null>${MEMTOTAL_LIST}
+cat /dev/null>${DISK_LIST}
 
 
 echo "NOTE: Selected list of QE server pool platforms: ${LOS}"
@@ -158,9 +158,25 @@ do
         if [ $MEMDIFF -gt $MEMTOTAL_THRESHOLD ]; then
           echo "   ${I2}. $IPINFO, ${MEM_CPU_UPTIME}: ---> ${MEMDIFF}mb than ${MEMTOTAL_THRESHOLD}mb difference in total of ${MEMMB}mb" >>${MEMTOTAL_LIST}
         fi
-        # disk threshold
-        
-
+        # disk (root) threshold
+        DISKMOUNTS=`echo ${MEM_CPU_UPTIME}|cut -f5- -d','|rev|cut -f2- -d','|rev|cut -f2 -d'"'|sed 's/ //g'`
+        DISKSIZES=`echo ${MEM_CPU_UPTIME}|cut -f5- -d','|rev|cut -f2- -d','|rev|cut -f4 -d'"'|sed 's/ //g'`
+        ROOTMOUNTSIZE=0
+        MOUNTINDEX=1
+        for M in `echo $DISKMOUNTS|sed 's/,/ /g'`
+        do
+           if [ "${M}" = "/" ]; then
+            ROOTMOUNTSIZE=`echo $DISKSIZES|cut -f${MOUNTINDEX} -d','`
+            break
+           fi
+           MOUNTINDEX=`expr ${MOUNTINDEX} + 1`
+        done
+        ROOTDISKSIZE=`echo $ROOTMOUNTSIZE |cut -f1 -d'.'`
+        ROOTGBSIZE=$((ROOTDISKSIZE/1024))
+        if [ $ROOTGBSIZE -lt $DISK_THRESHOLD ]; then
+          echo "   ${I2}. $IPINFO, ${MEM_CPU_UPTIME}: ---> ${ROOTGBSIZE}gb is less than expected min ${DISK_THRESHOLD}gb" >>${DISK_LIST}
+       
+        fi 
         I2=`expr ${I2} + 1`
      done
     fi
@@ -242,6 +258,13 @@ echo
 echo "  Total RAM diff > ${MEMTOTAL_THRESHOLD}mb : ${MEMDIFF_COUNT}"
 cat ${MEMTOTAL_LIST} |cut -f2- -d'.'
 echo
+# disk threshold list
+DISK_COUNT=`wc -l ${DISK_LIST} |xargs|cut -f1 -d' '`
+echo
+echo "  Disk / mount size less than ${DISK_THRESHOLD}gb : ${DISK_COUNT}"
+cat ${DISK_LIST} |cut -f2- -d'.'
+echo
+# 
 # 
 echo "Check the overall unreachable summary file at ${ALL_FINAL_UNIQUE_UNREACHABLE}"
 echo "  inventory details (cpus,mem, disk) file at ${INVENTORY_FILE}"
