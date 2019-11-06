@@ -31,6 +31,9 @@ echo '*** Final Summary ***' >>${ALL_FINAL_UNIQUE_UNREACHABLE}
 
 FAILEDSTATE_LIST=failedstate_all.txt
 cat /dev/null>${FAILEDSTATE_LIST}
+UPTIME_LIST=uptime_all.txt
+cat /dev/null>${UPTIME_LIST}
+UPTIME_THRESHOLD=100
 
 echo "NOTE: Selected list of QE server pool platforms: ${LOS}"
 for OS in `echo $LOS|sed 's/,/ /g'`
@@ -132,6 +135,11 @@ do
             #echo "Failed state........."
             echo "   ${I2}. $IPINFO, ${MEM_CPU_UPTIME}: SUCCESS" >>${FAILEDSTATE_LIST}
         fi
+        #uptime threshold
+        UPTIME=`echo ${MEM_CPU_UPTIME}|rev |cut -f1 -d','|rev|xargs`
+        if [ ${UPTIME} -gt ${UPTIME_THRESHOLD} ]; then
+          echo "   ${I2}. $IPINFO, ${MEM_CPU_UPTIME}: SUCCESS" >>${UPTIME_LIST}
+        fi
         I2=`expr ${I2} + 1`
      done
     fi
@@ -195,11 +203,19 @@ do
 done
 echo
 cat ${ALL_FINAL_UNIQUE_UNREACHABLE}
+# failedInstall list
 FAILEDSTATE_COUNT=`wc -l ${FAILEDSTATE_LIST} |xargs|cut -f1 -d' '`
 echo
 echo "  Final failedInstall with SUCCESS : ${FAILEDSTATE_COUNT}"
 cat ${FAILEDSTATE_LIST} |cut -f2- -d'.'
 echo 
+# uptime threshold list
+UPTIME_COUNT=`wc -l ${UPTIME_LIST} |xargs|cut -f1 -d' '`
+echo
+echo "  Final Uptime > ${UPTIME_THRESHOLD} days with SUCCESS : ${UPTIME_COUNT}"
+cat ${UPTIME_LIST} |cut -f2- -d'.'
+echo 
+#
 echo "Check the overall unreachable summary file at ${ALL_FINAL_UNIQUE_UNREACHABLE}"
 echo "  inventory details (cpus,mem, disk) file at ${INVENTORY_FILE}"
 date
