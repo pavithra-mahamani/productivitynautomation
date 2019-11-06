@@ -145,7 +145,7 @@ do
         #uptime threshold
         UPTIME=`echo ${MEM_CPU_UPTIME}|rev |cut -f1 -d','|rev|xargs`
         if [ ${UPTIME} -gt ${UPTIME_THRESHOLD} ]; then
-          echo "   ${I2}. $IPINFO, ${MEM_CPU_UPTIME}: ---> More than ${UPTIME_THRESHOLD} days since booted" >>${UPTIME_LIST}
+          echo "   ${I2}. $IPINFO, ${MEM_CPU_UPTIME}: ---> More than ${UPTIME_THRESHOLD} days since last booted (${UPTIME} days back)" >>${UPTIME_LIST}
         fi
         # memory threshold
         MEMTOTAL=`echo ${MEM_CPU_UPTIME}|cut -f2 -d',' |xargs|tr -dc 0-9`
