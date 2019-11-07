@@ -37,10 +37,11 @@ cat /dev/null>${UPTIME_LIST}
 MEMTOTAL_THRESHOLD=100
 MEMTOTAL_LIST=memtotal_diff_more_${MEMTOTAL_THRESHOLD}mb_all.txt
 cat /dev/null>${MEMTOTAL_LIST}
-DISK_THRESHOLD=$((25))
+DISK_THRESHOLD=$((15))
 DISK_LIST=disk_size_less_${DISK_THRESHOLD}gb_all.txt
 cat /dev/null>${DISK_LIST}
-
+VM_OS_USER="`cat ~/.ansible_vars.ini |grep user |cut -f2 -d'='`"
+VM_OS_USER_PWD="`cat ~/.ansible_vars.ini |grep pass |cut -f2 -d'='`"
 
 echo "NOTE: Selected list of QE server pool platforms: ${LOS}"
 for OS in `echo $LOS|sed 's/,/ /g'`
@@ -246,6 +247,17 @@ echo
 echo "  Final failedInstall with SUCCESS : ${FAILEDSTATE_COUNT}"
 cat ${FAILEDSTATE_LIST} |cut -f2- -d'.'
 echo 
+# Run fix install
+FAILEDINSTALL_POOLS="`cat ${FAILEDSTATE_LIST}  |cut -f2- -d'.'|cut -f3 -d' '|cut -f1 -d','|sort|uniq|xargs`"
+for FAILEDPOOL in `echo ${FAILEDINSTALL_POOLS}`
+do
+  if [ ! -d testrunner ]; then
+    git clone http://github.com/couchbase/testrunner
+    chmod a+x testrunner/scripts/fix_failed_install.py
+  fi
+  echo Running testrunner/scripts/fix_failed_install.py ${FAILEDPOOL}
+  python testrunner/scripts/fix_failed_install.py ${FAILEDPOOL} ${VM_OS_USER} ${VM_OS_USER_PWD}  
+done
 # uptime threshold list
 UPTIME_COUNT=`wc -l ${UPTIME_LIST} |xargs|cut -f1 -d' '`
 echo
@@ -265,7 +277,8 @@ echo "  Disk / mount size less than ${DISK_THRESHOLD}gb : ${DISK_COUNT}"
 cat ${DISK_LIST} |cut -f2- -d'.'
 echo
 # 
-# 
+
+
 echo "Check the overall unreachable summary file at ${ALL_FINAL_UNIQUE_UNREACHABLE}"
 echo "  inventory details (cpus,mem, disk) file at ${INVENTORY_FILE}"
 date
