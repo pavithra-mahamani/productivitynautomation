@@ -14,7 +14,7 @@ fi
 IPS_INI=$IPS_OR_FILE
 if [ ! -f $IPS_OR_FILE ]; then
   IPS_INI=ips_list.ini
-  echo $IPS_OR_FILE |tr "," "\n" > ${IPS_INI}
+  echo $IPS_OR_FILE |sed -e 's/"//g' -e 's/ //g' |tr "," "\n" > ${IPS_INI}
 fi
 
 echo "*** Summary of VMs ***"
@@ -24,7 +24,7 @@ cat /dev/null>${ALL_FINAL_UNIQUE_UNREACHABLE}
 OINDEX=1
 
 TOTAL_IPS=`wc -l ${IPS_INI}|xargs|cut -f1 -d' '`
-echo "Count: ${TOTAL_IPS}"
+echo "Count: ${TOTAL_IPS}, Given Hosts/IPs: `cat ${IPS_INI}|xargs|sed 's/ /,/g'`"
 
 echo '*** Final Summary ***' >>${ALL_FINAL_UNIQUE_UNREACHABLE}
 
@@ -79,7 +79,7 @@ VM_OS_USER_PWD="`cat ~/.ansible_vars.ini |grep pass |cut -f2 -d'='`"
     sed 's/.*<\/head>$/<script type="text\/javascript" charset="utf8" src="ansible_cmdb_static\/js\/jquery-1.10.2.min.js"><\/script><script type="text\/javascript" charset="utf8" src="ansible_cmdb_static\/js\/jquery.dataTables.js"><\/script><\/head>/g' ${INVENTORY_FILE} >${INVENTORY_FILE}_1 
     ANSIBLE_CMDB_STATIC=`egrep static ${INVENTORY_FILE} |egrep static |tail -1 |cut -f4 -d'='|cut -f2 -d':'|cut -f1 -d'"'|sed 's/\/\/\//\//g'|rev|cut -f3- -d'/'|rev`
     if [ ! -d ./ansible_cmdb_static ]; then
-       echo cp -R ${ANSIBLE_CMDB_STATIC} ansible_cmdb_static
+       #echo cp -R ${ANSIBLE_CMDB_STATIC} ansible_cmdb_static
        cp -R ${ANSIBLE_CMDB_STATIC} ansible_cmdb_static
     fi
     cp -r ${INVENTORY_FILE}_1 ${INVENTORY_FILE}
@@ -182,6 +182,7 @@ VM_OS_USER_PWD="`cat ~/.ansible_vars.ini |grep pass |cut -f2 -d'='`"
     fi
   fi
  echo "----------------------------------------"
+ echo
  FINAL_INI=unreachablelist_ips.ini
  echo "[UNREACHABLE]">${FINAL_INI}
  sort $OUT_ALL_UNREACHABLE|uniq|egrep -v '\['|egrep "\S" >>${FINAL_INI}
