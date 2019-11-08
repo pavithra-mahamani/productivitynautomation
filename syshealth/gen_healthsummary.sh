@@ -161,8 +161,8 @@ VM_OS_USER_PWD="`cat ~/.ansible_vars.ini |grep pass |cut -f2 -d'='`"
      for IP in `echo ${UNREACH_IPS}`
      do
          IPQ=`echo ${IP}: |sed 's/\./\\\./g'`
-         IPINFO="`egrep ${IPQ} ${IPS_INI}`"
          IPQ2="`echo ${IP} |sed 's/\./\\\./g'` "
+         IPINFO="`egrep ${IPQ2} ${IPS_INI}`"
          UNREACH_MSG="`egrep UNREACHABLE ${LOG_FILE} -A 3|egrep ${IPQ2} | egrep msg|cut -f2- -d':'|cut -f1 -d','`"
          if [ "$UNREACH_MSG" = "" ]; then
             UNREACH_MSG="`egrep UNREACHABLE ${LOG_FILE} -A 3| egrep msg|cut -f2- -d':'|cut -f1 -d','`"
@@ -212,22 +212,22 @@ VM_OS_USER_PWD="`cat ~/.ansible_vars.ini |grep pass |cut -f2 -d'='`"
 echo
 cat ${ALL_FINAL_UNIQUE_UNREACHABLE}
 # failedInstall list
-FAILEDSTATE_COUNT=`wc -l ${FAILEDSTATE_LIST} |xargs|cut -f1 -d' '`
-echo
-echo "  Final failedInstall with SUCCESS : ${FAILEDSTATE_COUNT}"
-cat ${FAILEDSTATE_LIST} |cut -f2- -d'.'
-echo 
+#FAILEDSTATE_COUNT=`wc -l ${FAILEDSTATE_LIST} |xargs|cut -f1 -d' '`
+#echo
+#echo "  Final failedInstall with SUCCESS : ${FAILEDSTATE_COUNT}"
+#cat ${FAILEDSTATE_LIST} |cut -f2- -d'.'
+#echo 
 # Run fix install
-FAILEDINSTALL_POOLS="`cat ${FAILEDSTATE_LIST}  |cut -f2- -d'.'|cut -f3 -d' '|cut -f1 -d','|sort|uniq|xargs`"
-for FAILEDPOOL in `echo ${FAILEDINSTALL_POOLS}`
-do
-  if [ ! -d testrunner ]; then
-    git clone http://github.com/couchbase/testrunner
-    chmod a+x testrunner/scripts/fix_failed_install.py
-  fi
-  echo Running testrunner/scripts/fix_failed_install.py ${FAILEDPOOL}
-  python testrunner/scripts/fix_failed_install.py ${FAILEDPOOL} ${VM_OS_USER} ${VM_OS_USER_PWD}  
-done
+#FAILEDINSTALL_POOLS="`cat ${FAILEDSTATE_LIST}  |cut -f2- -d'.'|cut -f3 -d' '|cut -f1 -d','|sort|uniq|xargs`"
+#for FAILEDPOOL in `echo ${FAILEDINSTALL_POOLS}`
+#do
+#  if [ ! -d testrunner ]; then
+#    git clone http://github.com/couchbase/testrunner
+#    chmod a+x testrunner/scripts/fix_failed_install.py
+#  fi
+#  echo Running testrunner/scripts/fix_failed_install.py ${FAILEDPOOL}
+#  python testrunner/scripts/fix_failed_install.py ${FAILEDPOOL} ${VM_OS_USER} ${VM_OS_USER_PWD}  
+#done
 # uptime threshold list
 UPTIME_COUNT=`wc -l ${UPTIME_LIST} |xargs|cut -f1 -d' '`
 echo
