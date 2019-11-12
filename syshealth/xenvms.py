@@ -29,8 +29,9 @@ if __name__ == "__main__":
 
     defaulthosts = ["xcp-s418.sc.couchbase.com","xcp-s823.sc.couchbase.com","xcp-s823.sc.couchbase.com","xcp-s719.sc.couchbase.com",
              "xcp-s440.sc.couchbase.com","xcp-s121.sc.couchbase.com","xcp-s021.sc.couchbase.com","xcp-s022.sc.couchbase.com",
-             "xcp-s411.sc.couchbase.com","172.23.110.17","xcp-s731.sc.couchbase.com","xcp-sa28.sc.couchbase.com",
+             "xcp-s411.sc.couchbase.com","172.23.110.17","xcp-sa28.sc.couchbase.com",
              "xcp-s123.sc.couchbase.com","xcp-s436.sc.couchbase.com","xcp-s606.sc.couchbase.com"]
+    #,"xcp-s731.sc.couchbase.com"
     grandvms=0
     i = 1
     parser = argparse.ArgumentParser()
@@ -48,12 +49,13 @@ if __name__ == "__main__":
     else:
         hosts=args.xenurl.split(",")
 
+    print("\nXen Server hosts ist:"+str(hosts)+"\n")
     for host in hosts:
         url = "http://"+host
         username = args.username #"root"
         password = args.userpwd
 
-        print("*** HOST#"+str(i)+": " +url+" ***")
+        print("\n*** HOST#"+str(i)+": " +url+" ***")
         try:
             session = XenAPI.Session(url)
             session.xenapi.login_with_password(username, password)
