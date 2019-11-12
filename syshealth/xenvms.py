@@ -39,7 +39,7 @@ if __name__ == "__main__":
     parser.add_argument("-u","--username", help="[root] xenserver host username")
     parser.add_argument("-p","--userpwd", help="xenserver host user pwd")
     args = parser.parse_args()
-    print args.xenurl
+    #print args.xenurl
 
 
     hosts=args.xenurl
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     else:
         hosts=args.xenurl.split(",")
 
-    print("\nXen Server hosts ist:"+str(hosts)+"\n")
+    print("\nXen Server hosts list:"+str(hosts)+"\n")
     for host in hosts:
         url = "http://"+host
         username = args.username #"root"
