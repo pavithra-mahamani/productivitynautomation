@@ -12,7 +12,7 @@ if [ "$IPS_OR_FILE" = "" ]; then
 fi
 
 IPS_INI=$IPS_OR_FILE
-if [ ! -f $IPS_OR_FILE ]; then
+if [ ! -f "$IPS_OR_FILE" ]; then
   IPS_INI=ips_list.ini
   echo $IPS_OR_FILE |sed -e 's/"//g' -e 's/ //g' |tr "," "\n" > ${IPS_INI}
 fi
