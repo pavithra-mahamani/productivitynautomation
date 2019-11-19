@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 ############################################################################
 # Description: Get the IPs ssh ping and statistics
 #
@@ -84,18 +84,23 @@ do
         cat vmpools_${OS}_ips.ini >vmpools_${OS}_ips2.ini
         cat ~/.ansible_vars.ini >>vmpools_${OS}_ips2.ini
         #ansible ${NPOOL} -i vmpools_${OS}_ips2.ini -u root -m ping >${LOG_FILE}
-        ansible ${NPOOL} -i vmpools_${OS}_ips2.ini -u root -m setup --tree ansible_out/ >${LOG_FILE}
+        echo ansible ${NPOOL} -i vmpools_${OS}_ips2.ini -u root -m setup --timeout 20 --tree ansible_out/
+        ansible ${NPOOL} -i vmpools_${OS}_ips2.ini -u root -m setup --timeout 20 --tree ansible_out/ >${LOG_FILE}
       fi
     else
       #ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m ping >${LOG_FILE}
-      ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m setup --tree ansible_out/ >${LOG_FILE}
+      echo ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m setup --timeout 20 --tree ansible_out/
+      ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m setup --timeout 20 --tree ansible_out/ >${LOG_FILE}
     fi
  
     #generate overview fancy html
+    echo generate overview fancy html
     INVENTORY_FILE=inventory_for_selectedpools.html
+    echo ansible-cmdb -t html_fancy -p local_js=1,collapsed=1 ansible_out/
     ansible-cmdb -t html_fancy -p local_js=1,collapsed=1 ansible_out/ > $INVENTORY_FILE
     #Fix the js
-    sed 's/.*<\/head>$/<script type="text\/javascript" charset="utf8" src="ansible_cmdb_static\/js\/jquery-1.10.2.min.js"><\/script><script type="text\/javascript" charset="utf8" src="ansible_cmdb_static\/js\/jquery.dataTables.js"><\/script><\/head>/g' ${INVENTORY_FILE} >${INVENTORY_FILE}_1 
+    echo Fix the js
+    sed 's/.*<\/head>$/<script type="text\/javascript" charset="utf8" src=".\/ansible_cmdb_static\/js\/jquery-1.10.2.min.js"><\/script><script type="text\/javascript" charset="utf8" src=".\/ansible_cmdb_static\/js\/jquery.dataTables.js"><\/script><\/head>/g' ${INVENTORY_FILE} >${INVENTORY_FILE}_1 
     ANSIBLE_CMDB_STATIC=`egrep static ${INVENTORY_FILE} |egrep static |tail -1 |cut -f4 -d'='|cut -f2 -d':'|cut -f1 -d'"'|sed 's/\/\/\//\//g'|rev|cut -f3- -d'/'|rev`
     if [ ! -d ./ansible_cmdb_static ]; then
        echo cp -R ${ANSIBLE_CMDB_STATIC} ansible_cmdb_static
@@ -105,6 +110,13 @@ do
     if [ -f ${INVENTORY_FILE}_1 ]; then
       rm ${INVENTORY_FILE}_1
     fi
+    if [ ! -d qeinfra ]; then
+      mkdir qeinfra
+    fi
+    cp ${INVENTORY_FILE} qeinfra
+    cp ${INVENTORY_FILE} qeinfra/index.html
+    cp -R ansible_cmdb_static qeinfra
+    aws s3 cp qeinfra s3://cb-logs-qe/qeinfra --recursive
     ansible-cmdb -t csv --columns "ip,os,mem,memfree,cpus,disk_mounts,disk_avail,uptime" ansible_out/ |egrep -v 'No' | tr -d '\r'|cut -f1- -d',' >${OS}_${NPOOL}_mem_cpus_uptime.txt
 
     #echo RequiredPool: $REQ_POOL
@@ -280,5 +292,5 @@ echo
 
 
 echo "Check the overall unreachable summary file at ${ALL_FINAL_UNIQUE_UNREACHABLE}"
-echo "  inventory details (cpus,mem, disk) file at ${INVENTORY_FILE}"
+echo "  inventory details (cpus,mem, disk) file at http://cb-logs-qe.s3.us-west-2.amazonaws.com/qeinfra/${INVENTORY_FILE}"
 date
