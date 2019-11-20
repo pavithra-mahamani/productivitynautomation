@@ -200,6 +200,10 @@ func main() {
 		fmt.Println("Query Result: ", runquery(os.Args[len(os.Args)-1]))
 	} else if *action == "runupdatequery" {
 		runupdatequery(os.Args[len(os.Args)-1])
+	} else if *action == "setpoolipstate" {
+		setPoolState(os.Args[len(os.Args)-2], os.Args[len(os.Args)-1])
+	} else if *action == "getpoolipstate" {
+		getPoolState(os.Args[len(os.Args)-1])
 	} else if *action == "getrunprogress" {
 		//GenSummaryForRunProgress(os.Args[len(os.Args)-2], os.Args[len(os.Args)-1])
 		cbbuild = os.Args[len(os.Args)-1]
@@ -232,7 +236,9 @@ func usage() string {
 		"-action getrunprogress build : to get the summary report on the kickedoff runs for a build. " +
 		" Options: --reqserverpools=[regression,durability,ipv6,ipv6-raw,ipv6-fqdn,ipv6-mix,jre-less,jre,security,elastic-fts,elastic-xdcr] --reqstates=[available,booked] \n" +
 		"-action runquery 'select * from server where lower(`os`)=\"centos\" and `build`=\"6.5.0-4106\"' : to run a given query statement \n" +
-		"-action runupdatequery --cbqueryurl 'http://172.23.105.177:8093/query/service'  \"update \\`QE-server-pool\\` set state='available' where ipaddr='172.23.120.240'\" : to run a given update query statement\n"
+		"-action runupdatequery --cbqueryurl 'http://172.23.105.177:8093/query/service'  \"update \\`QE-server-pool\\` set state='available' where ipaddr='172.23.120.240'\" : to run a given update query statement\n" +
+		"-action setpoolipstate state ips : to set given state for the given ips (separated by comma)\n" +
+		"-action getpoolipstate ips : to get state for given ips (separated by comma)\n"
 
 }
 
@@ -262,6 +268,40 @@ func runupdatequery(qry string) {
 	if err := executeN1QLPostStmt(url, qry); err != nil {
 		panic(err)
 	}
+}
+
+func setPoolState(state string, ips string) {
+	url = "http://172.23.105.177:8093/query/service"
+	ipa := strings.Split(ips, ",")
+	allIps := ""
+	for i := 0; i < len(ipa); i++ {
+		if i < len(ipa)-1 {
+			allIps += "'" + ipa[i] + "',"
+		} else {
+			allIps += "'" + ipa[i] + "'"
+		}
+
+	}
+	qry := "update `QE-server-pool` set state='" + state + "' where ipaddr in [" + allIps + "]"
+	fmt.Println(qry)
+	runupdatequery(qry)
+}
+
+func getPoolState(ips string) {
+	url = "http://172.23.105.177:8093/query/service"
+	ipa := strings.Split(ips, ",")
+	allIps := ""
+	for i := 0; i < len(ipa); i++ {
+		if i < len(ipa)-1 {
+			allIps += "'" + ipa[i] + "',"
+		} else {
+			allIps += "'" + ipa[i] + "'"
+		}
+
+	}
+	qry := "select ipaddr,state,poolId from `QE-server-pool` where ipaddr in [" + allIps + "]"
+	fmt.Println(qry)
+	fmt.Println("Query Result: ", runquery(qry))
 }
 
 func gettotalbuildcycleduration(buildN string) int {
