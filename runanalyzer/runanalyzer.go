@@ -197,7 +197,9 @@ func main() {
 		gettotalbuildcycleduration(os.Args[3])
 		//fmt.Printf("\n\t\t\t\t\t\t\t\t\t\t\tGrand total time: %d hours\n", gettotalbuildcycleduration(os.Args[3]))
 	} else if *action == "runquery" {
-		fmt.Println("Query Result: ", runquery(os.Args[3]))
+		fmt.Println("Query Result: ", runquery(os.Args[len(os.Args)-1]))
+	} else if *action == "runupdatequery" {
+		runupdatequery(os.Args[len(os.Args)-1])
 	} else if *action == "getrunprogress" {
 		//GenSummaryForRunProgress(os.Args[len(os.Args)-2], os.Args[len(os.Args)-1])
 		cbbuild = os.Args[len(os.Args)-1]
@@ -228,10 +230,12 @@ func usage() string {
 		"-action totaltime 6.5  : to get the total number of jobs, time duration for a given set of  builds in a release, " +
 		"Options: --limits [100] --qryfilter 'where result.numofjobs>900 and (totalcount-failcount)*100/totalcount>90'\n" +
 		"-action getrunprogress build : to get the summary report on the kickedoff runs for a build. " +
-		" Options: --reqserverpools=[regression,durability,ipv6,ipv6-raw,ipv6-fqdn,ipv6-mix,jre-less,jre,security,elastic-fts,elastic-xdcr] --reqstates=[available,booked]" +
-		"-action runquery 'select * from server where lower(`os`)=\"centos\" and `build`=\"6.5.0-4106\"' : to run a given query statement"
+		" Options: --reqserverpools=[regression,durability,ipv6,ipv6-raw,ipv6-fqdn,ipv6-mix,jre-less,jre,security,elastic-fts,elastic-xdcr] --reqstates=[available,booked] \n" +
+		"-action runquery 'select * from server where lower(`os`)=\"centos\" and `build`=\"6.5.0-4106\"' : to run a given query statement \n" +
+		"-action runupdatequery --cbqueryurl 'http://172.23.105.177:8093/query/service'  \"update \\`QE-server-pool\\` set state='available' where ipaddr='172.23.120.240'\" : to run a given update query statement\n"
 
 }
+
 func runquery(qry string) string {
 	//url := "http://172.23.109.245:8093/query/service"
 	fmt.Println("ACTION: runquery")
@@ -249,6 +253,15 @@ func runquery(qry string) string {
 
 	byteValue, _ := ioutil.ReadAll(resultFile)
 	return string(byteValue)
+}
+
+func runupdatequery(qry string) {
+	//url := "http://172.23.109.245:8093/query/service"
+	fmt.Println("ACTION: runupdatequery")
+	fmt.Println("query=" + qry)
+	if err := executeN1QLPostStmt(url, qry); err != nil {
+		panic(err)
+	}
 }
 
 func gettotalbuildcycleduration(buildN string) int {
@@ -923,11 +936,13 @@ func executeN1QLStmt(localFilePath string, remoteURL string, statement string) e
 	if err != nil {
 		return err
 	}
+	//req.SetBasicAuth("Administrator", "password")
 	urlq := req.URL.Query()
 	urlq.Add("statement", statement)
 	req.URL.RawQuery = urlq.Encode()
 	u := req.URL.String()
 	//fmt.Println(req.URL.String())
+	//fmt.Println(req.BasicAuth())
 	resp, err := http.Get(u)
 	if err != nil {
 		return err
