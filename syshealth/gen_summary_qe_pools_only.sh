@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 ############################################################################
 # Description: Get the IPs ssh ping and statistics
 #
@@ -162,12 +162,14 @@ do
         fi
         # memory threshold
         MEMTOTAL=`echo ${MEM_CPU_UPTIME}|cut -f2 -d',' |xargs|tr -dc 0-9`
-        MEMMB=$(((MEMTOTAL/1024)*1024))
+        # fix total expected memory to 4GB than automatic calculation
+        #MEMMB=$(((MEMTOTAL/1024)*1024))
+        MEMMB=4096
         MEMDIFF=$((MEMMB-MEMTOTAL))
-        if [ $MEMDIFF -lt 0 ]; then
-          MEMMB=$((((MEMTOTAL/1024)+1)*1024))
-          MEMDIFF=$((MEMMB-MEMTOTAL))
-        fi
+        #if [ $MEMDIFF -lt 0 ]; then
+        #  MEMMB=$((((MEMTOTAL/1024)+1)*1024))
+        #  MEMDIFF=$((MEMMB-MEMTOTAL))
+        #fi
         if [ $MEMDIFF -gt $MEMTOTAL_THRESHOLD ]; then
           echo "   ${I2}. $IPINFO, ${MEM_CPU_UPTIME}: ---> ${MEMDIFF}mb than ${MEMTOTAL_THRESHOLD}mb difference in total of ${MEMMB}mb" >>${MEMTOTAL_LIST}
         fi
