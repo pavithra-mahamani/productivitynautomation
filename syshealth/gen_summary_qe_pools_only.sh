@@ -165,13 +165,17 @@ do
         # fix total expected memory to 4GB than automatic calculation
         #MEMMB=$(((MEMTOTAL/1024)*1024))
         MEMMB=4096
-        MEMDIFF=$((MEMMB-MEMTOTAL))
+        MEMDIFF=$((MEMTOTAL-MEMMB))
         #if [ $MEMDIFF -lt 0 ]; then
         #  MEMMB=$((((MEMTOTAL/1024)+1)*1024))
         #  MEMDIFF=$((MEMMB-MEMTOTAL))
         #fi
+        if [ $MEMDIFF -lt 0 ]; then
+          OMEMDIFF=${MEMDIFF}
+          MEMDIFF=$((0-${MEMDIFF}))
+        fi
         if [ $MEMDIFF -gt $MEMTOTAL_THRESHOLD ]; then
-          echo "   ${I2}. $IPINFO, ${MEM_CPU_UPTIME}: ---> ${MEMDIFF}mb than ${MEMTOTAL_THRESHOLD}mb difference in total of ${MEMMB}mb" >>${MEMTOTAL_LIST}
+          echo "   ${I2}. $IPINFO, ${MEM_CPU_UPTIME}: ---> ${OMEMDIFF}mb than ${MEMTOTAL_THRESHOLD}mb difference in total of ${MEMMB}mb" >>${MEMTOTAL_LIST}
         fi
         # disk (root) threshold
         DISKMOUNTS=`echo ${MEM_CPU_UPTIME}|cut -f5- -d','|rev|cut -f2- -d','|rev|cut -f2 -d'"'|sed 's/ //g'`
