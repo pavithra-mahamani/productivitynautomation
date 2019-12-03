@@ -2,7 +2,7 @@
 
 Some of the key tools:
 
-1. Run Analyzer Tool 
+`1. Run Analyzer Tool 
 Usage: go run runanalyzer/runanalyzer.go --action help
 Enter action value. 
 -action lastaborted 6.5.0-4106 6.5.0-4059 6.5.0-4000  : to get the aborted jobs common across last 3 builds. Options: --cbrelease [6.5]specificbuilds --limits 3 --qryfilter 'where numofjobs>900' 
@@ -11,12 +11,12 @@ Enter action value.
 -action getrunprogress build : to get the summary report on the kickedoff runs for a build.  Options: --reqserverpools=[regression,durability,ipv6,ipv6-raw,ipv6-fqdn,ipv6-mix,jre-less,jre,security,elastic-fts,elastic-xdcr] --reqstates=[available,booked] 
 -action runquery 'select * from server where lower(`os`)="centos" and `build`="6.5.0-4106"' : to run a given query statement 
 -action runupdatequery --cbqueryurl 'http://172.23.105.177:8093/query/service'  "update \`QE-server-pool\` set state='available' where ipaddr='172.23.120.240'" : to run a given update query statement
--action setpoolipstate state ips : to set given state for the given ips (separated by comma)
+`-action setpoolipstate state ips : to set given state for the given ips (separated by comma)
 -action getpoolipstate ips : to get state for given ips (separated by comma)
-
+`
 
 2. System health
-
+`
 *** Helper Tool ***
 Usage: go run syshealth/syshealthmonitor.go -h | --help 
 Enter action value. 
@@ -36,3 +36,4 @@ $ syshealth/gen_healthsummary.sh
 Usage syshealth/gen_healthsummary.sh ips_or_file
 Example: syshealth/gen_healthsummary.sh ip1,ip2,ip3
 
+`
