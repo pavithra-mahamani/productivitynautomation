@@ -2,7 +2,8 @@
 
 Some of the key tools:
 
-```1. Run Analyzer Tool 
+1. Run Analyzer Tool
+```
 Usage: go run runanalyzer/runanalyzer.go --action help
 Enter action value. 
 -action lastaborted 6.5.0-4106 6.5.0-4059 6.5.0-4000  : to get the aborted jobs common across last 3 builds. Options: --cbrelease [6.5]specificbuilds --limits 3 --qryfilter 'where numofjobs>900' 
