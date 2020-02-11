@@ -9,6 +9,15 @@ log = logging.getLogger(__name__)
 logging.info("dynxenvms")
 print("*** Dynamic VMs ***")
 
+def usage(err=None):
+    print("""\
+Usage Syntax: dynxenvms -h or options
+
+Examples:
+ python dynxenvms.py -h
+ python dynxenvms.py -x xenserver -u root -p pwd -c vmname -n count"
+""")
+    sys.exit(0)
 def setLogLevel(log_level):
     if log_level and log_level.lower() == 'info':
         log.setLevel(logging.INFO)
@@ -62,10 +71,10 @@ def create_vm(session, options, new_vm_name):
     for pifRef in pifs.keys():
         if (lowest is None) or (pifs[pifRef]['device'] < pifs[lowest]['device']):
             lowest = pifRef
-    log.info("Choosing PIF with device: {}".format(pifs[lowest]['device']))
+    log.debug("Choosing PIF with device: {}".format(pifs[lowest]['device']))
     # List all the VM objects
     vms = session.xenapi.VM.get_all_records()
-    log.info("Server has {} VM objects (this includes templates)".format(len(vms)))
+    log.debug("Server has {} VM objects (this includes templates)".format(len(vms)))
 
     templates = []
     all_templates = []
@@ -81,24 +90,24 @@ def create_vm(session, options, new_vm_name):
                     vm)  #  log.info("  Found %8s with name_label = %s" % (ty,
                 # record["name_label"]))
 
-    log.info("Server has {} Templates and {} VM objects.".format(
+    log.debug("Server has {} Templates and {} VM objects.".format(
         len(all_templates), (len(vms) - len(all_templates))))
 
-    log.info("Choosing a " + options.template + " template to clone")
+    log.debug("Choosing a " + options.template + " template to clone")
     if not templates:
-        log.info("Could not find any " + options.template + " templates. Exiting.")
+        log.error("Could not find any " + options.template + " templates. Exiting.")
         sys.exit(1)
 
     template = templates[0]
-    log.info("  Selected template: {}".format(session.xenapi.VM.get_name_label(template)))
-    log.info("Installing new VM from the template")
+    log.debug("  Selected template: {}".format(session.xenapi.VM.get_name_label(template)))
+    log.debug("Installing new VM from the template")
     vm = session.xenapi.VM.clone(template, new_vm_name)
 
     network = session.xenapi.PIF.get_network(lowest)
-    log.info("Chosen PIF is connected to network: {}".format(session.xenapi.network.get_name_label(
+    log.debug("Chosen PIF is connected to network: {}".format(session.xenapi.network.get_name_label(
         network)))
     vifs = session.xenapi.VIF.get_all()
-    log.info(("Number of VIFs=" + str(len(vifs))))
+    log.debug(("Number of VIFs=" + str(len(vifs))))
     for i in range(len(vifs)):
         vmref = session.xenapi.VIF.get_VM(vifs[i])
         a_vm_name = session.xenapi.VM.get_name_label(vmref)
@@ -107,23 +116,23 @@ def create_vm(session, options, new_vm_name):
         if (a_vm_name == new_vm_name):
             session.xenapi.VIF.move(vifs[i], network)
 
-    log.info("Adding non-interactive to the kernel commandline")
+    log.debug("Adding non-interactive to the kernel commandline")
     session.xenapi.VM.set_PV_args(vm, "non-interactive")
-    log.info("Choosing an SR to instantiate the VM's disks")
+    log.debug("Choosing an SR to instantiate the VM's disks")
     pool = session.xenapi.pool.get_all()[0]
     default_sr = session.xenapi.pool.get_default_SR(pool)
     default_sr = session.xenapi.SR.get_record(default_sr)
-    log.info("Choosing SR: {} (uuid {})".format(default_sr['name_label'], default_sr['uuid']))
-    log.info("Asking server to provision storage from the template specification")
+    log.debug("Choosing SR: {} (uuid {})".format(default_sr['name_label'], default_sr['uuid']))
+    log.debug("Asking server to provision storage from the template specification")
     description = new_vm_name + " from " + template + " on " + str(
         datetime.datetime.utcnow())
     session.xenapi.VM.set_name_description(vm, description)
     session.xenapi.VM.provision(vm)
     log.info("Starting VM")
     session.xenapi.VM.start(vm, False, True)
-    log.info("  VM is booting")
+    log.debug("  VM is booting")
 
-    log.info("Waiting for the installation to complete")
+    log.debug("Waiting for the installation to complete")
 
     # Here we poll because we don't generate events for metrics objects currently
 
@@ -149,25 +158,33 @@ def create_vm(session, options, new_vm_name):
 
     while read_os_name(vm) is None:
         time.sleep(1)
-    log.info("Reported OS name: {}".format(read_os_name(vm)))
+    vm_os_name = read_os_name(vm)
+    log.info("VM OS name: {}".format(vm_os_name))
     while read_ip_address(vm) is None:
         time.sleep(1)
-    log.info("Reported IP: {}".format(read_ip_address(vm)))
+    vm_ip_addr = read_ip_address(vm)
+    log.info("VM IP: {}".format(vm_ip_addr))
+    return vm_ip_addr, vm_os_name
 
 def create_vms(session, options):
     vm_names = options.create_vm_names.split(",")
-    index=1
+    index = 1
+    new_vms_info = {}
     for i in range(len(vm_names)):
         if int(options.number_of_vms)>1:
             for k in range(int(options.number_of_vms)):
-                create_vm(session, options, vm_names[i] + str(k))
+                vm_name = vm_names[i] + str(k+1)
+                vm_ip, vm_os = create_vm(session, options, vm_name)
+                new_vms_info[vm_name] = vm_ip
                 index = index+1
         else:
-            create_vm(session, options, vm_names[i])
+            vm_ip, vm_os = create_vm(session, options, vm_names[i])
+            new_vms_info[vm_names[i]] = vm_ip
             index = index + 1
+    return new_vms_info
 
 def delete_vm(session, vm_name):
-    log.info("Deleting VM:"+ vm_name)
+    log.info("Deleting VM: "+ vm_name)
     vm = session.xenapi.VM.get_by_name_label(vm_name)
     for j in range(len(vm)):
         record = session.xenapi.VM.get_record(vm[j])
@@ -181,7 +198,7 @@ def delete_vms(session, options):
     for i in range(len(vm_names)):
         if int(options.number_of_vms)>1:
             for k in range(int(options.number_of_vms)):
-                delete_vm(session, vm_names[i] + str(k))
+                delete_vm(session, vm_names[i] + str(k+1))
         else:
             delete_vm(session, vm_names[i])
 
@@ -204,6 +221,10 @@ def parse_arguments():
     parser.add_argument("-l", "--log-level", dest="loglevel", default="INFO",
                         help="e.g -l info,warning,error")
     options = parser.parse_args()
+    if not options.userpwd:
+        log.error("No xenserver {} user -p password given!".format(options.username))
+        usage()
+        sys.exit(1)
     #if options.create_vm_names == 'prod-qa-auto':
     #    options.create_vm_names += "-"+datetime.datetime.utcnow().strftime("-%m%d%Y-%H%M%S")
     return options
@@ -211,19 +232,20 @@ def parse_arguments():
 def main():
     options = parse_arguments()
     setLogLevel(options.loglevel)
-    log.info("\nXen Server host: " + options.xenhost + "\n")
+    log.debug("\nXen Server host: " + options.xenhost + "\n")
 
     url = "http://" + options.xenhost
     session = XenAPI.Session(url)
     try:
         session.xenapi.login_with_password(options.username, options.userpwd)
     except XenAPI.Failure as f:
-        log.info("Failed to acquire a session: %s" % f.details)
+        log.error("Failed to acquire a session: %s" % f.details)
         sys.exit(1)
 
     try:
         if options.create_vm_names:
-            create_vms(session, options)
+            new_vms = create_vms(session, options)
+            log.info(new_vms)
         elif options.delete_vm_names:
             delete_vms(session, options)
         else:
