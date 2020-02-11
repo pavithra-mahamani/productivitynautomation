@@ -32,6 +32,25 @@ def setLogLevel(log_level):
     else:
         log.setLevel(logging.NOTSET)
 
+def list_vm_details(session, vm_name):
+    vm = session.xenapi.VM.get_by_name_label(vm_name)
+    if len(vm)>0:
+        record = session.xenapi.VM.get_record(vm[0])
+        name_description = record["name_description"]
+        uuid = record["uuid"]
+        power_state = record["power_state"]
+        vcpus = record["VCPUs_max"]
+        memory_static_max = record["memory_static_max"]
+        hostVIFs = record['VIFs']
+        if (record["power_state"] != 'Halted'):
+            ipRef = session.xenapi.VM_guest_metrics.get_record(record['guest_metrics'])
+            networkinfo = ','.join([str(elem) for elem in ipRef['networks'].values()])
+        else:
+            networkinfo = 'N/A'
+        log.info(vm_name + "," + power_state + "," + vcpus + "," + memory_static_max +
+              "," + networkinfo +", "+name_description)
+
+
 def list_vms(session, options):
     vm_count=0
     vms = session.xenapi.VM.get_all()
@@ -124,7 +143,7 @@ def create_vm(session, options, new_vm_name):
     default_sr = session.xenapi.SR.get_record(default_sr)
     log.debug("Choosing SR: {} (uuid {})".format(default_sr['name_label'], default_sr['uuid']))
     log.debug("Asking server to provision storage from the template specification")
-    description = new_vm_name + " from " + template + " on " + str(
+    description = new_vm_name + " from " + options.template + " on " + str(
         datetime.datetime.utcnow())
     session.xenapi.VM.set_name_description(vm, description)
     session.xenapi.VM.provision(vm)
@@ -156,14 +175,26 @@ def create_vm(session, options, new_vm_name):
         except:
             return None
 
+    def read_cpu_memory(a_vm):
+        vgm = session.xenapi.VM.get_guest_metrics(a_vm)
+        try:
+            vm_mem= session.xenapi.VM_guest_metrics.get_memory(vgm)
+            log.info(vm_mem)
+
+            return vm_mem
+        except:
+            return None
+
     while read_os_name(vm) is None:
         time.sleep(1)
     vm_os_name = read_os_name(vm)
     log.info("VM OS name: {}".format(vm_os_name))
     while read_ip_address(vm) is None:
         time.sleep(1)
+
     vm_ip_addr = read_ip_address(vm)
     log.info("VM IP: {}".format(vm_ip_addr))
+
     return vm_ip_addr, vm_os_name
 
 def create_vms(session, options):
@@ -191,6 +222,12 @@ def delete_vm(session, vm_name):
         power_state = record["power_state"]
         if power_state != 'Halted':
             session.xenapi.VM.shutdown(vm[j])
+
+        vbds = session.xenapi.VM.get_VBDs(vm[j])
+        vdi = session.xenapi.VBD.get_VDI(vbds[0])
+        if vdi:
+            log.debug("Deleting the disk...")
+            session.xenapi.VDI.destroy(vdi)
         session.xenapi.VM.destroy(vm[j])
 
 def delete_vms(session, options):
@@ -201,6 +238,15 @@ def delete_vms(session, options):
                 delete_vm(session, vm_names[i] + str(k+1))
         else:
             delete_vm(session, vm_names[i])
+
+def list_given_vm_set_details(session, options):
+    vm_names = options.list_vm_names.split(",")
+    for i in range(len(vm_names)):
+        if int(options.number_of_vms) > 1:
+            for k in range(int(options.number_of_vms)):
+                list_vm_details(session, vm_names[i] + str(k + 1))
+        else:
+            list_vm_details(session, vm_names[i])
 
 def parse_arguments():
     log.debug("Parsing arguments")
@@ -215,6 +261,7 @@ def parse_arguments():
     parser.add_argument("-c", "--create_vm", dest="create_vm_names",
                         help="To create vms with given names")
     parser.add_argument("-d", "--delete_vm", dest="delete_vm_names", help="To delete VMs")
+    parser.add_argument("-s", "--list_vm", dest="list_vm_names", help="List VM details")
     parser.add_argument("-n", "--number_of_vms", dest="number_of_vms", default="1",
                         help="Count of VMs with "
                              "given create or delete VM prefix names")
@@ -248,6 +295,8 @@ def main():
             log.info(new_vms)
         elif options.delete_vm_names:
             delete_vms(session, options)
+        elif options.list_vm_names:
+            list_given_vm_set_details(session, options)
         else:
             list_vms(session, options)
     except Exception as e:
