@@ -191,128 +191,140 @@ def create_vms(session, template, vm_prefix_names, number_of_vms=1):
         if int(number_of_vms)>1:
             for k in range(int(number_of_vms)):
                 vm_name = vm_names[i] + str(k+1)
-                vm_ip, vm_os = create_vm(session, template, vm_name)
+                vm_ip, vm_os, error = create_vm(session, template, vm_name)
                 new_vms_info[vm_name] = vm_ip
+                if error:
+                    new_vms_info[vm_name+"_error"] = error
+
                 index = index+1
         else:
-            vm_ip, vm_os = create_vm(session, template, vm_names[i])
+            vm_ip, vm_os, error = create_vm(session, template, vm_names[i])
             new_vms_info[vm_names[i]] = vm_ip
+            if error:
+                new_vms_info[vm_names[i] + "_error"] = error
             index = index + 1
     return new_vms_info
 
 def create_vm(session, template, new_vm_name):
-    log.info("\n--- Creating VM: " + new_vm_name + " using " + template)
-    pifs = session.xenapi.PIF.get_all_records()
-    lowest = None
-    for pifRef in pifs.keys():
-        if (lowest is None) or (pifs[pifRef]['device'] < pifs[lowest]['device']):
-            lowest = pifRef
-    log.debug("Choosing PIF with device: {}".format(pifs[lowest]['device']))
-    # List all the VM objects
-    vms = session.xenapi.VM.get_all_records()
-    log.debug("Server has {} VM objects (this includes templates)".format(len(vms)))
+    error = ''
+    try:
+        log.info("\n--- Creating VM: " + new_vm_name + " using " + template)
+        pifs = session.xenapi.PIF.get_all_records()
+        lowest = None
+        for pifRef in pifs.keys():
+            if (lowest is None) or (pifs[pifRef]['device'] < pifs[lowest]['device']):
+                lowest = pifRef
+        log.debug("Choosing PIF with device: {}".format(pifs[lowest]['device']))
+        # List all the VM objects
+        vms = session.xenapi.VM.get_all_records()
+        log.debug("Server has {} VM objects (this includes templates)".format(len(vms)))
 
-    templates = []
-    all_templates = []
-    for vm in vms:
-        record = vms[vm]
-        ty = "VM"
-        if record["is_a_template"]:
-            ty = "Template"
-            all_templates.append(vm)
-            # Look for a given template
-            if record["name_label"].startswith(template):
-                templates.append(
-                    vm)  #  log.info("  Found %8s with name_label = %s" % (ty,
-                # record["name_label"]))
+        templates = []
+        all_templates = []
+        for vm in vms:
+            record = vms[vm]
+            ty = "VM"
+            if record["is_a_template"]:
+                ty = "Template"
+                all_templates.append(vm)
+                # Look for a given template
+                if record["name_label"].startswith(template):
+                    templates.append(
+                        vm)  #  log.info("  Found %8s with name_label = %s" % (ty,
+                    # record["name_label"]))
 
-    log.debug("Server has {} Templates and {} VM objects.".format(
-        len(all_templates), (len(vms) - len(all_templates))))
+        log.debug("Server has {} Templates and {} VM objects.".format(
+            len(all_templates), (len(vms) - len(all_templates))))
 
-    log.debug("Choosing a " + template + " template to clone")
-    if not templates:
-        log.error("Could not find any " + template + " templates. Exiting.")
-        sys.exit(1)
+        log.debug("Choosing a " + template + " template to clone")
+        if not templates:
+            log.error("Could not find any " + template + " templates. Exiting.")
+            sys.exit(1)
 
-    template_ref = templates[0]
-    log.debug("  Selected template: {}".format(session.xenapi.VM.get_name_label(template_ref)))
-    log.debug("Installing new VM from the template")
-    vm = session.xenapi.VM.clone(template_ref, new_vm_name)
+        template_ref = templates[0]
+        log.debug("  Selected template: {}".format(session.xenapi.VM.get_name_label(template_ref)))
+        log.debug("Installing new VM from the template")
+        vm = session.xenapi.VM.clone(template_ref, new_vm_name)
 
-    network = session.xenapi.PIF.get_network(lowest)
-    log.debug("Chosen PIF is connected to network: {}".format(session.xenapi.network.get_name_label(
-        network)))
-    vifs = session.xenapi.VIF.get_all()
-    log.debug(("Number of VIFs=" + str(len(vifs))))
-    for i in range(len(vifs)):
-        vmref = session.xenapi.VIF.get_VM(vifs[i])
-        a_vm_name = session.xenapi.VM.get_name_label(vmref)
-        #  log.info((str(i)+"."+session.xenapi.network.get_name_label(session.xenapi.VIF.get_network(
-        #    vifs[i]))+" "+a_vm_name)
-        if (a_vm_name == new_vm_name):
-            session.xenapi.VIF.move(vifs[i], network)
+        network = session.xenapi.PIF.get_network(lowest)
+        log.debug("Chosen PIF is connected to network: {}".format(session.xenapi.network.get_name_label(
+            network)))
+        vifs = session.xenapi.VIF.get_all()
+        log.debug(("Number of VIFs=" + str(len(vifs))))
+        for i in range(len(vifs)):
+            vmref = session.xenapi.VIF.get_VM(vifs[i])
+            a_vm_name = session.xenapi.VM.get_name_label(vmref)
+            #  log.info((str(i)+"."+session.xenapi.network.get_name_label(session.xenapi.VIF.get_network(
+            #    vifs[i]))+" "+a_vm_name)
+            if (a_vm_name == new_vm_name):
+                session.xenapi.VIF.move(vifs[i], network)
 
-    log.debug("Adding non-interactive to the kernel commandline")
-    session.xenapi.VM.set_PV_args(vm, "non-interactive")
-    log.debug("Choosing an SR to instantiate the VM's disks")
-    pool = session.xenapi.pool.get_all()[0]
-    default_sr = session.xenapi.pool.get_default_SR(pool)
-    default_sr = session.xenapi.SR.get_record(default_sr)
-    log.debug("Choosing SR: {} (uuid {})".format(default_sr['name_label'], default_sr['uuid']))
-    log.debug("Asking server to provision storage from the template specification")
-    description = new_vm_name + " from " + template + " on " + str(
-        datetime.datetime.utcnow())
-    session.xenapi.VM.set_name_description(vm, description)
-    session.xenapi.VM.provision(vm)
-    log.info("Starting VM")
-    session.xenapi.VM.start(vm, False, True)
-    log.debug("  VM is booting")
+        log.debug("Adding non-interactive to the kernel commandline")
+        session.xenapi.VM.set_PV_args(vm, "non-interactive")
+        log.debug("Choosing an SR to instantiate the VM's disks")
+        pool = session.xenapi.pool.get_all()[0]
+        default_sr = session.xenapi.pool.get_default_SR(pool)
+        default_sr = session.xenapi.SR.get_record(default_sr)
+        log.debug("Choosing SR: {} (uuid {})".format(default_sr['name_label'], default_sr['uuid']))
+        log.debug("Asking server to provision storage from the template specification")
+        description = new_vm_name + " from " + template + " on " + str(
+            datetime.datetime.utcnow())
+        session.xenapi.VM.set_name_description(vm, description)
+        session.xenapi.VM.provision(vm)
+        log.info("Starting VM")
+        session.xenapi.VM.start(vm, False, True)
+        log.debug("  VM is booting")
 
-    log.debug("Waiting for the installation to complete")
+        log.debug("Waiting for the installation to complete")
 
-    # Here we poll because we don't generate events for metrics objects currently
+        # Here we poll because we don't generate events for metrics objects currently
 
-    def read_os_name(a_vm):
-        vgm = session.xenapi.VM.get_guest_metrics(a_vm)
-        try:
-            os = session.xenapi.VM_guest_metrics.get_os_version(vgm)
-            if "name" in os.keys():
-                return os["name"]
-            return None
-        except:
-            return None
+        def read_os_name(a_vm):
+            vgm = session.xenapi.VM.get_guest_metrics(a_vm)
+            try:
+                os = session.xenapi.VM_guest_metrics.get_os_version(vgm)
+                if "name" in os.keys():
+                    return os["name"]
+                return None
+            except:
+                return None
 
-    def read_ip_address(a_vm):
-        vgm = session.xenapi.VM.get_guest_metrics(a_vm)
-        try:
-            os = session.xenapi.VM_guest_metrics.get_networks(vgm)
-            if "0/ip" in os.keys():
-                return os["0/ip"]
-            return None
-        except:
-            return None
+        def read_ip_address(a_vm):
+            vgm = session.xenapi.VM.get_guest_metrics(a_vm)
+            try:
+                os = session.xenapi.VM_guest_metrics.get_networks(vgm)
+                if "0/ip" in os.keys():
+                    return os["0/ip"]
+                return None
+            except:
+                return None
 
-    def read_cpu_memory(a_vm):
-        vgm = session.xenapi.VM.get_guest_metrics(a_vm)
-        try:
-            vm_mem= session.xenapi.VM_guest_metrics.get_memory(vgm)
-            log.info(vm_mem)
+        def read_cpu_memory(a_vm):
+            vgm = session.xenapi.VM.get_guest_metrics(a_vm)
+            try:
+                vm_mem= session.xenapi.VM_guest_metrics.get_memory(vgm)
+                log.info(vm_mem)
 
-            return vm_mem
-        except:
-            return None
+                return vm_mem
+            except:
+                return None
 
-    while read_os_name(vm) is None:
-        time.sleep(1)
-    vm_os_name = read_os_name(vm)
-    log.info("VM OS name: {}".format(vm_os_name))
-    while read_ip_address(vm) is None:
-        time.sleep(1)
+        while read_os_name(vm) is None:
+            time.sleep(1)
+        vm_os_name = read_os_name(vm)
+        log.info("VM OS name: {}".format(vm_os_name))
+        while read_ip_address(vm) is None:
+            time.sleep(1)
 
-    vm_ip_addr = read_ip_address(vm)
-    log.info("VM IP: {}".format(vm_ip_addr))
+        vm_ip_addr = read_ip_address(vm)
+        log.info("VM IP: {}".format(vm_ip_addr))
+    except Exception as e:
+        error = str(e)
+        log.error(error)
+        vm_ip_addr = ''
+        vm_os_name = ''
 
-    return vm_ip_addr, vm_os_name
+    return vm_ip_addr, vm_os_name, error
 
 
 def delete_vms(session, vm_prefix_names, number_of_vms=1):
