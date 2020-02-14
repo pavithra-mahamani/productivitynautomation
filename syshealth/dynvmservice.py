@@ -39,7 +39,7 @@ def releaseservers_service(username):
 
 def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_prefix_names="",
                                                                 number_of_vms=1):
-    xen_host = get_xen_host()
+    xen_host = get_xen_host(xen_host_ref, os)
     url = "http://" + xen_host['host.name']
     log.debug("\nXen Server host: " + xen_host['host.name'] + "\n")
     try:
@@ -51,6 +51,7 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
         return error
 
     options = argparse.ArgumentParser()
+    log.info("Getting template "+ os+'.template')
     template = xen_host[os+'.template']
     try:
         if service_name == 'createvm':
@@ -91,7 +92,7 @@ def get_all_xen_hosts():
 def get_xen_host(xen_host_ref=1,os='centos'):
     config = configparser.RawConfigParser()
     config.read('.dynvmservice.ini')
-    log.debug(config.sections())
+    log.info(config.sections())
     xen_host = {}
     xen_host["host.name"] = config.get('xenhost'+str(xen_host_ref), 'host.name')
     xen_host["host.user"] = config.get('xenhost' + str(xen_host_ref), 'host.user')
