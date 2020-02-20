@@ -25,9 +25,18 @@ def getservers_service(username):
     else:
         vm_count = 1
     os_name = request.args.get('os')
-    return perform_service(1,'createvm', os_name, username, vm_count)
+    if request.args.get('cpus'):
+        cpus_count = request.args.get('cpus')
+    else:
+        cpus_count = "default"
 
-#/releaseservers/{username}/{state}
+    if request.args.get('mem'):
+        mem = request.args.get('mem')
+    else:
+        mem = "default"
+    return perform_service(1,'createvm', os_name, username, vm_count, cpus=cpus_count,maxmemory=mem)
+
+#/releaseservers/{username}
 @app.route('/releaseservers/<string:username>')
 def releaseservers_service(username):
     if request.args.get('count'):
@@ -38,7 +47,8 @@ def releaseservers_service(username):
     return perform_service(1,'deletevm', os_name, username, vm_count)
 
 def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_prefix_names="",
-                                                                number_of_vms=1):
+                                                                number_of_vms=1, cpus="default",
+                    maxmemory="default"):
     xen_host = get_xen_host(xen_host_ref, os)
     url = "http://" + xen_host['host.name']
     log.debug("\nXen Server host: " + xen_host['host.name'] + "\n")
@@ -55,8 +65,11 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
     template = xen_host[os+'.template']
     try:
         if service_name == 'createvm':
-            log.debug("Creating from "+template+" :" +vm_prefix_names)
-            new_vms = create_vms(session, template, vm_prefix_names, number_of_vms)
+            log.debug("Creating from "+template+" :" +vm_prefix_names + ", cpus: "+cpus+", "
+                                                                                        "memory: "
+                                                                                        "" +
+                      maxmemory)
+            new_vms = create_vms(session, template, vm_prefix_names, number_of_vms, cpus, maxmemory)
             log.info(new_vms)
             return new_vms
         elif service_name == 'deletevm':
@@ -137,6 +150,7 @@ def list_vms(session):
     for vm in vms:
         record = session.xenapi.VM.get_record(vm)
         if not (record["is_a_template"]) and not (record["is_control_domain"]):
+            log.info(record)
             vm_count = vm_count + 1
             name = record["name_label"]
             name_description = record["name_description"]
@@ -184,7 +198,8 @@ def list_vm_details(session, vm_name):
               "," + networkinfo +", "+name_description)
 
 
-def create_vms(session, template, vm_prefix_names, number_of_vms=1):
+def create_vms(session, template, vm_prefix_names, number_of_vms=1, cpus="default",
+                    maxmemory="default"):
     vm_names = vm_prefix_names.split(",")
     index = 1
     new_vms_info = {}
@@ -192,21 +207,22 @@ def create_vms(session, template, vm_prefix_names, number_of_vms=1):
         if int(number_of_vms)>1:
             for k in range(int(number_of_vms)):
                 vm_name = vm_names[i] + str(k+1)
-                vm_ip, vm_os, error = create_vm(session, template, vm_name)
+                vm_ip, vm_os, error = create_vm(session, template, vm_name, cpus, maxmemory)
                 new_vms_info[vm_name] = vm_ip
                 if error:
                     new_vms_info[vm_name+"_error"] = error
 
                 index = index+1
         else:
-            vm_ip, vm_os, error = create_vm(session, template, vm_names[i])
+            vm_ip, vm_os, error = create_vm(session, template, vm_names[i], cpus, maxmemory)
             new_vms_info[vm_names[i]] = vm_ip
             if error:
                 new_vms_info[vm_names[i] + "_error"] = error
             index = index + 1
     return new_vms_info
 
-def create_vm(session, template, new_vm_name):
+def create_vm(session, template, new_vm_name, cpus="default",
+                    maxmemory="default"):
     error = ''
     try:
         log.info("\n--- Creating VM: " + new_vm_name + " using " + template)
@@ -271,6 +287,13 @@ def create_vm(session, template, new_vm_name):
         description = new_vm_name + " from " + template + " on " + str(
             datetime.datetime.utcnow())
         session.xenapi.VM.set_name_description(vm, description)
+        if cpus != "default":
+            log.info("Setting cpus to " + cpus)
+            session.xenapi.VM.set_VCPUs_max(vm, int(cpus))
+            session.xenapi.VM.set_VCPUs_at_startup(vm, int(cpus))
+        if maxmemory != "default":
+            log.info("Setting memory to " + maxmemory)
+            session.xenapi.VM.set_memory(vm, maxmemory) # 8GB="8589934592" or 4GB="4294967296"
         session.xenapi.VM.provision(vm)
         log.info("Starting VM")
         session.xenapi.VM.start(vm, False, True)
@@ -382,7 +405,7 @@ def parse_arguments():
 def main():
     options = parse_arguments()
     setLogLevel()
-    app.run(debug=True)
+    app.run(host='0.0.0.0', debug=True)
 
 if __name__ == "__main__":
     main()
