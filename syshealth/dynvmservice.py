@@ -232,6 +232,15 @@ def create_vm(session, template, new_vm_name, cpus="default",
             if (lowest is None) or (pifs[pifRef]['device'] < pifs[lowest]['device']):
                 lowest = pifRef
         log.debug("Choosing PIF with device: {}".format(pifs[lowest]['device']))
+        ref = lowest
+        mac = pifs[ref]['MAC']
+        device = pifs[ref]['device']
+        mode = pifs[ref]['ip_configuration_mode']
+        IP = pifs[ref]['IP']
+        netmask = pifs[ref]['IP']
+        gateway = pifs[ref]['gateway']
+        DNS = pifs[ref]['DNS']
+        log.debug(mac+","+device+","+mode+","+IP+","+netmask+","+gateway+","+DNS)
         # List all the VM objects
         vms = session.xenapi.VM.get_all_records()
         log.debug("Server has {} VM objects (this includes templates)".format(len(vms)))
@@ -271,8 +280,9 @@ def create_vm(session, template, new_vm_name, cpus="default",
         for i in range(len(vifs)):
             vmref = session.xenapi.VIF.get_VM(vifs[i])
             a_vm_name = session.xenapi.VM.get_name_label(vmref)
-            #  log.info((str(i)+"."+session.xenapi.network.get_name_label(session.xenapi.VIF.get_network(
-            #    vifs[i]))+" "+a_vm_name)
+            log.debug(str(i)+"."+session.xenapi.network.get_name_label(
+             session.xenapi.VIF.get_network(
+                vifs[i]))+" "+a_vm_name)
             if (a_vm_name == new_vm_name):
                 session.xenapi.VIF.move(vifs[i], network)
 
@@ -333,15 +343,44 @@ def create_vm(session, template, new_vm_name, cpus="default",
             except:
                 return None
 
-        while read_os_name(vm) is None:
-            time.sleep(1)
-        vm_os_name = read_os_name(vm)
-        log.info("VM OS name: {}".format(vm_os_name))
-        while read_ip_address(vm) is None:
-            time.sleep(1)
+        # Get the OS Name and IPs
+        log.info("Getting the OS Name and IP...")
 
-        vm_ip_addr = read_ip_address(vm)
-        log.info("VM IP: {}".format(vm_ip_addr))
+        if "win" in template:
+            consoles = session.xenapi.VM.get_consoles(vm)
+            console_record = session.xenapi.console.get_record(consoles[0])
+            log.info(str(console_record))
+            if console_record:
+                console_location = console_record['location']
+                import urllib.request, ssl
+                try:
+                    ssl._create_default_https_context = ssl._create_unverified_context
+                    r = urllib.request.urlopen(console_location)
+                except:
+                    pass
+
+            from serveragent import ServerAgent
+            vm_ip_addr = ServerAgent().get_ip()
+            try:
+               vm_ip_addr = vm_ip_addr.decode()
+            except AttributeError:
+                pass
+            vm_os_name = vm_ip_addr
+            log.info("Windows VM IP: {}".format(vm_ip_addr))
+        else:
+            TIMEOUT_SECS = 120
+            maxtime = time.time() + TIMEOUT_SECS
+            while read_os_name(vm) is None and time.time() < maxtime:
+                time.sleep(1)
+            vm_os_name = read_os_name(vm)
+            log.info("VM OS name: {}".format(vm_os_name))
+
+            maxtime = time.time() + TIMEOUT_SECS
+            while read_ip_address(vm) is None and time.time() < maxtime:
+                time.sleep(1)
+            vm_ip_addr = read_ip_address(vm)
+            log.info("VM IP: {}".format(vm_ip_addr))
+
     except Exception as e:
         error = str(e)
         log.error(error)

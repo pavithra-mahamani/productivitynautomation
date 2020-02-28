@@ -26,6 +26,7 @@ class ServerAgent:
                     try:
                         data = sock.recv(2048)
                         #print("Received data: "+data)
+                        server_socket.close()
                         return data
                     except:
                         continue

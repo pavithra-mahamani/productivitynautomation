@@ -2,6 +2,7 @@ import socket, time, uuid, platform
 
 
 server = '10.100.172.116'
+#server = '127.0.0.1'
 port = 12345
 is_connect = False
 while True:
@@ -9,13 +10,13 @@ while True:
   time.sleep(2)
   while not is_connect:
     try:
-        #print("Connecting...")
+        print("Connecting...")
         client_socket = socket.socket()
         client_socket.connect((server,port))
         is_connect = True
 
     except:
-        #print("Retrying...")
+        print("Retrying...")
         time.sleep(2)
         continue
 
