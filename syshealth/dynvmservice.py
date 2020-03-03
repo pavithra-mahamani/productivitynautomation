@@ -6,12 +6,17 @@ import time
 import datetime
 from flask import Flask, request
 import configparser
+from couchbase.bucket import Bucket
+from couchbase.cluster import Cluster
+from couchbase.cluster import PasswordAuthenticator
 
 import logging
 log = logging.getLogger(__name__)
 logging.info("dynxenvms")
 print("*** Dynamic VMs ***")
 app = Flask(__name__)
+
+CONFIG_FILE='.dynvmservice.ini'
 
 @app.route("/showall")
 def showall_service():
@@ -50,6 +55,7 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
                                                                 number_of_vms=1, cpus="default",
                     maxmemory="default"):
     xen_host = get_xen_host(xen_host_ref, os)
+    #xen_host = get_all_xen_hosts(os)[0]
     url = "http://" + xen_host['host.name']
     log.debug("\nXen Server host: " + xen_host['host.name'] + "\n")
     try:
@@ -86,33 +92,52 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
     finally:
         session.logout()
 
-def get_all_xen_hosts():
-    config = configparser.RawConfigParser()
-    config.read('.dynvmservice.ini')
-    log.debug(config.sections())
+def get_config(name):
+    config = read_config()
+    section_ref=1
+    all_config = []
+    xen_host = {}
+    for section in config.sections():
+        if section.startswith(name):
+            section_config = {}
+            for key in config.keys():
+                section_config[key] = config.get(name + str(section_ref), key)
+            all_config.append(section_config)
+            section_ref += 1
+
+    return all_config
+
+def get_all_xen_hosts(os='centos'):
+    config = read_config()
     xen_host_ref=1
     all_xen_hots = []
     xen_host = {}
     for section in config.sections():
         if section.startswith('xenhost'):
             xen_host = {}
-            for key in config.keys():
-                xen_host[key] = config.get('xenhost' + str(xen_host_ref), key)
+            get_xen_values(config, xen_host_ref, os)
             all_xen_hots.append(xen_host)
             xen_host_ref += 1
+
     return all_xen_hots
 
 def get_xen_host(xen_host_ref=1,os='centos'):
-    config = configparser.RawConfigParser()
-    config.read('.dynvmservice.ini')
-    log.info(config.sections())
+    config = read_config()
+    return get_xen_values(config, xen_host_ref, os)
+
+def get_xen_values(config, xen_host_ref, os):
     xen_host = {}
-    xen_host["host.name"] = config.get('xenhost'+str(xen_host_ref), 'host.name')
+    xen_host["host.name"] = config.get('xenhost' + str(xen_host_ref), 'host.name')
     xen_host["host.user"] = config.get('xenhost' + str(xen_host_ref), 'host.user')
     xen_host["host.password"] = config.get('xenhost' + str(xen_host_ref), 'host.password')
-    xen_host[os+".template"] = config.get('xenhost' + str(xen_host_ref), os+'.template')
+    xen_host[os + ".template"] = config.get('xenhost' + str(xen_host_ref), os + '.template')
     return xen_host
 
+def read_config():
+    config = configparser.RawConfigParser()
+    config.read(CONFIG_FILE)
+    log.info(config.sections())
+    return config
 
 def usage(err=None):
     print("""\
@@ -345,7 +370,7 @@ def create_vm(session, template, new_vm_name, cpus="default",
 
         # Get the OS Name and IPs
         log.info("Getting the OS Name and IP...")
-
+        """
         if "win" in template:
             consoles = session.xenapi.VM.get_consoles(vm)
             console_record = session.xenapi.console.get_record(consoles[0])
@@ -367,20 +392,36 @@ def create_vm(session, template, new_vm_name, cpus="default",
                 pass
             vm_os_name = vm_ip_addr
             log.info("Windows VM IP: {}".format(vm_ip_addr))
+
+            win_vm_attr = vm_ip_addr.split(",")
+            ipaddr = win_vm_attr[1]
+            origin="s827"
+            os="win"
+            pools = "dynserverpool"
+            memory = maxmemory
+            mac_address = win_vm_attr[2]
+            os_version = win_vm_attr[3]
+
         else:
-            TIMEOUT_SECS = 120
-            maxtime = time.time() + TIMEOUT_SECS
-            while read_os_name(vm) is None and time.time() < maxtime:
-                time.sleep(1)
-            vm_os_name = read_os_name(vm)
-            log.info("VM OS name: {}".format(vm_os_name))
+            """
+        TIMEOUT_SECS = 120
+        maxtime = time.time() + TIMEOUT_SECS
+        while read_os_name(vm) is None and time.time() < maxtime:
+            time.sleep(1)
+        vm_os_name = read_os_name(vm)
+        log.info("VM OS name: {}".format(vm_os_name))
 
-            maxtime = time.time() + TIMEOUT_SECS
-            while read_ip_address(vm) is None and time.time() < maxtime:
-                time.sleep(1)
-            vm_ip_addr = read_ip_address(vm)
-            log.info("VM IP: {}".format(vm_ip_addr))
+        maxtime = time.time() + TIMEOUT_SECS
+        while read_ip_address(vm) is None and time.time() < maxtime:
+            time.sleep(1)
+        vm_ip_addr = read_ip_address(vm)
+        log.info("VM IP: {}".format(vm_ip_addr))
 
+        # Save in CB
+        #cbdoc = CBDoc()
+        #cbdoc.save_dynvm_doc(new_vm_name, ipaddr, origin, os, pools, memory, os_version,
+        #                     mode='update', state='available', username="",
+        #                     mac_address=mac_address)
     except Exception as e:
         error = str(e)
         log.error(error)
@@ -413,15 +454,67 @@ def delete_vm(session, vm_name):
         record = session.xenapi.VM.get_record(vm[j])
         power_state = record["power_state"]
         if power_state != 'Halted':
-            session.xenapi.VM.shutdown(vm[j])
+            #session.xenapi.VM.shutdown(vm[j])
+            session.xenapi.VM.hard_shutdown(vm[j])
 
         vbds = session.xenapi.VM.get_VBDs(vm[j])
         vdi = session.xenapi.VBD.get_VDI(vbds[0])
         if vdi:
             log.debug("Deleting the disk...")
-            session.xenapi.VDI.destroy(vdi)
+            try:
+                session.xenapi.VDI.destroy(vdi)
+            except:
+                pass
         session.xenapi.VM.destroy(vm[j])
 
+class CBDoc:
+    def __init__(self):
+        config = read_config()
+        self.cb_server = config.get("couchbase", "couchbase.server")
+        self.cb_bucket = config.get("couchbase", "couchbase.bucket")
+        self.cb_username = config.get("couchbase", "couchbase.username")
+        self.cb_userpassword = config.get("couchbase", "couchbase.userpassword")
+
+    def save_dynvm_doc(self, name, ipaddr, origin, os, pools, memory, os_version,
+                       mode='display', state='available', username="", mac_address=""):
+        docValue = {}
+        docValue["ipaddr"] = ipaddr
+        docValue["origin"] = origin
+        docValue["os"] = os
+        docValue["state"] = state
+        docValue["poolId"] = pools
+        docValue["prevUser"] = ""
+        docValue["username"] = username
+        docValue["ver"] = "12"
+        docValue["memory"] = memory
+        docValue["os_version"] = os_version
+        docValue["name"] = name
+        docValue["mac_address"] = mac_address
+
+        if mode == 'display':
+            log.info("Displaying doc only and not storing in CB.")
+            log.info(docValue)
+            return
+        log.info(docValue)
+        try:
+            key = name + "_" + ipaddr + "_" + mac_address
+            cb_cluster = Cluster('couchbase://' + self.cb_server)
+            cb_auth = PasswordAuthenticator(self.cb_username, self.cb_userpassword)
+            cb_cluster.authenticate(cb_auth)
+            cb = cb_cluster.open_bucket(self.cb_bucket)
+            if mode == 'update':
+                docValue["updated_time"] = time.time()
+                cb.upsert(key, docValue)
+                log.info("%s added/updated successfully" % key)
+            else:
+                docValue["created_time"] = time.time()
+                cb.insert(key, docValue)
+                log.info("%s added successfully" % key)
+
+            log.info(docValue)
+        except Exception as e:
+            log.error('Connection Failed: %s or key already exists!' % self.cb_server)
+            log.error(e)
 
 def list_given_vm_set_details(session, options):
     vm_names = options.list_vm_names.split(",")
