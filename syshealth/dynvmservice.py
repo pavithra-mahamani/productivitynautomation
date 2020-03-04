@@ -75,7 +75,8 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
                                                                                         "memory: "
                                                                                         "" +
                       maxmemory)
-            new_vms = create_vms(session, template, vm_prefix_names, number_of_vms, cpus, maxmemory)
+            new_vms = create_vms(session, os, template, vm_prefix_names, number_of_vms, cpus,
+                                 maxmemory)
             log.info(new_vms)
             return new_vms
         elif service_name == 'deletevm':
@@ -201,7 +202,7 @@ def list_vms(session):
             log.info(vm_info)
 
     log.info("Server has {} VM objects and {} templates.".format(vm_count, len(vms)-vm_count))
-    log.info(vm_details)
+    log.debug(vm_details)
     return json.dumps(vm_details, indent=2, sort_keys=True)
 
 def list_vm_details(session, vm_name):
@@ -223,7 +224,7 @@ def list_vm_details(session, vm_name):
               "," + networkinfo +", "+name_description)
 
 
-def create_vms(session, template, vm_prefix_names, number_of_vms=1, cpus="default",
+def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="default",
                     maxmemory="default"):
     vm_names = vm_prefix_names.split(",")
     index = 1
@@ -232,23 +233,25 @@ def create_vms(session, template, vm_prefix_names, number_of_vms=1, cpus="defaul
         if int(number_of_vms)>1:
             for k in range(int(number_of_vms)):
                 vm_name = vm_names[i] + str(k+1)
-                vm_ip, vm_os, error = create_vm(session, template, vm_name, cpus, maxmemory)
+                vm_ip, vm_os, error = create_vm(session, os, template, vm_name, cpus, maxmemory)
                 new_vms_info[vm_name] = vm_ip
                 if error:
                     new_vms_info[vm_name+"_error"] = error
 
                 index = index+1
         else:
-            vm_ip, vm_os, error = create_vm(session, template, vm_names[i], cpus, maxmemory)
+            vm_ip, vm_os, error = create_vm(session, os, template, vm_names[i], cpus, maxmemory)
             new_vms_info[vm_names[i]] = vm_ip
             if error:
                 new_vms_info[vm_names[i] + "_error"] = error
             index = index + 1
     return new_vms_info
 
-def create_vm(session, template, new_vm_name, cpus="default",
+def create_vm(session, os_name, template, new_vm_name, cpus="default",
                     maxmemory="default"):
     error = ''
+    vm_os_name = ''
+    vm_ip_addr = ''
     try:
         log.info("\n--- Creating VM: " + new_vm_name + " using " + template)
         pifs = session.xenapi.PIF.get_all_records()
@@ -404,12 +407,14 @@ def create_vm(session, template, new_vm_name, cpus="default",
 
         else:
             """
+
         TIMEOUT_SECS = 120
-        maxtime = time.time() + TIMEOUT_SECS
-        while read_os_name(vm) is None and time.time() < maxtime:
-            time.sleep(1)
-        vm_os_name = read_os_name(vm)
-        log.info("VM OS name: {}".format(vm_os_name))
+        if not "win" in template:
+            maxtime = time.time() + TIMEOUT_SECS
+            while read_os_name(vm) is None and time.time() < maxtime:
+                time.sleep(1)
+            vm_os_name = read_os_name(vm)
+            log.info("VM OS name: {}".format(vm_os_name))
 
         maxtime = time.time() + TIMEOUT_SECS
         while read_ip_address(vm) is None and time.time() < maxtime:
@@ -417,16 +422,39 @@ def create_vm(session, template, new_vm_name, cpus="default",
         vm_ip_addr = read_ip_address(vm)
         log.info("VM IP: {}".format(vm_ip_addr))
 
+        record = session.xenapi.VM.get_record(vm)
+        uuid = record["uuid"]
+        vcpus = record["VCPUs_max"]
+        memory_static_max = record["memory_static_max"]
         # Save in CB
-        #cbdoc = CBDoc()
-        #cbdoc.save_dynvm_doc(new_vm_name, ipaddr, origin, os, pools, memory, os_version,
-        #                     mode='update', state='available', username="",
-        #                     mac_address=mac_address)
+
+        state = "available"
+        username = new_vm_name
+        pool = "dynamicpool"
+        docValue = {}
+        docValue["ipaddr"] = vm_ip_addr
+        docValue["origin"] = "s827"
+        docValue["os"] = os_name
+        docValue["state"] = state
+        docValue["poolId"] = pool
+        docValue["prevUser"] = ""
+        docValue["username"] = username
+        docValue["ver"] = "12"
+        docValue["memory"] = memory_static_max
+        docValue["os_version"] = vm_os_name
+        docValue["name"] = new_vm_name
+        #docValue["mac_address"] = mac_address
+        docValue["created_time"] = time.time()
+        docValue["cpu"] = vcpus
+
+        docKey = uuid
+
+        cbdoc = CBDoc()
+        cbdoc.save_dynvm_doc(docKey, docValue)
     except Exception as e:
         error = str(e)
         log.error(error)
-        vm_ip_addr = ''
-        vm_os_name = ''
+
 
     return vm_ip_addr, vm_os_name, error
 
@@ -458,14 +486,53 @@ def delete_vm(session, vm_name):
             session.xenapi.VM.hard_shutdown(vm[j])
 
         vbds = session.xenapi.VM.get_VBDs(vm[j])
+        log.info(vbds)
         vdi = session.xenapi.VBD.get_VDI(vbds[0])
         if vdi:
-            log.debug("Deleting the disk...")
+            log.info("Deleting the disk...")
+            log.info(vdi)
             try:
                 session.xenapi.VDI.destroy(vdi)
-            except:
+            except Exception as e:
+                log.error(e)
                 pass
         session.xenapi.VM.destroy(vm[j])
+
+        # delete from CB
+        uuid = record["uuid"]
+        docKey = uuid
+        cbdoc = CBDoc()
+        docResult = cbdoc.get_doc(docKey)
+        if docResult:
+            docValue = docResult.value
+            docValue["state"] = 'deleted'
+            docValue["deleted_time"] = time.time()
+            cbdoc.save_dynvm_doc(docKey, docValue)
+
+
+def read_vm_ip_address(session, a_vm):
+    vgm = session.xenapi.VM.get_guest_metrics(a_vm)
+    try:
+        os = session.xenapi.VM_guest_metrics.get_networks(vgm)
+        if "0/ip" in os.keys():
+            return os["0/ip"]
+        return None
+    except:
+        return None
+
+def delete_all_disks(session, vm):
+    vbds = session.xenapi.VM.get_VBDs(vm)
+    for vbd in vbds:
+        vdi = session.xenapi.VBD.get_VDI(vbd)
+        if vdi:
+            log.info("Deleting the disk...")
+            log.info(vdi)
+            try:
+                session.xenapi.VDI.destroy(vdi)
+            except Exception as e:
+                log.error(e)
+                pass
+
 
 class CBDoc:
     def __init__(self):
@@ -474,46 +541,31 @@ class CBDoc:
         self.cb_bucket = config.get("couchbase", "couchbase.bucket")
         self.cb_username = config.get("couchbase", "couchbase.username")
         self.cb_userpassword = config.get("couchbase", "couchbase.userpassword")
-
-    def save_dynvm_doc(self, name, ipaddr, origin, os, pools, memory, os_version,
-                       mode='display', state='available', username="", mac_address=""):
-        docValue = {}
-        docValue["ipaddr"] = ipaddr
-        docValue["origin"] = origin
-        docValue["os"] = os
-        docValue["state"] = state
-        docValue["poolId"] = pools
-        docValue["prevUser"] = ""
-        docValue["username"] = username
-        docValue["ver"] = "12"
-        docValue["memory"] = memory
-        docValue["os_version"] = os_version
-        docValue["name"] = name
-        docValue["mac_address"] = mac_address
-
-        if mode == 'display':
-            log.info("Displaying doc only and not storing in CB.")
-            log.info(docValue)
-            return
-        log.info(docValue)
         try:
-            key = name + "_" + ipaddr + "_" + mac_address
-            cb_cluster = Cluster('couchbase://' + self.cb_server)
-            cb_auth = PasswordAuthenticator(self.cb_username, self.cb_userpassword)
-            cb_cluster.authenticate(cb_auth)
-            cb = cb_cluster.open_bucket(self.cb_bucket)
-            if mode == 'update':
-                docValue["updated_time"] = time.time()
-                cb.upsert(key, docValue)
-                log.info("%s added/updated successfully" % key)
-            else:
-                docValue["created_time"] = time.time()
-                cb.insert(key, docValue)
-                log.info("%s added successfully" % key)
-
-            log.info(docValue)
+            self.cb_cluster = Cluster('couchbase://' + self.cb_server)
+            self.cb_auth = PasswordAuthenticator(self.cb_username, self.cb_userpassword)
+            self.cb_cluster.authenticate(self.cb_auth)
+            self.cb = self.cb_cluster.open_bucket(self.cb_bucket)
         except Exception as e:
-            log.error('Connection Failed: %s or key already exists!' % self.cb_server)
+            log.error('Connection Failed: %s ' % self.cb_server)
+            log.error(e)
+
+    def get_doc(self, docKey):
+        try:
+            return self.cb.get(docKey)
+            log.info("%s added/updated successfully" % docKey)
+        except Exception as e:
+            log.error('Error while getting doc %s !' % docKey)
+            log.error(e)
+
+    def save_dynvm_doc(self, docKey, docValue):
+        try:
+            log.info(docValue)
+            self.cb.upsert(docKey, docValue)
+            log.info("%s added/updated successfully" % docKey)
+        except Exception as e:
+            log.error('Document with key: %s saving error' %
+                      docKey)
             log.error(e)
 
 def list_given_vm_set_details(session, options):
