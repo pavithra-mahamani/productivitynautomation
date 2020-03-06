@@ -252,6 +252,7 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default",
     error = ''
     vm_os_name = ''
     vm_ip_addr = ''
+    prov_start_time = time.time()
     try:
         log.info("\n--- Creating VM: " + new_vm_name + " using " + template)
         pifs = session.xenapi.PIF.get_all_records()
@@ -340,6 +341,15 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default",
         log.debug("Waiting for the installation to complete")
 
         # Here we poll because we don't generate events for metrics objects currently
+        def read_power_state(a_vm):
+            try:
+                record = session.xenapi.VM.get_record(a_vm)
+                power_state = record["power_state"]
+                if power_state == "Running":
+                    return power_state
+                return None
+            except:
+                return None
 
         def read_os_name(a_vm):
             vgm = session.xenapi.VM.get_guest_metrics(a_vm)
@@ -365,56 +375,31 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default",
             vgm = session.xenapi.VM.get_guest_metrics(a_vm)
             try:
                 vm_mem= session.xenapi.VM_guest_metrics.get_memory(vgm)
-                log.info(vm_mem)
-
                 return vm_mem
+            except:
+                return None
+
+        def read_disks(a_vm):
+            vgm = session.xenapi.VM.get_guest_metrics(a_vm)
+            try:
+                vm_disks= session.xenapi.VM_guest_metrics.get_disks(vgm)
+                return vm_disks
             except:
                 return None
 
         # Get the OS Name and IPs
         log.info("Getting the OS Name and IP...")
-        """
-        if "win" in template:
-            consoles = session.xenapi.VM.get_consoles(vm)
-            console_record = session.xenapi.console.get_record(consoles[0])
-            log.info(str(console_record))
-            if console_record:
-                console_location = console_record['location']
-                import urllib.request, ssl
-                try:
-                    ssl._create_default_https_context = ssl._create_unverified_context
-                    r = urllib.request.urlopen(console_location)
-                except:
-                    pass
-
-            from serveragent import ServerAgent
-            vm_ip_addr = ServerAgent().get_ip()
-            try:
-               vm_ip_addr = vm_ip_addr.decode()
-            except AttributeError:
-                pass
-            vm_os_name = vm_ip_addr
-            log.info("Windows VM IP: {}".format(vm_ip_addr))
-
-            win_vm_attr = vm_ip_addr.split(",")
-            ipaddr = win_vm_attr[1]
-            origin="s827"
-            os="win"
-            pools = "dynserverpool"
-            memory = maxmemory
-            mac_address = win_vm_attr[2]
-            os_version = win_vm_attr[3]
-
-        else:
-            """
-
         TIMEOUT_SECS = 120
+
         if not "win" in template:
             maxtime = time.time() + TIMEOUT_SECS
             while read_os_name(vm) is None and time.time() < maxtime:
                 time.sleep(1)
             vm_os_name = read_os_name(vm)
             log.info("VM OS name: {}".format(vm_os_name))
+        else:
+            #TBD: Wait for network to refresh on Windows VM
+            time.sleep(60)
 
         maxtime = time.time() + TIMEOUT_SECS
         while read_ip_address(vm) is None and time.time() < maxtime:
@@ -422,12 +407,17 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default",
         vm_ip_addr = read_ip_address(vm)
         log.info("VM IP: {}".format(vm_ip_addr))
 
+        # Measure time taken for VM provisioning
+        prov_end_time = time.time()
+        create_duration = round(prov_end_time - prov_start_time)
+
+        # Get other details of VM
         record = session.xenapi.VM.get_record(vm)
         uuid = record["uuid"]
         vcpus = record["VCPUs_max"]
         memory_static_max = record["memory_static_max"]
-        # Save in CB
 
+        # Save as doc in CB
         state = "available"
         username = new_vm_name
         pool = "dynamicpool"
@@ -444,7 +434,8 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default",
         docValue["os_version"] = vm_os_name
         docValue["name"] = new_vm_name
         #docValue["mac_address"] = mac_address
-        docValue["created_time"] = time.time()
+        docValue["created_time"] = prov_end_time
+        docValue["create_duration_secs"] = create_duration
         docValue["cpu"] = vcpus
 
         docKey = uuid
@@ -454,7 +445,6 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default",
     except Exception as e:
         error = str(e)
         log.error(error)
-
 
     return vm_ip_addr, vm_os_name, error
 
@@ -477,6 +467,7 @@ def delete_vms(session, vm_prefix_names, number_of_vms=1):
 
 def delete_vm(session, vm_name):
     log.info("Deleting VM: "+ vm_name)
+    delete_start_time = time.time()
     vm = session.xenapi.VM.get_by_name_label(vm_name)
     for j in range(len(vm)):
         record = session.xenapi.VM.get_record(vm[j])
@@ -498,6 +489,9 @@ def delete_vm(session, vm_name):
                 pass
         session.xenapi.VM.destroy(vm[j])
 
+        delete_end_time = time.time()
+        delete_duration = round(delete_end_time - delete_start_time)
+
         # delete from CB
         uuid = record["uuid"]
         docKey = uuid
@@ -506,7 +500,11 @@ def delete_vm(session, vm_name):
         if docResult:
             docValue = docResult.value
             docValue["state"] = 'deleted'
-            docValue["deleted_time"] = time.time()
+            current_time = time.time()
+            docValue["deleted_time"] = current_time
+            if docValue["created_time"]:
+                docValue["live_duration_secs"] = round(current_time - docValue["created_time"])
+            docValue["delete_duration_secs"] = delete_duration
             cbdoc.save_dynvm_doc(docKey, docValue)
 
 
