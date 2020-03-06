@@ -417,6 +417,12 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default",
         vcpus = record["VCPUs_max"]
         memory_static_max = record["memory_static_max"]
 
+        #print_all_disks(session, vm)
+        disks = get_disks_size(session, vm)
+        log.debug(disks)
+        disks_info = ','.join([str(elem) for elem in disks])
+        log.debug(disks_info)
+
         # Save as doc in CB
         state = "available"
         username = new_vm_name
@@ -437,7 +443,7 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default",
         docValue["created_time"] = prov_end_time
         docValue["create_duration_secs"] = create_duration
         docValue["cpu"] = vcpus
-
+        docValue["disk"] = disks_info
         docKey = uuid
 
         cbdoc = CBDoc()
@@ -475,18 +481,23 @@ def delete_vm(session, vm_name):
         if power_state != 'Halted':
             #session.xenapi.VM.shutdown(vm[j])
             session.xenapi.VM.hard_shutdown(vm[j])
+        #print_all_disks(session, vm[j])
+        delete_all_disks(session, vm[j])
 
-        vbds = session.xenapi.VM.get_VBDs(vm[j])
-        log.info(vbds)
-        vdi = session.xenapi.VBD.get_VDI(vbds[0])
-        if vdi:
-            log.info("Deleting the disk...")
-            log.info(vdi)
-            try:
-                session.xenapi.VDI.destroy(vdi)
-            except Exception as e:
-                log.error(e)
-                pass
+        #vbds = session.xenapi.VM.get_VBDs(vm[j])
+        #log.info(vbds)
+        #vdi = session.xenapi.VBD.get_VDI(vbds[0])
+        #if vdi:
+        #    log.info("Deleting the disk...")
+        #    log.info(vdi)
+        #
+        #    try:
+        #        session.xenapi.VDI.destroy(vdi)
+        #    except Exception as e:
+        #        log.error(e)
+        #        pass
+
+
         session.xenapi.VM.destroy(vm[j])
 
         delete_end_time = time.time()
@@ -518,14 +529,52 @@ def read_vm_ip_address(session, a_vm):
     except:
         return None
 
-def delete_all_disks(session, vm):
+def print_all_disks(session, vm):
     vbds = session.xenapi.VM.get_VBDs(vm)
+    index=1
     for vbd in vbds:
         vdi = session.xenapi.VBD.get_VDI(vbd)
         if vdi:
-            log.info("Deleting the disk...")
+            log.info("Disk..."+ str(index))
             log.info(vdi)
+            index = index+1
             try:
+                #session.xenapi.VDI.destroy(vdi)
+                vdi_record = session.xenapi.VDI.get_record(vdi)
+                log.info(vdi_record)
+                #virtual_size
+            except Exception as e:
+                log.error(e)
+                pass
+
+def get_disks_size(session, vm):
+    vbds = session.xenapi.VM.get_VBDs(vm)
+    disks = []
+    for vbd in vbds:
+        if vbd != 'OpaqueRef:NULL':
+            vdi = session.xenapi.VBD.get_VDI(vbd)
+            if vdi:
+                try:
+                    if vdi != 'OpaqueRef:NULL':
+                        vdi_record = session.xenapi.VDI.get_record(vdi)
+                        disks.append(vdi_record['virtual_size'])
+                except Exception as e:
+                    log.error(e)
+                    pass
+    return disks
+
+def delete_all_disks(session, vm):
+    vbds = session.xenapi.VM.get_VBDs(vm)
+    index=1
+    for vbd in vbds:
+        vdi = session.xenapi.VBD.get_VDI(vbd)
+        if vdi != 'OpaqueRef:NULL':
+            log.info("Delete Disk..."+ str(index))
+            log.debug(vdi)
+            index = index+1
+            try:
+                vdi_record = session.xenapi.VDI.get_record(vdi)
+                log.debug(vdi_record)
                 session.xenapi.VDI.destroy(vdi)
             except Exception as e:
                 log.error(e)
