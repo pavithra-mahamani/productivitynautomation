@@ -1,3 +1,5 @@
+import urllib
+
 import XenAPI
 import sys
 import argparse
@@ -9,6 +11,7 @@ import configparser
 from couchbase.bucket import Bucket
 from couchbase.cluster import Cluster
 from couchbase.cluster import PasswordAuthenticator
+import threading
 
 import logging
 log = logging.getLogger(__name__)
@@ -17,6 +20,7 @@ print("*** Dynamic VMs ***")
 app = Flask(__name__)
 
 CONFIG_FILE='.dynvmservice.ini'
+MAX_EXPIRY_MINUTES = 1440
 
 @app.route("/showall")
 def showall_service():
@@ -39,7 +43,13 @@ def getservers_service(username):
         mem = request.args.get('mem')
     else:
         mem = "default"
-    return perform_service(1,'createvm', os_name, username, vm_count, cpus=cpus_count,maxmemory=mem)
+
+    if request.args.get('expiresin'):
+        exp = int(request.args.get('expiresin'))
+    else:
+        exp = MAX_EXPIRY_MINUTES
+    return perform_service(1,'createvm', os_name, username, vm_count, cpus=cpus_count,
+                           maxmemory=mem, expiry_minutes=exp)
 
 #/releaseservers/{username}
 @app.route('/releaseservers/<string:username>')
@@ -53,7 +63,7 @@ def releaseservers_service(username):
 
 def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_prefix_names="",
                                                                 number_of_vms=1, cpus="default",
-                    maxmemory="default"):
+                    maxmemory="default", expiry_minutes=MAX_EXPIRY_MINUTES):
     xen_host = get_xen_host(xen_host_ref, os)
     #xen_host = get_all_xen_hosts(os)[0]
     url = "http://" + xen_host['host.name']
@@ -76,7 +86,7 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
                                                                                         "" +
                       maxmemory)
             new_vms = create_vms(session, os, template, vm_prefix_names, number_of_vms, cpus,
-                                 maxmemory)
+                                 maxmemory, expiry_minutes)
             log.info(new_vms)
             return new_vms
         elif service_name == 'deletevm':
@@ -225,7 +235,7 @@ def list_vm_details(session, vm_name):
 
 
 def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="default",
-                    maxmemory="default"):
+                    maxmemory="default", expiry_minutes=MAX_EXPIRY_MINUTES):
     vm_names = vm_prefix_names.split(",")
     index = 1
     new_vms_info = {}
@@ -233,14 +243,16 @@ def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="de
         if int(number_of_vms)>1:
             for k in range(int(number_of_vms)):
                 vm_name = vm_names[i] + str(k+1)
-                vm_ip, vm_os, error = create_vm(session, os, template, vm_name, cpus, maxmemory)
+                vm_ip, vm_os, error = create_vm(session, os, template, vm_name, cpus, maxmemory,
+                                                expiry_minutes)
                 new_vms_info[vm_name] = vm_ip
                 if error:
                     new_vms_info[vm_name+"_error"] = error
 
                 index = index+1
         else:
-            vm_ip, vm_os, error = create_vm(session, os, template, vm_names[i], cpus, maxmemory)
+            vm_ip, vm_os, error = create_vm(session, os, template, vm_names[i], cpus, maxmemory,
+                                            expiry_minutes)
             new_vms_info[vm_names[i]] = vm_ip
             if error:
                 new_vms_info[vm_names[i] + "_error"] = error
@@ -248,7 +260,7 @@ def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="de
     return new_vms_info
 
 def create_vm(session, os_name, template, new_vm_name, cpus="default",
-                    maxmemory="default"):
+                    maxmemory="default", expiry_minutes=MAX_EXPIRY_MINUTES):
     error = ''
     vm_os_name = ''
     vm_ip_addr = ''
@@ -448,12 +460,35 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default",
 
         cbdoc = CBDoc()
         cbdoc.save_dynvm_doc(docKey, docValue)
+
+        config = read_config()
+        vm_max_expiry_minutes = int(config.get("common", "vm.expiry.minutes"))
+        if (expiry_minutes>vm_max_expiry_minutes):
+            log.info("Max allowed expiry in minutes is " + str(vm_max_expiry_minutes))
+            expiry_minutes=vm_max_expiry_minutes
+
+        log.info("Starting the timer for expiry of "+ str(expiry_minutes) + " minutes.")
+        t = threading.Timer(interval=expiry_minutes*60, function=call_release_url,
+                            args=[new_vm_name, os_name, uuid])
+        t.setName(new_vm_name+"__"+uuid)
+        t.start()
+
+
+
     except Exception as e:
         error = str(e)
         log.error(error)
 
     return vm_ip_addr, vm_os_name, error
 
+def call_release_url(vm_name, os_name, uuid):
+    import ssl
+    try:
+        ssl._create_default_https_context = ssl._create_unverified_context
+        r = urllib.request.urlopen(
+            "http://127.0.0.1:5000/releaseservers/" + vm_name + "?os=" + os_name)
+    except Exception as e:
+        log.info(e)
 
 def delete_vms(session, vm_prefix_names, number_of_vms=1):
     vm_names = vm_prefix_names.split(",")
@@ -475,12 +510,14 @@ def delete_vm(session, vm_name):
     log.info("Deleting VM: "+ vm_name)
     delete_start_time = time.time()
     vm = session.xenapi.VM.get_by_name_label(vm_name)
+    log.info("Number of VMs found with name - " + vm_name + " : "+ str(len(vm)))
     for j in range(len(vm)):
         record = session.xenapi.VM.get_record(vm[j])
         power_state = record["power_state"]
         if power_state != 'Halted':
             #session.xenapi.VM.shutdown(vm[j])
             session.xenapi.VM.hard_shutdown(vm[j])
+
         #print_all_disks(session, vm[j])
         delete_all_disks(session, vm[j])
 
