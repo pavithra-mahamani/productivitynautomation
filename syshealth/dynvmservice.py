@@ -20,7 +20,8 @@ print("*** Dynamic VMs ***")
 app = Flask(__name__)
 
 CONFIG_FILE='.dynvmservice.ini'
-MAX_EXPIRY_MINUTES = 1440
+MAX_EXPIRY_MINUTES=1440
+TIMEOUT_SECS=300
 
 @app.route("/showall")
 def showall_service():
@@ -377,8 +378,11 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default",
             vgm = session.xenapi.VM.get_guest_metrics(a_vm)
             try:
                 os = session.xenapi.VM_guest_metrics.get_networks(vgm)
+                log.debug(os.keys())
                 if "0/ip" in os.keys():
                     return os["0/ip"]
+                elif "1/ip" in os.keys():
+                    return os["1/ip"]
                 return None
             except:
                 return None
@@ -401,8 +405,12 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default",
 
         # Get the OS Name and IPs
         log.info("Getting the OS Name and IP...")
-        TIMEOUT_SECS = 120
+        config = read_config()
+        vm_network_timeout_secs = int(config.get("common", "vm.network.timeout.secs"))
+        if (vm_network_timeout_secs > 0):
+            TIMEOUT_SECS = vm_network_timeout_secs
 
+        log.info("Max wait time in secs for VM OS address is " + str(TIMEOUT_SECS))
         if not "win" in template:
             maxtime = time.time() + TIMEOUT_SECS
             while read_os_name(vm) is None and time.time() < maxtime:
@@ -413,6 +421,7 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default",
             #TBD: Wait for network to refresh on Windows VM
             time.sleep(60)
 
+        log.info("Max wait time in secs for IP address is " + str(TIMEOUT_SECS))
         maxtime = time.time() + TIMEOUT_SECS
         while read_ip_address(vm) is None and time.time() < maxtime:
             time.sleep(1)
@@ -461,7 +470,6 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default",
         cbdoc = CBDoc()
         cbdoc.save_dynvm_doc(docKey, docValue)
 
-        config = read_config()
         vm_max_expiry_minutes = int(config.get("common", "vm.expiry.minutes"))
         if (expiry_minutes>vm_max_expiry_minutes):
             log.info("Max allowed expiry in minutes is " + str(vm_max_expiry_minutes))
