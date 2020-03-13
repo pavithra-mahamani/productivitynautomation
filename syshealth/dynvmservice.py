@@ -27,6 +27,13 @@ TIMEOUT_SECS=300
 def showall_service():
     return perform_service(service_name='listvms')
 
+@app.route('/getavailablecount/<string:os>')
+def getavailable_count_service(os):
+    #TBD: calculate the actual cpu,memory,disk usaged in the xenhosts
+    count=15
+    return str(count)
+
+
 #/getservers/username?count=number&os=centos&ver=6&expiresin=30
 @app.route('/getservers/<string:username>')
 def getservers_service(username):
@@ -49,10 +56,15 @@ def getservers_service(username):
         exp = int(request.args.get('expiresin'))
     else:
         exp = MAX_EXPIRY_MINUTES
+    if request.args.get('format'):
+        output_format = request.args.get('format')
+    else:
+        output_format = "servermanager"
     return perform_service(1,'createvm', os_name, username, vm_count, cpus=cpus_count,
-                           maxmemory=mem, expiry_minutes=exp)
+                           maxmemory=mem, expiry_minutes=exp, output_format=output_format)
 
 #/releaseservers/{username}
+@app.route('/releaseservers/<string:username>/<string:available>')
 @app.route('/releaseservers/<string:username>')
 def releaseservers_service(username):
     if request.args.get('count'):
@@ -64,7 +76,8 @@ def releaseservers_service(username):
 
 def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_prefix_names="",
                                                                 number_of_vms=1, cpus="default",
-                    maxmemory="default", expiry_minutes=MAX_EXPIRY_MINUTES):
+                    maxmemory="default", expiry_minutes=MAX_EXPIRY_MINUTES,
+                    output_format="servermanager"):
     xen_host = get_xen_host(xen_host_ref, os)
     #xen_host = get_all_xen_hosts(os)[0]
     url = "http://" + xen_host['host.name']
@@ -86,10 +99,15 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
                                                                                         "memory: "
                                                                                         "" +
                       maxmemory)
-            new_vms = create_vms(session, os, template, vm_prefix_names, number_of_vms, cpus,
+            new_vms, list_of_vms = create_vms(session, os, template, vm_prefix_names,
+                                              number_of_vms, cpus,
                                  maxmemory, expiry_minutes)
             log.info(new_vms)
-            return new_vms
+            log.info(list_of_vms)
+            if output_format == 'json':
+                return new_vms
+            else:
+                return str(list_of_vms)
         elif service_name == 'deletevm':
             return delete_vms(session, vm_prefix_names, number_of_vms)
         elif service_name == 'listvm':
@@ -240,6 +258,7 @@ def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="de
     vm_names = vm_prefix_names.split(",")
     index = 1
     new_vms_info = {}
+    list_of_vms = []
     for i in range(len(vm_names)):
         if int(number_of_vms)>1:
             for k in range(int(number_of_vms)):
@@ -247,18 +266,22 @@ def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="de
                 vm_ip, vm_os, error = create_vm(session, os, template, vm_name, cpus, maxmemory,
                                                 expiry_minutes)
                 new_vms_info[vm_name] = vm_ip
+                list_of_vms.append(vm_ip)
                 if error:
                     new_vms_info[vm_name+"_error"] = error
+                    list_of_vms.append(error)
 
                 index = index+1
         else:
             vm_ip, vm_os, error = create_vm(session, os, template, vm_names[i], cpus, maxmemory,
                                             expiry_minutes)
             new_vms_info[vm_names[i]] = vm_ip
+            list_of_vms.append(vm_ip)
             if error:
                 new_vms_info[vm_names[i] + "_error"] = error
+                list_of_vms.append(error)
             index = index + 1
-    return new_vms_info
+    return new_vms_info, list_of_vms
 
 def create_vm(session, os_name, template, new_vm_name, cpus="default",
                     maxmemory="default", expiry_minutes=MAX_EXPIRY_MINUTES):
