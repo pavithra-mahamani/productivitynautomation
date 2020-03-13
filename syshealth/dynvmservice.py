@@ -104,10 +104,10 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
                                  maxmemory, expiry_minutes)
             log.info(new_vms)
             log.info(list_of_vms)
-            if output_format == 'json':
+            if output_format == 'detailed':
                 return new_vms
             else:
-                return str(list_of_vms)
+                return json.dumps(list_of_vms)
         elif service_name == 'deletevm':
             return delete_vms(session, vm_prefix_names, number_of_vms)
         elif service_name == 'listvm':
