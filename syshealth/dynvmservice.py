@@ -28,9 +28,19 @@ def showall_service():
     return perform_service(service_name='listvms')
 
 @app.route('/getavailablecount/<string:os>')
-def getavailable_count_service(os):
-    #TBD: calculate the actual cpu,memory,disk usaged in the xenhosts
-    count=15
+@app.route('/getavailablecount')
+def getavailable_count_service(os='centos'):
+    """
+    Calculate the available count:
+        Get Total CPUs, Total Memory
+        Get Free CPUs, Free Memory
+        Get all the VMs - CPUs and Memory allocated
+        Get each OS template - CPUs and Memory
+        Available count1 = (Free CPUs - VMs CPUs)/OS_Template_CPUs
+        Available count2 = (Free Memory - VMs Memory)/OS_Template_Memory
+        Return min(count1,count2)
+    """
+    count = perform_service(1, 'getavailablecount', os)
     return str(count)
 
 
@@ -114,6 +124,8 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
             return list_given_vm_set_details(session, vm_prefix_names, number_of_vms)
         elif service_name == 'listvms':
             return list_vms(session)
+        elif service_name == 'getavailablecount':
+            return get_available_count(session, os)
         else:
             list_vms(session)
     except Exception as e:
@@ -596,6 +608,95 @@ def read_vm_ip_address(session, a_vm):
         return None
     except:
         return None
+
+def get_available_count(session, os="centos"):
+    xen_cpu_count_free, xen_cpu_count_total, xen_memory_free_gb, xen_memory_total_gb = \
+        get_host_usage(session)
+    log.info("Host free cpus={},free memory={},total cpus={},total memory={}".format(
+        xen_cpu_count_free, xen_memory_free_gb, xen_cpu_count_total, xen_memory_total_gb))
+    # TBD: Get the sizes dynamically from template if possible
+    if os.startswith('win'):
+        required_cpus = 6
+        required_memory_gb = 6
+    else:
+        required_cpus = 4
+        required_memory_gb = 4
+
+    log.info("required_cpus={},required_memory={}".format(required_cpus, required_memory_gb))
+    cpus_count = int(xen_cpu_count_free/required_cpus)
+    memory_count = int(xen_memory_free_gb/required_memory_gb)
+    log.info("cpus_count={},memory_count={}".format(cpus_count, memory_count))
+
+    available_count = 0
+    if cpus_count < memory_count:
+        available_count = cpus_count
+    else:
+        available_count = memory_count
+
+    return available_count
+
+def get_host_usage(session):
+    vm_count, vm_cpus, vm_memory = get_vms_usage(session)
+    host_ref = session.xenapi.session.get_this_host(session.handle)
+    xen_host_record = session.xenapi.host.get_record(host_ref)
+    log.debug(xen_host_record)
+    xen_cpu_count_total = int(xen_host_record['cpu_info']['cpu_count'])
+    xen_cpu_count_free = xen_cpu_count_total - vm_cpus
+    xen_host_metrics_ref = session.xenapi.host.get_metrics(host_ref)
+    metrics = session.xenapi.host_metrics.get_record(xen_host_metrics_ref)
+    xen_memory_free_gb = int(int(metrics['memory_free']) / (1024 * 1024 * 1024))
+    xen_memory_total_gb = int(int(metrics['memory_total']) / (1024 * 1024 * 1024))
+    return xen_cpu_count_free, xen_memory_free_gb, xen_cpu_count_total, xen_memory_total_gb
+
+def get_vms_usage(session):
+    vms = session.xenapi.VM.get_all()
+    vm_count = 0
+    vcpus = 0
+    memory_static_max = 0
+    for vm in vms:
+        record = session.xenapi.VM.get_record(vm)
+        if not (record["is_a_template"]) and not (record["is_control_domain"]) and (record[
+            "power_state"] != 'Halted'):
+            vm_count = vm_count + 1
+            vcpus = vcpus + int(record["VCPUs_max"])
+            memory_static_max = memory_static_max + int(int(record["memory_static_max"])/(
+                    1024*1024*1024))
+    log.info("vm_count={},vcpus={},memory={}".format(vm_count, vcpus, memory_static_max))
+    return vm_count, vcpus, memory_static_max
+
+
+def get_host_details(session):
+    xen_cpu_count_free, xen_cpu_count_total, xen_memory_free_gb, xen_memory_total_gb = \
+        get_host_usage(session)
+    log.info("{},{},{},{}".format(xen_cpu_count_free, xen_memory_free_gb,
+                            xen_cpu_count_total, xen_memory_total_gb))
+
+    return
+    try:
+        host_records = session.xenapi.host.get_all_records()
+        log.info(host_records)
+        for host_key in host_records.keys():
+            xen_cpu_info = host_records[host_key]['cpu_info']
+            xen_cpu_count = xen_cpu_info['cpu_count']
+            xen_host_name = host_records[host_key]['hostname']
+            xen_host_ip = host_records[host_key]['address']
+            xen_metrics_ref = host_records[host_key]['metrics']
+            host_ref = session.xenapi.session.get_this_host(session.handle)
+            xen_host_metrics_ref = session.xenapi.host.get_metrics(host_ref)
+            metrics = session.xenapi.host_metrics.get_record(xen_host_metrics_ref)
+            xen_memory_free_gb = int(int(metrics['memory_free'])/(1024*1024*1024))
+            xen_memory_total_gb = int(int(metrics['memory_total'])/(1024*1024*1024))
+
+            xen_vms = host_records[host_key]['resident_VMs']
+            log.info(xen_cpu_info)
+            log.info("Host Name:{}, IP:{}".format(xen_host_name,xen_host_ip))
+            log.info("Number of CPUs:" + str(xen_cpu_count))
+            log.info("Number of VMs:" + str(len(xen_vms)))
+            log.info("Total memory (GB) :" + str(xen_memory_total_gb))
+            log.info("Free memory (GB):" + str(xen_memory_free_gb))
+
+    except Exception as e:
+        log.info(e)
 
 def print_all_disks(session, vm):
     vbds = session.xenapi.VM.get_VBDs(vm)
