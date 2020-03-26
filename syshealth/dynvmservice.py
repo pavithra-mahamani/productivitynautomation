@@ -25,7 +25,12 @@ TIMEOUT_SECS=300
 
 @app.route("/showall")
 def showall_service():
-    return perform_service(service_name='listvms')
+    count = get_all_xen_hosts_count("centos")
+    all_vms={}
+    for xen_host_ref in range(1, count+1):
+        log.info("Getting xen_host_ref="+str(xen_host_ref))
+        all_vms[xen_host_ref]=perform_service(xen_host_ref, service_name='listvms')
+    return json.dumps(all_vms, indent=2, sort_keys=True)
 
 @app.route('/getavailablecount/<string:os>')
 @app.route('/getavailablecount')
@@ -262,6 +267,7 @@ def list_vms(session):
                 networkinfo = ','.join([str(elem) for elem in ipRef['networks'].values()])
             else:
                 networkinfo = 'N/A'
+                continue # Listing only Running VMs
 
             vm_info = {}
             vm_info['name'] = name
@@ -275,7 +281,7 @@ def list_vms(session):
 
     log.info("Server has {} VM objects and {} templates.".format(vm_count, len(vms)-vm_count))
     log.debug(vm_details)
-    return json.dumps(vm_details, indent=2, sort_keys=True)
+    return vm_details
 
 def list_vm_details(session, vm_name):
     vm = session.xenapi.VM.get_by_name_label(vm_name)
