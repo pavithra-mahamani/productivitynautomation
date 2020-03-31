@@ -116,8 +116,10 @@ def getservers_service(username):
                 log.info(per_xen_host_res)
                 vm_name_suffix_index = vm_name_suffix_index + per_xen_host_vms
                 need_vms = need_vms - per_xen_host_vms
-
-        return json.dumps(merged_vms_list)
+        if output_format == 'detailed':
+            return merged_vms_list
+        else:
+            return json.dumps(merged_vms_list)
 
 #/releaseservers/{username}
 @app.route('/releaseservers/<string:username>/<string:available>')
