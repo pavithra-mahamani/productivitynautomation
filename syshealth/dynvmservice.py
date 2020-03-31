@@ -80,16 +80,44 @@ def getservers_service(username):
     #TBD consider cpus/mem later
     count, available_counts = get_all_available_count(os_name)
     log.info(available_counts)
+    if vm_count>count:
+        return "Error: No capacity is available! " + str(available_counts)
     free_xenhost_ref = 0
     for index in range(0,len(available_counts)):
         if vm_count<=available_counts[index]:
             free_xenhost_ref = index+1
             break
-    if free_xenhost_ref != 0:
-        return perform_service(free_xenhost_ref,'createvm', os_name, username, vm_count, cpus=cpus_count,
+    if free_xenhost_ref != 0: # Full set of VMs on one xen host
+        log.info("-->  VMs on single xenhost")
+        vms_ips_list = perform_service(free_xenhost_ref,'createvm', os_name, username, vm_count,
+                           cpus=cpus_count,
                            maxmemory=mem, expiry_minutes=exp, output_format=output_format)
-    else:
-        return "Error: No capacity is available! " +str(available_counts)
+        return json.dumps(vms_ips_list)
+    else: # Distribute among multiple xen hosts
+        log.info("--> Distributing VMs among multiple xen hosts")
+        need_vms = vm_count
+        merged_vms_list = []
+        vm_name_suffix_index = 0
+        for index in range(0, len(available_counts)):
+            if need_vms == 0:
+                break
+            per_xen_host_vms = available_counts[index]
+            if per_xen_host_vms>=0:
+                free_xenhost_ref = index+1
+                log.info("Creating "+ str(per_xen_host_vms)+" out of "+ str(need_vms)+" VMs on "
+                                                                                 "xenhost" + str(
+                    free_xenhost_ref))
+                per_xen_host_res = perform_service(free_xenhost_ref, 'createvm', os_name, username,
+                                           per_xen_host_vms,
+                                cpus=cpus_count, maxmemory=mem, expiry_minutes=exp,
+                                output_format=output_format, start_suffix=vm_name_suffix_index)
+                for ip in per_xen_host_res:
+                    merged_vms_list.append(ip)
+                log.info(per_xen_host_res)
+                vm_name_suffix_index = vm_name_suffix_index + need_vms -1
+                need_vms = need_vms - per_xen_host_vms
+
+        return json.dumps(merged_vms_list)
 
 #/releaseservers/{username}
 @app.route('/releaseservers/<string:username>/<string:available>')
@@ -110,7 +138,7 @@ def releaseservers_service(username):
 def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_prefix_names="",
                                                                 number_of_vms=1, cpus="default",
                     maxmemory="default", expiry_minutes=MAX_EXPIRY_MINUTES,
-                    output_format="servermanager"):
+                    output_format="servermanager", start_suffix=0):
     xen_host = get_xen_host(xen_host_ref, os)
     if not xen_host:
         error = "Error: No XenHost available for the OS matching template!"
@@ -138,13 +166,13 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
                       maxmemory)
             new_vms, list_of_vms = create_vms(session, os, template, vm_prefix_names,
                                               number_of_vms, cpus,
-                                 maxmemory, expiry_minutes)
+                                 maxmemory, expiry_minutes, start_suffix)
             log.info(new_vms)
             log.info(list_of_vms)
             if output_format == 'detailed':
                 return new_vms
             else:
-                return json.dumps(list_of_vms)
+                return list_of_vms
         elif service_name == 'deletevm':
             return delete_vms(session, vm_prefix_names, number_of_vms)
         elif service_name == 'listvm':
@@ -303,7 +331,7 @@ def list_vm_details(session, vm_name):
 
 
 def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="default",
-                    maxmemory="default", expiry_minutes=MAX_EXPIRY_MINUTES):
+                    maxmemory="default", expiry_minutes=MAX_EXPIRY_MINUTES, start_suffix=0):
     vm_names = vm_prefix_names.split(",")
     index = 1
     new_vms_info = {}
@@ -311,7 +339,7 @@ def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="de
     for i in range(len(vm_names)):
         if int(number_of_vms)>1:
             for k in range(int(number_of_vms)):
-                vm_name = vm_names[i] + str(k+1)
+                vm_name = vm_names[i] + str(start_suffix+1)
                 vm_ip, vm_os, error = create_vm(session, os, template, vm_name, cpus, maxmemory,
                                                 expiry_minutes)
                 new_vms_info[vm_name] = vm_ip
@@ -319,8 +347,8 @@ def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="de
                 if error:
                     new_vms_info[vm_name+"_error"] = error
                     list_of_vms.append(error)
-
-                index = index+1
+                start_suffix += 1
+                index += 1
         else:
             vm_ip, vm_os, error = create_vm(session, os, template, vm_names[i], cpus, maxmemory,
                                             expiry_minutes)
@@ -698,6 +726,7 @@ def get_xen_session(xen_host_ref=1, os="centos"):
     return session
 
 def get_available_count(session, os="centos"):
+    psize, valloc, fsize = get_host_disks(session, 'SCSIid')
     xen_cpu_count_free, xen_cpu_count_total, xen_memory_free_gb, xen_memory_total_gb = \
         get_host_usage(session)
     log.info("Host free cpus={},free memory={},total cpus={},total memory={}".format(
@@ -706,20 +735,21 @@ def get_available_count(session, os="centos"):
     if os.startswith('win'):
         required_cpus = 6
         required_memory_gb = 6
+        required_disk_gb = 70
     else:
         required_cpus = 4
         required_memory_gb = 4
+        required_disk_gb = 35
 
     log.info("required_cpus={},required_memory={}".format(required_cpus, required_memory_gb))
     cpus_count = int(xen_cpu_count_free/required_cpus)
     memory_count = int(xen_memory_free_gb/required_memory_gb)
-    log.info("cpus_count={},memory_count={}".format(cpus_count, memory_count))
-
+    disk_count = int((fsize/(1024*1024*1024)) / required_disk_gb)
+    log.info("cpus_count={}, memory_count={}, disk_count={}".format(cpus_count, memory_count, disk_count))
     available_count = 0
-    if cpus_count < memory_count:
-        available_count = cpus_count
-    else:
-        available_count = memory_count
+    counts = [ cpus_count, memory_count, disk_count]
+    counts.sort()
+    available_count = counts[0]
 
     return available_count
 
@@ -803,6 +833,37 @@ def print_all_disks(session, vm):
             except Exception as e:
                 log.error(e)
                 pass
+
+def get_host_disks(session, device_id):
+    pbds_records = session.xenapi.PBD.get_all_records()
+    log.debug(pbds_records)
+    pbds = session.xenapi.PBD.get_all()
+    psize=0
+    valloc=0
+    fsize=0
+    for pbd in pbds:
+        try:
+            if pbd != 'OpaqueRef:NULL':
+                pbd_record = session.xenapi.PBD.get_record(pbd)
+                try:
+                    dev_id = pbd_record['device_config'][device_id]
+                    sr = session.xenapi.PBD.get_SR(pbd)
+                    psize = session.xenapi.SR.get_physical_size(sr)
+                    valloc = session.xenapi.SR.get_virtual_allocation(sr)
+                    log.debug(sr)
+                    fsize = int(psize) - int(valloc)
+                    log.info(psize)
+                    log.info(valloc)
+                    log.info(fsize)
+                    break
+                except:
+                    pass
+
+        except Exception as e:
+            log.error(e)
+            pass
+    return psize, valloc, fsize
+
 
 def get_disks_size(session, vm):
     vbds = session.xenapi.VM.get_VBDs(vm)
