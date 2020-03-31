@@ -128,12 +128,22 @@ def releaseservers_service(username):
     else:
         vm_count = 1
     os_name = request.args.get('os')
-    xen_host_ref = get_vm_existed_xenhost_ref(username, vm_count, os_name)
-    log.info("VM to be deleted from xhost_ref=" + str(xen_host_ref))
-    if xen_host_ref!=0:
-        return perform_service(xen_host_ref,'deletevm', os_name, username, vm_count)
-    else:
+    delete_vms_res = []
+    for vm_index in range(vm_count):
+        if vm_count>1:
+            vm_name = username + str(vm_index+1)
+        else:
+            vm_name = username
+        xen_host_ref = get_vm_existed_xenhost_ref(vm_name, 1, os_name)
+        log.info("VM to be deleted from xhost_ref=" + str(xen_host_ref))
+        if xen_host_ref!=0:
+            delete_per_xen_res = perform_service(xen_host_ref,'deletevm', os_name, vm_name, 1)
+            for deleted_vm_res in delete_per_xen_res:
+                delete_vms_res.append(deleted_vm_res)
+    if len(delete_vms_res)<1:
         return "Error: VM " + username + " doesn't exist"
+    else:
+        return json.dumps(delete_vms_res, indent=2, sort_keys=True)
 
 def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_prefix_names="",
                                                                 number_of_vms=1, cpus="default",
@@ -618,7 +628,8 @@ def delete_vms(session, vm_prefix_names, number_of_vms=1):
             delete_vm(session, vm_names[i])
             vm_info[vm_names[i]] = "deleted"
 
-    return json.dumps(vm_info, indent=2, sort_keys=True)
+    return vm_info
+    #return json.dumps(vm_info, indent=2, sort_keys=True)
 
 def delete_vm(session, vm_name):
     log.info("Deleting VM: "+ vm_name)
