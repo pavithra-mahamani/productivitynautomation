@@ -22,7 +22,8 @@ app = Flask(__name__)
 CONFIG_FILE = '.dynvmservice.ini'
 MAX_EXPIRY_MINUTES = 1440
 TIMEOUT_SECS = 300
-RELEASE_URL='http://127.0.0.1:5000/releaseservers/'
+RELEASE_URL = 'http://127.0.0.1:5000/releaseservers/'
+
 
 @app.route("/showall")
 def showall_service():
@@ -177,8 +178,9 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
     template = xen_host[os + '.template']  # type: object
     try:
         if service_name == 'createvm':
-            log.debug("Creating from " + str(template) + " :" + vm_prefix_names + ", cpus: "
-                       + cpus + ", " + "memory: " + maxmemory)
+            log.debug("Creating from {0} :{1}, cpus: {2}, memory: {3}".format(str(template),
+                                                                              vm_prefix_names, cpus,
+                                                                              maxmemory))
             new_vms, list_of_vms = create_vms(session, os, template, vm_prefix_names, number_of_vms,
                                               cpus, maxmemory, expiry_minutes, start_suffix)
             log.info(new_vms)
@@ -208,7 +210,6 @@ def get_config(name):
     config = read_config()
     section_ref = 1
     all_config = []
-    xen_host = {}
     for section in config.sections():
         if section.startswith(name):
             section_config = {}
@@ -224,7 +225,6 @@ def get_all_xen_hosts_count(os='centos'):
     config = read_config()
     xen_host_ref_count = 0
     all_xen_hots = []
-    xen_host = {}
     for section in config.sections():
         if section.startswith('xenhost'):
             try:
@@ -276,7 +276,7 @@ Examples:
     sys.exit(0)
 
 
-def setLogLevel(log_level='info'):
+def set_log_level(log_level='info'):
     if log_level and log_level.lower() == 'info':
         log.setLevel(logging.INFO)
     elif log_level and log_level.lower() == 'warning':
@@ -300,7 +300,9 @@ def list_vms(session):
     log.info("-----------------------------------------------------------")
 
     vm_details = []
+
     for vm in vms:
+        network_info = 'N/A'
         record = session.xenapi.VM.get_record(vm)
         if not (record["is_a_template"]) and not (record["is_control_domain"]):
             log.info(record)
@@ -312,13 +314,12 @@ def list_vms(session):
             memory_static_max = record["memory_static_max"]
             if record["power_state"] != 'Halted':
                 ip_ref = session.xenapi.VM_guest_metrics.get_record(record['guest_metrics'])
-                networkinfo = ','.join([str(elem) for elem in ip_ref['networks'].values()])
+                network_info = ','.join([str(elem) for elem in ip_ref['networks'].values()])
             else:
-                networkinfo = 'N/A'
                 continue  # Listing only Running VMs
 
             vm_info = {'name': name, 'power_state': power_state, 'vcpus': vcpus,
-                       'memory_static_max': memory_static_max, 'networkinfo': networkinfo,
+                       'memory_static_max': memory_static_max, 'networkinfo': network_info,
                        'name_description': name_description}
             vm_details.append(vm_info)
             log.info(vm_info)
@@ -336,13 +337,14 @@ def list_vm_details(session, vm_name):
         power_state = record["power_state"]
         vcpus = record["VCPUs_max"]
         memory_static_max = record["memory_static_max"]
-        if (record["power_state"] != 'Halted'):
+        if record["power_state"] != 'Halted':
             ip_ref = session.xenapi.VM_guest_metrics.get_record(record['guest_metrics'])
             networkinfo = ','.join([str(elem) for elem in ip_ref['networks'].values()])
         else:
             networkinfo = 'N/A'
         log.info(
-            vm_name + "," + power_state + "," + vcpus + "," + memory_static_max + "," + networkinfo + ", " + name_description)
+            vm_name + "," + power_state + "," + vcpus + "," + memory_static_max + ","
+            + networkinfo + ", " + name_description)
 
 
 def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="default",
@@ -398,8 +400,8 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
         net_mask = pifs[ref]['IP']
         gateway = pifs[ref]['gateway']
         dns_server = pifs[ref]['DNS']
-        log.debug(mac + "," + device + "," + mode + "," + ip_addr + "," + net_mask + "," + gateway
-            + "," + dns_server)
+        log.debug("{},{},{},{},{},{},{}".format(mac, device, mode, ip_addr, net_mask, gateway,
+                                                dns_server))
         # List all the VM objects
         vms = session.xenapi.VM.get_all_records()
         log.debug("Server has {} VM objects (this includes templates)".format(len(vms)))
@@ -408,22 +410,21 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
         all_templates = []
         for vm in vms:
             record = vms[vm]
-            ty = "VM"
+            res_type = "VM"
             if record["is_a_template"]:
-                ty = "Template"
+                res_type = "Template"
                 all_templates.append(vm)
                 # Look for a given template
                 if record["name_label"].startswith(template):
-                    templates.append(
-                        vm)  # log.info("  Found %8s with name_label = %s" % (ty,  # record[
-                    # "name_label"]))
+                    templates.append(vm)
+                    log.debug(" Found %8s with name_label = %s" % (res_type, record["name_label"]))
 
         log.debug("Server has {} Templates and {} VM objects.".format(len(all_templates),
-            (len(vms) - len(all_templates))))
+            len(vms) - len(all_templates)))
 
-        log.debug("Choosing a " + template + " template to clone")
+        log.debug("Choosing a {} template to clone".format(template))
         if not templates:
-            log.error("Could not find any " + template + " templates. Exiting.")
+            log.error("Could not find any {} templates. Exiting.".format(template))
             sys.exit(1)
 
         template_ref = templates[0]
@@ -441,7 +442,7 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
             a_vm_name = session.xenapi.VM.get_name_label(vmref)
             log.debug(str(i) + "." + session.xenapi.network.get_name_label(
                 session.xenapi.VIF.get_network(vifs[i])) + " " + a_vm_name)
-            if (a_vm_name == new_vm_name):
+            if a_vm_name == new_vm_name:
                 session.xenapi.VIF.move(vifs[i], network)
 
         log.debug("Adding non-interactive to the kernel commandline")
@@ -498,7 +499,7 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
         if vm_network_timeout_secs > 0:
             TIMEOUT_SECS = vm_network_timeout_secs
 
-        log.info("Max wait time in secs for VM OS address is " + str(TIMEOUT_SECS))
+        log.info("Max wait time in secs for VM OS address is {0}".format(str(TIMEOUT_SECS)))
         if "win" not in template:
             maxtime = time.time() + TIMEOUT_SECS
             while read_os_name(vm) is None and time.time() < maxtime:
@@ -542,30 +543,19 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
         state = "available"
         username = new_vm_name
         pool = "dynamicpool"
-        docValue = {}
-        docValue["ipaddr"] = vm_ip_addr
-        docValue["origin"] = xen_host_description
-        docValue["os"] = os_name
-        docValue["state"] = state
-        docValue["poolId"] = pool
-        docValue["prevUser"] = ""
-        docValue["username"] = username
-        docValue["ver"] = "12"
-        docValue["memory"] = memory_static_max
-        docValue["os_version"] = vm_os_name
-        docValue["name"] = new_vm_name
-        # docValue["mac_address"] = mac_address
-        docValue["created_time"] = prov_end_time
-        docValue["create_duration_secs"] = create_duration
-        docValue["cpu"] = vcpus
-        docValue["disk"] = disks_info
-        docKey = uuid
+        doc_value = {"ipaddr": vm_ip_addr, "origin": xen_host_description, "os": os_name,
+                     "state": state, "poolId": pool, "prevUser": "", "username": username,
+                     "ver": "12", "memory": memory_static_max, "os_version": vm_os_name,
+                     "name": new_vm_name, "created_time": prov_end_time,
+                     "create_duration_secs": create_duration, "cpu": vcpus, "disk": disks_info}
+        # doc_value["mac_address"] = mac_address
+        doc_key = uuid
 
-        cbdoc = CBDoc()
-        cbdoc.save_dynvm_doc(docKey, docValue)
+        cb_doc = CBDoc()
+        cb_doc.save_dynvm_doc(doc_key, doc_value)
 
         vm_max_expiry_minutes = int(config.get("common", "vm.expiry.minutes"))
-        if (expiry_minutes > vm_max_expiry_minutes):
+        if expiry_minutes > vm_max_expiry_minutes:
             log.info("Max allowed expiry in minutes is " + str(vm_max_expiry_minutes))
             expiry_minutes = vm_max_expiry_minutes
 
@@ -574,8 +564,6 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
                             args=[new_vm_name, os_name, uuid])
         t.setName(new_vm_name + "__" + uuid)
         t.start()
-
-
 
     except Exception as e:
         error = str(e)
@@ -664,6 +652,7 @@ def get_vm_existed_xenhost_ref(vm_name, count, os="centos"):
     if count > 1:
         vm_name = vm_name + "1"
     is_found = False
+    xen_host_index = 0
     for xen_host_index in range(1, num_xen_hosts + 1):
         xsession = get_xen_session(xen_host_index, os)
         vm = xsession.xenapi.VM.get_by_name_label(vm_name)
@@ -768,8 +757,7 @@ def get_vms_usage(session):
 
 def get_host_details(session):
     xen_cpu_count_free, xen_cpu_count_total, xen_memory_free_gb, xen_memory_total_gb = \
-        get_host_usage(
-        session)
+        get_host_usage(session)
     log.info("{},{},{},{}".format(xen_cpu_count_free, xen_memory_free_gb, xen_cpu_count_total,
                                   xen_memory_total_gb))
 
@@ -942,7 +930,7 @@ def parse_arguments():
 
 def main():
     # options = parse_arguments()
-    setLogLevel()
+    set_log_level()
     app.run(host='0.0.0.0', debug=True)
 
 
