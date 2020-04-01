@@ -1,18 +1,42 @@
+# coding=utf-8
 import urllib
 
-import XenAPI
 import sys
 import argparse
 import json
 import time
 import datetime
-from flask import Flask, request
 import configparser
+import threading
+import logging
 from couchbase.cluster import Cluster
 from couchbase.cluster import PasswordAuthenticator
-import threading
+import XenAPI
+from flask import Flask, request
 
-import logging
+"""
+  --------------------------------------
+  *** Dynamic VMs Server Manager API ***
+  --------------------------------------
+  Get available VMs count:
+     http://127.0.0.1:5000/getavailablecount/<os>
+  List of VMs:
+      http://127.0.0.1:5000/showall
+  Provisioning of VMs:
+    Single VM: http://127.0.0.1:5000/getservers/<vmname>?os=centos
+    Multiple VMs:
+    http://127.0.0.1:5000/getservers/<vmnameprefix>?os=centos&count=<count>&format=<[short]|detailed>
+    To change the default number of CPUs or RAM, add the below request parameters.
+        cpus=<cpucount - 4 or 8 or 16>
+        mem=<bytes in size>
+        format=<short|detailed> → short (default): gives the response as a json array with IPs
+         in similar current serverpool manager or detailed means the response is a json object
+         with VM names.
+
+   Termination of VMs:
+       Single VM: http://127.0.0.1:5000/releaseservers/<vmname>?os=centos
+       Multiple VMs: http://127.0.0.1:5000/releaseservers/<vmnameprefix>?os=centos&count=<count>
+"""
 
 log = logging.getLogger(__name__)
 logging.info("dynxenvms")
@@ -420,7 +444,8 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
                     log.debug(" Found %8s with name_label = %s" % (res_type, record["name_label"]))
 
         log.debug("Server has {} Templates and {} VM objects.".format(len(all_templates),
-            len(vms) - len(all_templates)))
+                                                                      len(vms) - len(
+                                                                          all_templates)))
 
         log.debug("Choosing a {} template to clone".format(template))
         if not templates:
@@ -469,29 +494,6 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
 
         log.debug("Waiting for the installation to complete")
 
-        def read_os_name(a_vm):
-            vgm = session.xenapi.VM.get_guest_metrics(a_vm)
-            try:
-                os = session.xenapi.VM_guest_metrics.get_os_version(vgm)
-                if "name" in os.keys():
-                    return os["name"]
-                return None
-            except:
-                return None
-
-        def read_ip_address(a_vm):
-            vgm = session.xenapi.VM.get_guest_metrics(a_vm)
-            try:
-                os = session.xenapi.VM_guest_metrics.get_networks(vgm)
-                log.debug(os.keys())
-                if "0/ip" in os.keys():
-                    return os["0/ip"]
-                elif "1/ip" in os.keys():
-                    return os["1/ip"]
-                return None
-            except:
-                return None
-
         # Get the OS Name and IPs
         log.info("Getting the OS Name and IP...")
         config = read_config()
@@ -502,9 +504,9 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
         log.info("Max wait time in secs for VM OS address is {0}".format(str(TIMEOUT_SECS)))
         if "win" not in template:
             maxtime = time.time() + TIMEOUT_SECS
-            while read_os_name(vm) is None and time.time() < maxtime:
+            while read_os_name(session, vm) is None and time.time() < maxtime:
                 time.sleep(1)
-            vm_os_name = read_os_name(vm)
+            vm_os_name = read_os_name(session, vm)
             log.info("VM OS name: {}".format(vm_os_name))
         else:
             # TBD: Wait for network to refresh on Windows VM
@@ -512,9 +514,9 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
 
         log.info("Max wait time in secs for IP address is " + str(TIMEOUT_SECS))
         maxtime = time.time() + TIMEOUT_SECS
-        while read_ip_address(vm) is None and time.time() < maxtime:
+        while read_ip_address(session, vm) is None and time.time() < maxtime:
             time.sleep(1)
-        vm_ip_addr = read_ip_address(vm)
+        vm_ip_addr = read_ip_address(session, vm)
         log.info("VM IP: {}".format(vm_ip_addr))
 
         # Measure time taken for VM provisioning
@@ -570,6 +572,31 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
         log.error(error)
 
     return vm_ip_addr, vm_os_name, error
+
+
+def read_os_name(session, a_vm):
+    vgm = session.xenapi.VM.get_guest_metrics(a_vm)
+    try:
+        os = session.xenapi.VM_guest_metrics.get_os_version(vgm)
+        if "name" in os.keys():
+            return os["name"]
+        return None
+    except:
+        return None
+
+
+def read_ip_address(session, a_vm):
+    vgm = session.xenapi.VM.get_guest_metrics(a_vm)
+    try:
+        os = session.xenapi.VM_guest_metrics.get_networks(vgm)
+        log.debug(os.keys())
+        if "0/ip" in os.keys():
+            return os["0/ip"]
+        elif "1/ip" in os.keys():
+            return os["1/ip"]
+        return None
+    except:
+        return None
 
 
 def call_release_url(vm_name, os_name, uuid):
@@ -699,8 +726,8 @@ def get_available_count(session, os="centos"):
     psize, valloc, fsize = get_host_disks(session, 'SCSIid')
     xen_cpu_count_free, xen_cpu_count_total, xen_memory_free_gb, xen_memory_total_gb = \
         get_host_usage(session)
-    log.info("Host free cpus={},free memory={},total cpus={},total memory={}".format(
-            xen_cpu_count_free, xen_memory_free_gb, xen_cpu_count_total, xen_memory_total_gb))
+    log.info(
+        'Host free cpus={},free memory={},total cpus={},total memory={}'.format(xen_cpu_count_free, xen_memory_free_gb, xen_cpu_count_total, xen_memory_total_gb))
     # TBD: Get the sizes dynamically from template if possible
     if os.startswith('win'):
         required_cpus = 6
