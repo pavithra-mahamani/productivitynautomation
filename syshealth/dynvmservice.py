@@ -131,6 +131,8 @@ def getservers_service(username):
             per_xen_host_vms = available_counts[index]
             if per_xen_host_vms >= 0:
                 free_xenhost_ref = index + 1
+                if need_vms <= per_xen_host_vms:
+                    per_xen_host_vms = need_vms
                 log.info(
                     "Creating " + str(per_xen_host_vms) + " out of " + str(need_vms) + " VMs on "
                                                                                        "xenhost"
@@ -741,6 +743,8 @@ def get_available_count(session, os="centos"):
     log.info("required_cpus={},required_memory={}".format(required_cpus, required_memory_gb))
     cpus_count = int(xen_cpu_count_free / required_cpus)
     memory_count = int(xen_memory_free_gb / required_memory_gb)
+    fsize = fsize - 20*1024 * 1024 * 1024 # TBD: Leaving buffer space as seen issue with xenhost
+    log.info("Marking free disk size={}".format(fsize))
     disk_count = int((fsize / (1024 * 1024 * 1024)) / required_disk_gb)
     log.info("cpus_count={}, memory_count={}, disk_count={}".format(cpus_count, memory_count,
                                                                     disk_count))
