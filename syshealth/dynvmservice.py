@@ -762,6 +762,8 @@ def get_host_usage(session):
     log.debug(xen_host_record)
     xen_cpu_count_total = int(xen_host_record['cpu_info']['cpu_count'])
     xen_cpu_count_free = xen_cpu_count_total - vm_cpus
+    if xen_cpu_count_free < 0:
+        xen_cpu_count_free = 0
     xen_host_metrics_ref = session.xenapi.host.get_metrics(host_ref)
     metrics = session.xenapi.host_metrics.get_record(xen_host_metrics_ref)
     xen_memory_free_gb = int(int(metrics['memory_free']) / (1024 * 1024 * 1024))
