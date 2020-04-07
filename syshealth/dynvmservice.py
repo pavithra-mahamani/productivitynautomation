@@ -51,7 +51,7 @@ RELEASE_URL = 'http://127.0.0.1:5000/releaseservers/'
 
 @app.route("/showall")
 def showall_service():
-    count = get_all_xen_hosts_count("centos")
+    count, _ = get_all_xen_hosts_count("centos")
     all_vms = {}
     for xen_host_ref in range(1, count + 1):
         log.info("Getting xen_host_ref=" + str(xen_host_ref))
@@ -72,8 +72,8 @@ def getavailable_count_service(os='centos'):
         Available count2 = (Free Memory - VMs Memory)/OS_Template_Memory
         Return min(count1,count2)
     """
-    count, available_counts = get_all_available_count(os)
-    log.info(available_counts)
+    count, available_counts, xen_hosts = get_all_available_count(os)
+    log.info("{},{}".format(available_counts, xen_hosts))
     return str(count)
 
 
@@ -105,14 +105,14 @@ def getservers_service(username):
         output_format = "servermanager"
 
     # TBD consider cpus/mem later
-    count, available_counts = get_all_available_count(os_name)
-    log.info(available_counts)
+    count, available_counts, xen_hosts_available_refs = get_all_available_count(os_name)
+    log.info("{}, {}".format(available_counts, xen_hosts_available_refs))
     if vm_count > count:
         return "Error: No capacity is available! " + str(available_counts)
     free_xenhost_ref = 0
     for index in range(0, len(available_counts)):
         if vm_count <= available_counts[index]:
-            free_xenhost_ref = index + 1
+            free_xenhost_ref = int(xen_hosts_available_refs[index].split(':')[0])
             break
     if free_xenhost_ref != 0:  # Full set of VMs on one xen host
         log.info("-->  VMs on single xenhost")
@@ -130,7 +130,7 @@ def getservers_service(username):
                 break
             per_xen_host_vms = available_counts[index]
             if per_xen_host_vms >= 0:
-                free_xenhost_ref = index + 1
+                free_xenhost_ref = int(xen_hosts_available_refs[index].split(':')[0])
                 if need_vms <= per_xen_host_vms:
                     per_xen_host_vms = need_vms
                 log.info(
@@ -191,7 +191,7 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
         return error
     # xen_host = get_all_xen_hosts(os)[0]
     url = "http://" + xen_host['host.name']
-    log.info("\nXen Server host: " + xen_host['host.name'] + "\n")
+    log.info("Xen Server host: " + xen_host['host.name'])
     try:
         session = XenAPI.Session(url)
         session.xenapi.login_with_password(xen_host['host.user'], xen_host['host.password'])
@@ -201,7 +201,11 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
         return error
 
     log.info("Getting template " + os + '.template')
-    template = xen_host[os + '.template']  # type: object
+    try:
+        template = xen_host[os + '.template']  # type: object
+    except:
+        log.info("Template is not found!")
+        return []
     try:
         if service_name == 'createvm':
             log.debug("Creating from {0} :{1}, cpus: {2}, memory: {3}".format(str(template),
@@ -222,7 +226,7 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
         elif service_name == 'listvms':
             return list_vms(session)
         elif service_name == 'getavailablecount':
-            return get_available_count(session, os)
+            return get_available_count(session, os, xen_host)
         else:
             list_vms(session)
     except Exception as e:
@@ -250,20 +254,22 @@ def get_config(name):
 def get_all_xen_hosts_count(os='centos'):
     config = read_config()
     xen_host_ref_count = 0
-    all_xen_hots = []
+    xen_host_ref = 0
+    all_xen_hosts = []
     for section in config.sections():
         if section.startswith('xenhost'):
             try:
                 xen_host_ref_count += 1
-                xen_host = get_xen_values(config, xen_host_ref_count, os)
+                xen_host_ref += 1
+                xen_host = get_xen_values(config, xen_host_ref, os)
                 if xen_host:
-                    all_xen_hots.append(xen_host)
+                    all_xen_hosts.append(xen_host)
                 else:
                     xen_host_ref_count -= 1
             except Exception as e:
                 log.debug(e)
 
-    return xen_host_ref_count
+    return xen_host_ref_count, all_xen_hosts
 
 
 def get_xen_host(xen_host_ref=1, os='centos'):
@@ -274,11 +280,15 @@ def get_xen_host(xen_host_ref=1, os='centos'):
 def get_xen_values(config, xen_host_ref, os):
     xen_host = {}
     try:
+        xen_host['name'] = 'xenhost' + str(xen_host_ref)
         xen_host["host.name"] = config.get('xenhost' + str(xen_host_ref), 'host.name')
         xen_host["host.user"] = config.get('xenhost' + str(xen_host_ref), 'host.user')
         xen_host["host.password"] = config.get('xenhost' + str(xen_host_ref), 'host.password')
+        xen_host["host.storage.name"] = config.get('xenhost' + str(xen_host_ref),
+                                                   'host.storage.name')
         xen_host[os + ".template"] = config.get('xenhost' + str(xen_host_ref), os + '.template')
     except Exception as e:
+        log.info("--> check for template and other values in the .ini file!")
         log.info(e)
         xen_host = None
     return xen_host
@@ -676,13 +686,16 @@ def read_vm_ip_address(session, a_vm):
 
 
 def get_vm_existed_xenhost_ref(vm_name, count, os="centos"):
-    num_xen_hosts = get_all_xen_hosts_count(os)
+    num_xen_hosts, xen_hosts = get_all_xen_hosts_count(os)
     # TBD: Cover later on the Partial VMs on different xenhosts.
     if count > 1:
         vm_name = vm_name + "1"
     is_found = False
     xen_host_index = 0
-    for xen_host_index in range(1, num_xen_hosts + 1):
+    for index in range(0, num_xen_hosts):
+        xname = xen_hosts[index]['name']
+        log.info(xname + ' --> index: ' + xname[7:])
+        xen_host_index = int(xname[7:])
         xsession = get_xen_session(xen_host_index, os)
         vm = xsession.xenapi.VM.get_by_name_label(vm_name)
         xsession.logout()
@@ -696,16 +709,22 @@ def get_vm_existed_xenhost_ref(vm_name, count, os="centos"):
 
 
 def get_all_available_count(os="centos"):
-    num_xen_hosts = get_all_xen_hosts_count(os)
+    num_xen_hosts, xen_hosts = get_all_xen_hosts_count(os)
+    log.info("Number of xen hosts: {}".format(num_xen_hosts))
     count = 0
     available_counts = []
-    for xen_host_index in range(1, num_xen_hosts + 1):
+    xen_hosts_available_refs = []
+    for index in range(0, num_xen_hosts):
+        xname = xen_hosts[index]['name']
+        log.info(xname +' --> index: ' + xname[7:])
+        xen_host_index = int(xname[7:])
         xsession = get_xen_session(xen_host_index, os)
-        xcount = get_available_count(xsession, os)
+        xcount = get_available_count(xsession, os, xen_hosts[index])
         available_counts.append(xcount)
+        xen_hosts_available_refs.append(str(xen_host_index) + ":" + str(xcount))
         count += xcount
         xsession.logout()
-    return count, available_counts
+    return count, available_counts, xen_hosts_available_refs
 
 
 def get_xen_session(xen_host_ref=1, os="centos"):
@@ -724,8 +743,11 @@ def get_xen_session(xen_host_ref=1, os="centos"):
     return session
 
 
-def get_available_count(session, os="centos"):
-    psize, valloc, fsize = get_host_disks(session, 'SCSIid')
+def get_available_count(session, os="centos", xen_host=None):
+    if xen_host is None:
+        psize, valloc, fsize = get_host_disks(session, 'SCSIid')
+    else:
+        psize, valloc, fsize = get_host_disks(session, xen_host['host.storage.name'])
     xen_cpu_count_free, xen_cpu_count_total, xen_memory_free_gb, xen_memory_total_gb = \
         get_host_usage(session)
     log.info(
@@ -847,18 +869,27 @@ def get_host_disks(session, device_id):
     psize = 0
     valloc = 0
     fsize = 0
+    log.info("Check for storage name: {}".format(device_id))
     for pbd in pbds:
         try:
             if pbd != 'OpaqueRef:NULL':
                 pbd_record = session.xenapi.PBD.get_record(pbd)
                 log.debug(pbd_record)
                 try:
-                    device_config = pbd_record['device_config'][device_id] # ignore the return val
+                    #device_config = pbd_record['device_config'][device_id] # ignore the return val
                     # matched disk device id.
                     sr = session.xenapi.PBD.get_SR(pbd)
+                    log.debug(sr)
+
+                    storage_name_label = session.xenapi.SR.get_name_label(sr)
+                    storage_name_desc = session.xenapi.SR.get_name_description(sr)
+
+                    if storage_name_label.lower() != device_id.lower():
+                        continue
+                    log.info("storage_name:{}, storage_description={}".format(storage_name_label,
+                                                                              storage_name_desc))
                     psize = session.xenapi.SR.get_physical_size(sr)
                     valloc = session.xenapi.SR.get_virtual_allocation(sr)
-                    log.debug(sr)
                     fsize = int(psize) - int(valloc)
                     log.info(psize)
                     log.info(valloc)
