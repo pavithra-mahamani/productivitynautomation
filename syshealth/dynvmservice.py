@@ -180,7 +180,7 @@ def releaseservers_service(username):
             vm_name = username + str(vm_index + 1)
         else:
             vm_name = username
-        xen_host_ref = get_vm_existed_xenhost_ref(vm_name, 1, os_name)
+        xen_host_ref = get_vm_existed_xenhost_ref(vm_name, 1, None)
         log.info("VM to be deleted from xhost_ref=" + str(xen_host_ref))
         if xen_host_ref != 0:
             delete_per_xen_res = perform_service(xen_host_ref, 'deletevm', os_name, vm_name, 1)
@@ -211,13 +211,13 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
         error = "Failed to acquire a session: {}".format(f.details)
         log.error(error)
         return error
-
-    log.info("Getting template " + os + '.template')
-    try:
-        template = xen_host[os + '.template']  # type: object
-    except:
-        log.info("Template is not found!")
-        return []
+    if os is not None:
+        log.info("Getting template " + os + '.template')
+        try:
+            template = xen_host[os + '.template']  # type: object
+        except:
+            log.info("Template is not found!")
+            return []
     try:
         if service_name == 'createvm':
             log.debug("Creating from {0} :{1}, cpus: {2}, memory: {3}".format(str(template),
@@ -262,7 +262,6 @@ def get_config(name):
 
     return all_config
 
-
 def get_all_xen_hosts_count(os='centos'):
     config = read_config()
     xen_host_ref_count = 0
@@ -298,7 +297,8 @@ def get_xen_values(config, xen_host_ref, os):
         xen_host["host.password"] = config.get('xenhost' + str(xen_host_ref), 'host.password')
         xen_host["host.storage.name"] = config.get('xenhost' + str(xen_host_ref),
                                                    'host.storage.name')
-        xen_host[os + ".template"] = config.get('xenhost' + str(xen_host_ref), os + '.template')
+        if os is not None:
+            xen_host[os + ".template"] = config.get('xenhost' + str(xen_host_ref), os + '.template')
     except Exception as e:
         log.info("--> check for template and other values in the .ini file!")
         log.info(e)
@@ -638,6 +638,7 @@ def call_release_url(vm_name, os_name, uuid):
 
 
 def delete_vms(session, vm_prefix_names, number_of_vms=1):
+    log.info("Deleting VMs...{}".format(vm_prefix_names))
     vm_names = vm_prefix_names.split(",")
 
     vm_info = {}
