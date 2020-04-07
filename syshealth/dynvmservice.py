@@ -773,7 +773,7 @@ def get_available_count(session, os="centos", xen_host=None):
     if os.startswith('win'):
         required_cpus = 6
         required_memory_gb = 6
-        required_disk_gb = 70
+        required_disk_gb = 71
     else:
         required_cpus = 4
         required_memory_gb = 4
