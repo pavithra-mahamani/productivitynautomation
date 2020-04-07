@@ -99,10 +99,22 @@ def getservers_service(username):
         exp = int(request.args.get('expiresin'))
     else:
         exp = MAX_EXPIRY_MINUTES
+
     if request.args.get('format'):
         output_format = request.args.get('format')
     else:
         output_format = "servermanager"
+
+    xhostref = None
+    if request.args.get('xhostref'):
+        xhostref = request.args.get('xhostref')
+
+    if xhostref:
+        log.info("-->  VMs on given xenhost" + xhostref)
+        vms_ips_list = perform_service(xhostref, 'createvm', os_name, username, vm_count,
+                                       cpus=cpus_count, maxmemory=mem, expiry_minutes=exp,
+                                       output_format=output_format)
+        return json.dumps(vms_ips_list)
 
     # TBD consider cpus/mem later
     count, available_counts, xen_hosts_available_refs = get_all_available_count(os_name)
