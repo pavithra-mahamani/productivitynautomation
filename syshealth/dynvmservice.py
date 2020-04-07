@@ -711,7 +711,7 @@ def get_vm_existed_xenhost_ref(vm_name, count, os="centos"):
     xen_host_index = 0
     for index in range(0, num_xen_hosts):
         xname = xen_hosts[index]['name']
-        log.info(xname + ' --> index: ' + xname[7:])
+        log.debug(xname + ' --> index: ' + xname[7:])
         xen_host_index = int(xname[7:])
         xsession = get_xen_session(xen_host_index, os)
         vm = xsession.xenapi.VM.get_by_name_label(vm_name)
@@ -782,9 +782,12 @@ def get_available_count(session, os="centos", xen_host=None):
     log.info("required_cpus={},required_memory={}".format(required_cpus, required_memory_gb))
     cpus_count = int(xen_cpu_count_free / required_cpus)
     memory_count = int(xen_memory_free_gb / required_memory_gb)
-    fsize = fsize - 0.1*fsize # TBD: Leaving buffer space as seen issue with xenhost
+    #fsize = fsize - 0.1*fsize # TBD: Leaving buffer space as seen issue with xenhost
     log.info("Marking free disk size={}".format(fsize))
     disk_count = int((fsize / (1024 * 1024 * 1024)) / required_disk_gb)
+    if disk_count > 0:
+        disk_count -= 1 # reserve count as 1 base copy occupies to avoid insufficient
+    # space
     log.info("cpus_count={}, memory_count={}, disk_count={}".format(cpus_count, memory_count,
                                                                     disk_count))
     counts = [cpus_count, memory_count, disk_count]
