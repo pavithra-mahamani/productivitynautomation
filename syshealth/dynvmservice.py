@@ -538,7 +538,11 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
 
         log.info("Max wait time in secs for IP address is " + str(TIMEOUT_SECS))
         maxtime = time.time() + TIMEOUT_SECS
-        while read_ip_address(session, vm) is None and time.time() < maxtime:
+        # Wait until IP is not None or 169.xx (when no IPs available, this is default) and timeout
+        # is not reached.
+        while (read_ip_address(session, vm) is None or read_ip_address(session, vm).startswith(
+                '169')) and \
+                time.time() < maxtime:
             time.sleep(1)
         vm_ip_addr = read_ip_address(session, vm)
         log.info("VM IP: {}".format(vm_ip_addr))
