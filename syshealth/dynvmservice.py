@@ -45,7 +45,7 @@ app = Flask(__name__)
 
 CONFIG_FILE = '.dynvmservice.ini'
 MAX_EXPIRY_MINUTES = 1440
-TIMEOUT_SECS = 300
+TIMEOUT_SECS = 600
 RELEASE_URL = 'http://127.0.0.1:5000/releaseservers/'
 
 
