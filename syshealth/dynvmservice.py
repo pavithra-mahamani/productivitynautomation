@@ -141,7 +141,7 @@ def getservers_service(username):
             if need_vms == 0:
                 break
             per_xen_host_vms = available_counts[index]
-            if per_xen_host_vms >= 0:
+            if per_xen_host_vms > 0:
                 free_xenhost_ref = int(xen_hosts_available_refs[index].split(':')[0])
                 if need_vms <= per_xen_host_vms:
                     per_xen_host_vms = need_vms
