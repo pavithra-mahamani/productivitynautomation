@@ -48,14 +48,15 @@ MAX_EXPIRY_MINUTES = 1440
 TIMEOUT_SECS = 600
 RELEASE_URL = 'http://127.0.0.1:5000/releaseservers/'
 
-
+@app.route('/showall/<string:os>')
 @app.route("/showall")
-def showall_service():
-    count, _ = get_all_xen_hosts_count("centos")
+def showall_service(os=None):
+    count, _ = get_all_xen_hosts_count(os)
+    log.info("--> count: {}".format(count))
     all_vms = {}
     for xen_host_ref in range(1, count + 1):
         log.info("Getting xen_host_ref=" + str(xen_host_ref))
-        all_vms[xen_host_ref] = perform_service(xen_host_ref, service_name='listvms')
+        all_vms[xen_host_ref] = perform_service(xen_host_ref, service_name='listvms', os=os)
     return json.dumps(all_vms, indent=2, sort_keys=True)
 
 
@@ -262,7 +263,7 @@ def get_config(name):
 
     return all_config
 
-def get_all_xen_hosts_count(os='centos'):
+def get_all_xen_hosts_count(os=None):
     config = read_config()
     xen_host_ref_count = 0
     xen_host_ref = 0
@@ -353,7 +354,7 @@ def list_vms(session):
         network_info = 'N/A'
         record = session.xenapi.VM.get_record(vm)
         if not (record["is_a_template"]) and not (record["is_control_domain"]):
-            log.info(record)
+            log.debug(record)
             vm_count = vm_count + 1
             name = record["name_label"]
             name_description = record["name_description"]
