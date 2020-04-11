@@ -478,75 +478,97 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
 
         template_ref = templates[0]
         log.debug("  Selected template: {}".format(session.xenapi.VM.get_name_label(template_ref)))
-        log.debug("Installing new VM from the template")
-        vm = session.xenapi.VM.clone(template_ref, new_vm_name)
 
-        network = session.xenapi.PIF.get_network(lowest)
-        log.debug("Chosen PIF is connected to network: {}".format(
-            session.xenapi.network.get_name_label(network)))
-        vifs = session.xenapi.VIF.get_all()
-        log.debug(("Number of VIFs=" + str(len(vifs))))
-        for i in range(len(vifs)):
-            vmref = session.xenapi.VIF.get_VM(vifs[i])
-            a_vm_name = session.xenapi.VM.get_name_label(vmref)
-            log.debug(str(i) + "." + session.xenapi.network.get_name_label(
-                session.xenapi.VIF.get_network(vifs[i])) + " " + a_vm_name)
-            if a_vm_name == new_vm_name:
-                session.xenapi.VIF.move(vifs[i], network)
+        # Retries when 169.x address received
+        ipaddr_max_retries = 3
+        retry_count = 1
+        is_local_ip = True
+        vm_ip_addr = ""
+        while is_local_ip and retry_count != ipaddr_max_retries:
+            log.info("Installing new VM from the template - attempt #{}".format(retry_count))
+            vm = session.xenapi.VM.clone(template_ref, new_vm_name)
 
-        log.debug("Adding non-interactive to the kernel commandline")
-        session.xenapi.VM.set_PV_args(vm, "non-interactive")
-        log.debug("Choosing an SR to instantiate the VM's disks")
-        pool = session.xenapi.pool.get_all()[0]
-        default_sr = session.xenapi.pool.get_default_SR(pool)
-        default_sr = session.xenapi.SR.get_record(default_sr)
-        log.debug("Choosing SR: {} (uuid {})".format(default_sr['name_label'], default_sr['uuid']))
-        log.debug("Asking server to provision storage from the template specification")
-        description = new_vm_name + " from " + template + " on " + str(datetime.datetime.utcnow())
-        session.xenapi.VM.set_name_description(vm, description)
-        if cpus != "default":
-            log.info("Setting cpus to " + cpus)
-            session.xenapi.VM.set_VCPUs_max(vm, int(cpus))
-            session.xenapi.VM.set_VCPUs_at_startup(vm, int(cpus))
-        if maxmemory != "default":
-            log.info("Setting memory to " + maxmemory)
-            session.xenapi.VM.set_memory(vm, maxmemory)  # 8GB="8589934592" or 4GB="4294967296"
-        session.xenapi.VM.provision(vm)
-        log.info("Starting VM")
-        session.xenapi.VM.start(vm, False, True)
-        log.debug("  VM is booting")
+            network = session.xenapi.PIF.get_network(lowest)
+            log.debug("Chosen PIF is connected to network: {}".format(
+                session.xenapi.network.get_name_label(network)))
+            vifs = session.xenapi.VIF.get_all()
+            log.debug(("Number of VIFs=" + str(len(vifs))))
+            for i in range(len(vifs)):
+                vmref = session.xenapi.VIF.get_VM(vifs[i])
+                a_vm_name = session.xenapi.VM.get_name_label(vmref)
+                log.debug(str(i) + "." + session.xenapi.network.get_name_label(
+                    session.xenapi.VIF.get_network(vifs[i])) + " " + a_vm_name)
+                if a_vm_name == new_vm_name:
+                    session.xenapi.VIF.move(vifs[i], network)
 
-        log.debug("Waiting for the installation to complete")
+            log.debug("Adding non-interactive to the kernel commandline")
+            session.xenapi.VM.set_PV_args(vm, "non-interactive")
+            log.debug("Choosing an SR to instantiate the VM's disks")
+            pool = session.xenapi.pool.get_all()[0]
+            default_sr = session.xenapi.pool.get_default_SR(pool)
+            default_sr = session.xenapi.SR.get_record(default_sr)
+            log.debug("Choosing SR: {} (uuid {})".format(default_sr['name_label'], default_sr['uuid']))
+            log.debug("Asking server to provision storage from the template specification")
+            description = new_vm_name + " from " + template + " on " + str(datetime.datetime.utcnow())
+            session.xenapi.VM.set_name_description(vm, description)
+            if cpus != "default":
+                log.info("Setting cpus to " + cpus)
+                session.xenapi.VM.set_VCPUs_max(vm, int(cpus))
+                session.xenapi.VM.set_VCPUs_at_startup(vm, int(cpus))
+            if maxmemory != "default":
+                log.info("Setting memory to " + maxmemory)
+                session.xenapi.VM.set_memory(vm, maxmemory)  # 8GB="8589934592" or 4GB="4294967296"
+            session.xenapi.VM.provision(vm)
+            log.info("Starting VM")
+            session.xenapi.VM.start(vm, False, True)
+            log.debug("  VM is booting")
 
-        # Get the OS Name and IPs
-        log.info("Getting the OS Name and IP...")
-        config = read_config()
-        vm_network_timeout_secs = int(config.get("common", "vm.network.timeout.secs"))
-        if vm_network_timeout_secs > 0:
-            TIMEOUT_SECS = vm_network_timeout_secs
+            log.debug("Waiting for the installation to complete")
 
-        log.info("Max wait time in secs for VM OS address is {0}".format(str(TIMEOUT_SECS)))
-        if "win" not in template:
+            # Get the OS Name and IPs
+            log.info("Getting the OS Name and IP...")
+            config = read_config()
+            vm_network_timeout_secs = int(config.get("common", "vm.network.timeout.secs"))
+            if vm_network_timeout_secs > 0:
+                TIMEOUT_SECS = vm_network_timeout_secs
+
+            log.info("Max wait time in secs for VM OS address is {0}".format(str(TIMEOUT_SECS)))
+            if "win" not in template:
+                maxtime = time.time() + TIMEOUT_SECS
+                while read_os_name(session, vm) is None and time.time() < maxtime:
+                    time.sleep(1)
+                vm_os_name = read_os_name(session, vm)
+                log.info("VM OS name: {}".format(vm_os_name))
+            else:
+                # TBD: Wait for network to refresh on Windows VM
+                time.sleep(60)
+
+            log.info("Max wait time in secs for IP address is " + str(TIMEOUT_SECS))
             maxtime = time.time() + TIMEOUT_SECS
-            while read_os_name(session, vm) is None and time.time() < maxtime:
+            # Wait until IP is not None or 169.xx (when no IPs available, this is default) and timeout
+            # is not reached.
+            while (read_ip_address(session, vm) is None or read_ip_address(session, vm).startswith(
+                    '169')) and \
+                    time.time() < maxtime:
                 time.sleep(1)
-            vm_os_name = read_os_name(session, vm)
-            log.info("VM OS name: {}".format(vm_os_name))
-        else:
-            # TBD: Wait for network to refresh on Windows VM
-            time.sleep(60)
+            vm_ip_addr = read_ip_address(session, vm)
+            log.info("VM IP: {}".format(vm_ip_addr))
 
-        log.info("Max wait time in secs for IP address is " + str(TIMEOUT_SECS))
-        maxtime = time.time() + TIMEOUT_SECS
-        # Wait until IP is not None or 169.xx (when no IPs available, this is default) and timeout
-        # is not reached.
-        while (read_ip_address(session, vm) is None or read_ip_address(session, vm).startswith(
-                '169')) and \
-                time.time() < maxtime:
-            time.sleep(1)
-        vm_ip_addr = read_ip_address(session, vm)
-        log.info("VM IP: {}".format(vm_ip_addr))
+            if vm_ip_addr.startswith('169'):
+                log.info("No Network IP available. Deleting this VM ... ")
+                record = session.xenapi.VM.get_record(vm)
+                power_state = record["power_state"]
+                if power_state != 'Halted':
+                    session.xenapi.VM.hard_shutdown(vm)
+                delete_all_disks(session, vm)
+                session.xenapi.VM.destroy(vm)
+                time.sleep(5)
+                is_local_ip = True
+                retry_count += 1
+            else:
+                is_local_ip = False
 
+        log.info("Final VM IP: {}".format(vm_ip_addr))
         # Measure time taken for VM provisioning
         prov_end_time = time.time()
         create_duration = round(prov_end_time - prov_start_time)
@@ -704,7 +726,7 @@ def read_vm_ip_address(session, a_vm):
 
 def get_vm_existed_xenhost_ref(vm_name, count, os="centos"):
     num_xen_hosts, xen_hosts = get_all_xen_hosts_count(os)
-    # TBD: Cover later on the Partial VMs on different xenhosts.
+
     if count > 1:
         vm_name = vm_name + "1"
     is_found = False
