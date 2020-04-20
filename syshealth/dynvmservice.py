@@ -48,6 +48,8 @@ MAX_EXPIRY_MINUTES = 1440
 TIMEOUT_SECS = 600
 RELEASE_URL = 'http://127.0.0.1:5000/releaseservers/'
 
+reserved_count = 0
+
 @app.route('/showall/<string:os>')
 @app.route("/showall")
 def showall_service(os=None):
@@ -74,13 +76,18 @@ def getavailable_count_service(os='centos'):
         Return min(count1,count2)
     """
     count, available_counts, xen_hosts = get_all_available_count(os)
-    log.info("{},{}".format(available_counts, xen_hosts))
+    log.info("{},{},{},{}".format(count, available_counts, xen_hosts, reserved_count))
+    if count > reserved_count:
+        count -= reserved_count
+    log.info("Less reserved count: {},{},{},{}".format(count, available_counts, xen_hosts,
+                                                 reserved_count))
     return str(count)
 
 
 # /getservers/username?count=number&os=centos&ver=6&expiresin=30
 @app.route('/getservers/<string:username>')
 def getservers_service(username):
+    global reserved_count
     if request.args.get('count'):
         vm_count = int(request.args.get('count'))
     else:
@@ -109,7 +116,7 @@ def getservers_service(username):
     xhostref = None
     if request.args.get('xhostref'):
         xhostref = request.args.get('xhostref')
-
+    reserved_count += vm_count
     if xhostref:
         log.info("-->  VMs on given xenhost" + xhostref)
         vms_ips_list = perform_service(xhostref, 'createvm', os_name, username, vm_count,
@@ -121,6 +128,7 @@ def getservers_service(username):
     count, available_counts, xen_hosts_available_refs = get_all_available_count(os_name)
     log.info("{}, {}".format(available_counts, xen_hosts_available_refs))
     if vm_count > count:
+        reserved_count -= vm_count
         return "Error: No capacity is available! " + str(available_counts)
     free_xenhost_ref = 0
     for index in range(0, len(available_counts)):
@@ -151,6 +159,9 @@ def getservers_service(username):
                                                                                        "xenhost"
                     + str(
                         free_xenhost_ref))
+                if per_xen_host_vms == 1: # this is to handle the name with suffix count when
+                    # single vount is given
+                    username += str(vm_name_suffix_index+1)
                 per_xen_host_res = perform_service(free_xenhost_ref, 'createvm', os_name, username,
                                                    per_xen_host_vms, cpus=cpus_count, maxmemory=mem,
                                                    expiry_minutes=exp, output_format=output_format,
@@ -268,6 +279,7 @@ def get_all_xen_hosts_count(os=None):
     xen_host_ref_count = 0
     xen_host_ref = 0
     all_xen_hosts = []
+    log.info(config.sections())
     for section in config.sections():
         if section.startswith('xenhost'):
             try:
@@ -398,6 +410,7 @@ def list_vm_details(session, vm_name):
 
 def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="default",
                maxmemory="default", expiry_minutes=MAX_EXPIRY_MINUTES, start_suffix=0):
+    global reserved_count
     vm_names = vm_prefix_names.split(",")
     index = 1
     new_vms_info = {}
@@ -410,6 +423,7 @@ def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="de
                                                 expiry_minutes)
                 new_vms_info[vm_name] = vm_ip
                 list_of_vms.append(vm_ip)
+                reserved_count -= 1
                 if error:
                     new_vms_info[vm_name + "_error"] = error
                     list_of_vms.append(error)
@@ -420,6 +434,7 @@ def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="de
                                             expiry_minutes)
             new_vms_info[vm_names[i]] = vm_ip
             list_of_vms.append(vm_ip)
+            reserved_count -= 1
             if error:
                 new_vms_info[vm_names[i] + "_error"] = error
                 list_of_vms.append(error)
@@ -750,7 +765,7 @@ def get_vm_existed_xenhost_ref(vm_name, count, os="centos"):
 
 def get_all_available_count(os="centos"):
     num_xen_hosts, xen_hosts = get_all_xen_hosts_count(os)
-    log.info("Number of xen hosts: {}".format(num_xen_hosts))
+    log.info("Number of xen hosts: {}, {}".format(num_xen_hosts, xen_hosts))
     count = 0
     available_counts = []
     xen_hosts_available_refs = []
