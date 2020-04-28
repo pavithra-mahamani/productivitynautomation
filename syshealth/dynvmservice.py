@@ -169,7 +169,7 @@ def getservers_service(username):
                 for ip in per_xen_host_res:
                     merged_vms_list.append(ip)
                 log.info(per_xen_host_res)
-                vm_name_suffix_index = vm_name_suffix_index + per_xen_host_vms
+                vm_name_suffix_index = int(vm_name_suffix_index) + int(per_xen_host_vms)
                 need_vms = need_vms - per_xen_host_vms
         if output_format == 'detailed':
             return json.dumps(merged_vms_list, indent=2, sort_keys=True)
