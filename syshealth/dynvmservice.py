@@ -161,8 +161,8 @@ def getservers_service(username):
                         free_xenhost_ref))
                 if per_xen_host_vms == 1: # this is to handle the name with suffix count when
                     # single vount is given
-                    username += str(vm_name_suffix_index+1)
-                per_xen_host_res = perform_service(free_xenhost_ref, 'createvm', os_name, username,
+                    username1 = username + str(vm_name_suffix_index+1)
+                per_xen_host_res = perform_service(free_xenhost_ref, 'createvm', os_name, username1,
                                                    per_xen_host_vms, cpus=cpus_count, maxmemory=mem,
                                                    expiry_minutes=exp, output_format=output_format,
                                                    start_suffix=vm_name_suffix_index)
