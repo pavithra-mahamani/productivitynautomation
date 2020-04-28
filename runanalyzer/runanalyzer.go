@@ -124,6 +124,7 @@ var dest string
 var overwrite string
 var updateURL string
 var cbplatform string
+var cbbucket string
 var s3bucket string
 var url string
 var updateOrgURL string
@@ -148,6 +149,7 @@ func main() {
 	overwriteInput := flag.String("overwrite", "no", usage())
 	updateURLInput := flag.String("updateurl", "no", usage())
 	cbplatformInput := flag.String("os", "centos", usage())
+	cbbucketInput := flag.String("cbbucket", "server", usage())
 	s3bucketInput := flag.String("s3bucket", "cb-logs-qe", usage())
 	s3urlInput := flag.String("s3url", "http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/", usage())
 	urlInput := flag.String("cbqueryurl", "http://172.23.109.245:8093/query/service", usage())
@@ -171,6 +173,7 @@ func main() {
 	overwrite = *overwriteInput
 	updateURL = *updateURLInput
 	cbplatform = *cbplatformInput
+	cbbucket = *cbbucketInput
 	s3bucket = *s3bucketInput
 	s3url = *s3urlInput
 	url = *urlInput
@@ -232,7 +235,7 @@ func usage() string {
 		"Options: --dest [local]|s3|none --src csvfile --os centos --overwrite [no]|yes --updateurl [no]|yes --includes [console,config,parameters,testresult],archive" +
 		"--s3bucket cb-logs-qe --s3url http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/ --cbqueryurl [http://172.23.109.245:8093/query/service]\n" +
 		"-action totaltime 6.5  : to get the total number of jobs, time duration for a given set of  builds in a release, " +
-		"Options: --limits [100] --qryfilter 'where result.numofjobs>900 and (totalcount-failcount)*100/totalcount>90'\n" +
+		"Options: --cbbucket [server] --limits [100] --qryfilter 'where result.numofjobs>900 and (totalcount-failcount)*100/totalcount>90'\n" +
 		"-action getrunprogress build : to get the summary report on the kickedoff runs for a build. " +
 		" Options: --reqserverpools=[regression,durability,ipv6,ipv6-raw,ipv6-fqdn,ipv6-mix,jre-less,jre,security,elastic-fts,elastic-xdcr] --reqstates=[available,booked] \n" +
 		"-action runquery 'select * from server where lower(`os`)=\"centos\" and `build`=\"6.5.0-4106\"' : to run a given query statement \n" +
@@ -390,10 +393,10 @@ func gettotalbuildcycleduration(buildN string) int {
 	//qry := "select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" " + qryfilter
 	//qry := "select numofjobs, totaltime, failcount, totalcount from (select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b " +
 	//	"where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" ) as result " + qryfilter + " limit " + finallimits
-	qry := "select `build`, numofjobs, totaltime, failcount, totalcount from (select b.`build`, count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b " +
+	qry := "select `build`, numofjobs, totaltime, failcount, totalcount from (select b.`build`, count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from " + cbbucket + " b " +
 		"where lower(b.os) like \"" + cbplatform + "\" and b.`build` like \"" + cbbuild + "%\" group by b.`build` order by b.`build` desc) as result " + qryfilter + " limit " + limits
 	//qry := "select `build`, numofjobs, totaltime, failcount, totalcount from (select b.`build`, count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like "centos" and b.`build` like "6.5%" group by b.`build` order by b.`build` desc) as result where numofjobs>500 limit 30"
-	//fmt.Println("\nquery=" + qry)
+	fmt.Println("\nquery=" + qry)
 	localFileName := "duration.json"
 	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
 		//panic(err)
@@ -489,7 +492,7 @@ func savejoblogs() {
 	var jobCsvFile string
 	if src == "cbserver" {
 		//url := "http://172.23.109.245:8093/query/service"
-		qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + build1 + "\""
+		qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from " + cbbucket + " b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + build1 + "\""
 		fmt.Println("query=" + qry)
 		localFileName := "result.json"
 		if err := executeN1QLStmt(localFileName, url, qry); err != nil {
@@ -547,7 +550,7 @@ func getJobsList(build1 string) string {
 	var jobCsvFile string
 	if src == "cbserver" {
 		//url := "http://172.23.109.245:8093/query/service"
-		qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + build1 + "\""
+		qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from " + cbbucket + " b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + build1 + "\""
 		//fmt.Println("query=" + qry)
 		localFileName := "jobslistresult.json"
 		if err := executeN1QLStmt(localFileName, url, qry); err != nil {
@@ -621,7 +624,7 @@ func getJobsStatusList(build1 string) (int, int, int, int) {
 	if src == "cbserver" {
 		//url := "http://172.23.109.245:8093/query/service"
 		//qry := "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + build1 + "\""
-		qry := "select result, count(*) as numofjobs from server where lower(os) like \"" + cbplatform + "\"  and `build`=\"" + build1 + "\" group by result"
+		qry := "select result, count(*) as numofjobs from " + cbbucket + " where lower(os) like \"" + cbplatform + "\"  and `build`=\"" + build1 + "\" group by result"
 		//fmt.Println("query=" + qry)
 		localFileName := "jobstatusresult.json"
 		if err := executeN1QLStmt(localFileName, url, qry); err != nil {
@@ -903,10 +906,10 @@ func lastabortedjobs() {
 		build2 = os.Args[len(os.Args)-2]
 		build3 = os.Args[len(os.Args)-1]
 		cbbuild = build1
-		qry = "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os) like \"" + cbplatform + "\" and b.result=\"ABORTED\" and b.`build`=\"" +
-			build1 + "\" and b.name in (select raw a.name from server a where lower(a.os) like \"" + cbplatform + "\" and a.result=\"ABORTED\" and a.`build`=\"" +
-			build2 + "\" intersect select raw name from server where lower(os) like \"" + cbplatform + "\" and result=\"ABORTED\" and `build`=\"" +
-			build3 + "\" intersect select raw name from server where lower(os) like \"" + cbplatform + "\" and result=\"ABORTED\" and `build`=\"" + build1 + "\")"
+		qry = "select b.name as aname,b.url as jurl,b.build_id urlbuild from " + cbbucket + " b where lower(b.os) like \"" + cbplatform + "\" and b.result=\"ABORTED\" and b.`build`=\"" +
+			build1 + "\" and b.name in (select raw a.name from " + cbbucket + " a where lower(a.os) like \"" + cbplatform + "\" and a.result=\"ABORTED\" and a.`build`=\"" +
+			build2 + "\" intersect select raw name from " + cbbucket + " where lower(os) like \"" + cbplatform + "\" and result=\"ABORTED\" and `build`=\"" +
+			build3 + "\" intersect select raw name from " + cbbucket + " where lower(os) like \"" + cbplatform + "\" and result=\"ABORTED\" and `build`=\"" + build1 + "\")"
 	} else {
 		// Get latest builds
 		log.Println("Finding latest builds ")
@@ -921,12 +924,12 @@ func lastabortedjobs() {
 		for i := 0; i < len(cbbuilds); i++ {
 			fmt.Printf(cbbuilds[i].Build + " ")
 			builds += cbbuilds[i].Build + " "
-			qryString += "select raw a.name from server a where lower(a.os) like \"" + cbplatform + "\" and a.result=\"ABORTED\" and a.`build`=\"" + cbbuilds[i].Build + "\""
+			qryString += "select raw a.name from " + cbbucket + " a where lower(a.os) like \"" + cbplatform + "\" and a.result=\"ABORTED\" and a.`build`=\"" + cbbuilds[i].Build + "\""
 			if i < len(cbbuilds)-1 {
 				qryString += " intersect "
 			}
 		}
-		qry = "select b.name as aname,b.url as jurl,b.build_id urlbuild from server b where lower(b.os) like \"" + cbplatform + "\" and b.result=\"ABORTED\" and b.`build`=\"" +
+		qry = "select b.name as aname,b.url as jurl,b.build_id urlbuild from " + cbbucket + " b where lower(b.os) like \"" + cbplatform + "\" and b.result=\"ABORTED\" and b.`build`=\"" +
 			cbbuilds[0].Build + "\" and b.name in (" + qryString + " )"
 		fmt.Println("\nquery=" + qry)
 	}
@@ -1007,7 +1010,7 @@ func executeN1QLStmt(localFilePath string, remoteURL string, statement string) e
 
 func getLatestBuilds(cbrelease string) []TotalCycleTime {
 	// get last limits number of builds
-	qry := "select `build`, numofjobs, totaltime, failcount, totalcount from (select b.`build`, count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b " +
+	qry := "select `build`, numofjobs, totaltime, failcount, totalcount from (select b.`build`, count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from " + cbbucket + " b " +
 		"where lower(b.os) like \"" + cbplatform + "\" and b.`build` like \"" + cbrelease + "%\" group by b.`build` order by b.`build` desc) as result " + qryfilter + " limit " + limits
 	//fmt.Println("\nquery=" + qry)
 	localFileName := cbrelease + "_lastbuilds.json"
@@ -1477,7 +1480,7 @@ func GenSummaryForRunProgress(cbbuild string) {
 	}
 
 	//2. Get number of completed and pending jobs
-	jqry := "select `build`, numofjobs, totaltime, failcount, totalcount from (select b.`build`, count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b " +
+	jqry := "select `build`, numofjobs, totaltime, failcount, totalcount from (select b.`build`, count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from " + cbbucket + " b " +
 		"where lower(b.os) like \"" + cbplatform + "\" and b.`build` like \"" + cbbuild + "%\" group by b.`build` order by b.`build` desc) as result " + qryfilter + " limit " + limits
 	//fmt.Println("\nquery=" + jqry)
 	//fmt.Println("\nurl=" + url)
