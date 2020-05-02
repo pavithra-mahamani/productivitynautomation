@@ -180,13 +180,21 @@ def getservers_service(username):
 
 
 # /releaseservers/{username}
-@app.route('/releaseservers/<string:username>/<string:available>')
+@app.route('/releaseservers/<string:username>/<string:target_state>')
+def releaseservers_service_state(username, target_state):
+    return releaseservers_service(username, target_state)
+
 @app.route('/releaseservers/<string:username>')
-def releaseservers_service(username):
+def releaseservers_service(username, target_state=None):
+    delete_prefixed_vms = False
     if request.args.get('count'):
         vm_count = int(request.args.get('count'))
     else:
         vm_count = 1
+        if target_state == "available":
+            delete_prefixed_vms=True
+            vm_count=9 #TBD: how to get the matched prefixes
+
     os_name = request.args.get('os')
     delete_vms_res = []
     for vm_index in range(vm_count):
