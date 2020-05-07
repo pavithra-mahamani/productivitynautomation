@@ -718,6 +718,7 @@ func DownloadJenkinsJobInfo(csvFile string) int {
 		ConfigFile := JobDir + "/" + "config.xml"
 		JobFile := JobDir + "/" + "jobinfo.json"
 		ResultFile := JobDir + "/" + "testresult.json"
+		ResultFileXML := JobDir + "/" + "testresult.xml"
 		LogFile := JobDir + "/" + "consoleText.txt"
 		ArchiveZipFile := JobDir + "/" + "archive.zip"
 
@@ -744,6 +745,7 @@ func DownloadJenkinsJobInfo(csvFile string) int {
 				case "testresult":
 					//log.Println("...downloading testresult file")
 					DownloadFile(ResultFile, data.JobURL+data.BuildID+"/testresult.json")
+					DownloadFile(ResultFileXML, data.JobURL+data.BuildID+"/testresult.xml")
 					break
 				case "archive":
 					//log.Println("...downloading archive file")
@@ -860,6 +862,7 @@ func DownloadJenkinsJobInfo(csvFile string) int {
 				case "testresult":
 					//log.Println("...downloading testresult file")
 					DownloadFileWithBasicAuth(ResultFile, data.JobURL+data.BuildID+"/testReport/api/json?pretty=true", jenkinsUser, jenkinsUserPwd)
+					DownloadFileWithBasicAuth(ResultFileXML, data.JobURL+data.BuildID+"/testReport/api/xml?pretty=true", jenkinsUser, jenkinsUserPwd)
 					break
 				case "archive":
 					//log.Println("...downloading archive file")
@@ -1153,6 +1156,7 @@ func DownloadJenkinsFiles(csvFile string) {
 		ConfigFile := JobDir + "/" + "config.xml"
 		JobFile := JobDir + "/" + "jobinfo.json"
 		ResultFile := JobDir + "/" + "testresult.json"
+		ResultFileXML := JobDir + "/" + "testresult.xml"
 		LogFile := JobDir + "/" + "consoleText.txt"
 		ArchiveZipFile := JobDir + "/" + "archive.zip"
 
@@ -1185,6 +1189,7 @@ func DownloadJenkinsFiles(csvFile string) {
 			case "testresult":
 				log.Println("...downloading testresult file")
 				DownloadFileWithBasicAuth(ResultFile, data.JobURL+data.BuildID+"/testReport/api/json?pretty=true", jenkinsUser, jenkinsUserPwd)
+				DownloadFileWithBasicAuth(ResultFileXML, data.JobURL+data.BuildID+"/testReport/api/xml?pretty=true", jenkinsUser, jenkinsUserPwd)
 				break
 			case "archive":
 				log.Println("...downloading archive file")
@@ -1218,6 +1223,10 @@ func DownloadJenkinsFiles(csvFile string) {
 					if fileExists(ResultFile) {
 						SaveInAwsS3(ResultFile)
 						fmt.Fprintf(indexBuffer, "\n<li><a href=\"testresult.json\" target=\"_blank\">Test result json</a>")
+					}
+					if fileExists(ResultFileXML) {
+						SaveInAwsS3(ResultFileXML)
+						fmt.Fprintf(indexBuffer, "\n<li><a href=\"testresult.xml\" target=\"_blank\">Test result XML</a>")
 					}
 					break
 				case "config":
