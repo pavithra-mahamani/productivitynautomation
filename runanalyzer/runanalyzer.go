@@ -116,6 +116,46 @@ type AssignedLabelName struct {
 	Name string
 }
 
+// RerunTotalCycleTimeQryResult type
+type RerunTotalCycleTimeQryResult struct {
+	Status  string
+	Results []RerunTestResult
+}
+
+// RerunTestResult type
+type RerunTestResult struct {
+	Build      string
+	FailCount  int
+	TotalCount int
+	ProdType   string
+	BuildOS    OSComponentTestResult
+}
+
+// OSComponentTestResult type
+type OSComponentTestResult map[string]ComponentTestResult
+
+// ComponentTestResult type
+type ComponentTestResult map[string]TestSuiteResult
+
+// TestSuiteResult type
+type TestSuiteResult map[string][]TestResult
+
+// TestResult type
+type TestResult struct {
+	JBuildID   int
+	TClaim     string
+	TColor     string
+	Deleted    bool
+	Disabled   bool
+	Duration   int64
+	FailCount  int
+	OlderBuild bool
+	Priority   string
+	Result     string
+	TotalCount int
+	JURL       string
+}
+
 //const url = "http://172.23.109.245:8093/query/service"
 
 var cbbuild string
@@ -199,6 +239,9 @@ func main() {
 	} else if *action == "totaltime" {
 		gettotalbuildcycleduration(os.Args[3])
 		//fmt.Printf("\n\t\t\t\t\t\t\t\t\t\t\tGrand total time: %d hours\n", gettotalbuildcycleduration(os.Args[3]))
+	} else if *action == "reruntotaltime" {
+		getreruntotalbuildcycleduration(os.Args[3])
+		//fmt.Printf("\n\t\t\t\t\t\t\t\t\t\t\tGrand total time: %d hours\n", gettotalbuildcycleduration(os.Args[3]))
 	} else if *action == "runquery" {
 		fmt.Println("Query Result: ", runquery(os.Args[len(os.Args)-1]))
 	} else if *action == "runupdatequery" {
@@ -235,6 +278,7 @@ func usage() string {
 		"Options: --dest [local]|s3|none --src csvfile --os centos --overwrite [no]|yes --updateurl [no]|yes --includes [console,config,parameters,testresult],archive" +
 		"--s3bucket cb-logs-qe --s3url http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/ --cbqueryurl [http://172.23.109.245:8093/query/service]\n" +
 		"-action totaltime 6.5  : to get the total number of jobs, time duration for a given set of  builds in a release, " +
+		"-action reruntotaltime 6.6  : to get the total number of jobs, time duration for a given set of  builds in a release, " +
 		"Options: --cbbucket [server] --limits [100] --qryfilter 'where result.numofjobs>900 and (totalcount-failcount)*100/totalcount>90'\n" +
 		"-action getrunprogress build : to get the summary report on the kickedoff runs for a build. " +
 		" Options: --reqserverpools=[regression,durability,ipv6,ipv6-raw,ipv6-fqdn,ipv6-mix,jre-less,jre,security,elastic-fts,elastic-xdcr] --reqstates=[available,booked] \n" +
@@ -467,6 +511,191 @@ func gettotalbuildcycleduration(buildN string) int {
 		fmt.Println("\n-----------------------------------------------------------------------------------------------------------------------------------------------------")
 		fmt.Fprintln(outW, "\n-----------------------------------------------------------------------------------------------------------------------------------------------------")
 	}
+	p := fmt.Println
+	t := time.Now()
+	p(t.Format(time.RFC3339))
+	fmt.Fprintf(outW, "\n%s\n", t.Format(time.RFC3339))
+	//fmt.Fprintf(outW, "\n%s\t\t\t\t\t\t\t\t\t\tGrand total time=%6d hours\n", t.Format(time.RFC3339), totalhours)
+
+	outW.Flush()
+
+	return totalhours
+
+}
+
+func getreruntotalbuildcycleduration(buildN string) int {
+	//fmt.Println("action: totaltime")
+
+	var build1 string
+	//var builds string
+	if len(os.Args) < 2 {
+		fmt.Println("Enter the build to get reruns total duration.")
+		os.Exit(1)
+	} else {
+		build1 = os.Args[len(os.Args)-1]
+		cbbuild = build1
+		//builds = build1
+	}
+	var totalhours int
+
+	// total jobs
+	//var cbbuilds = strings.Split(builds, ",")
+	outFile, _ := os.Create("totaltime_summary.txt")
+	outW := bufio.NewWriter(outFile)
+	defer outFile.Close()
+
+	fmt.Printf("\nSummary report of regression cycles on the last %s build(s) in %s %s\n", limits, cbbuild, qryfilter)
+	fmt.Fprintf(outW, "\nSummary report of regression cycles on the last %s build(s) in %s %s\n", limits, cbbuild, qryfilter)
+
+	fmt.Println("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	//fmt.Println("S.No.\tBuild\t\tOS\tTestCount\tFailedCount\tPassedCount\tPassrate\tJobcount(A,F,U,S)\tTotaltime\tTotalComponents\tTotalJobs\tTotalRuns\tTotalReruns\tTotalRerunJobs")
+	fmt.Println("S.No.\tBuild\t\tOS\tTC\tFC\tPC\tRate\tAborted,Failed,Unstable,Succ\tTotalTime\t#Comp\t#Jobs\t#Runs\t#Reruns\t#RerunJobs RerunRate\tRerunTime")
+	fmt.Println("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "S.No.\tBuild\t\tOS\tTC\tFC\tPC\tRate\tAborted,Failed,Unstable,Succ\tTotalTime\t#Comp\t#Jobs\t#Runs\t#Reruns\t#RerunJobs RerunRate\tRerunTime")
+	fmt.Fprintln(outW, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+
+	sno := 1
+	//for i := 0; i < len(cbbuilds); i++ {
+	//	cbbuild = cbbuilds[i]
+
+	//url := "http://172.23.109.245:8093/query/service"
+	//qry := "select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" " + qryfilter
+	//qry := "select numofjobs, totaltime, failcount, totalcount from (select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b " +
+	//	"where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" ) as result " + qryfilter + " limit " + finallimits
+	qry := "select `build`, totalCount, failCount, `type`, os as buildOS from test_eventing b " +
+		"where  b.`build` like \"" + cbbuild + "%\" " + qryfilter + " order by `build` desc"
+	//qry := "select `build`, numofjobs, totaltime, failcount, totalcount from (select b.`build`, count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like "centos" and b.`build` like "6.5%" group by b.`build` order by b.`build` desc) as result where numofjobs>500 limit 30"
+	//fmt.Println("\nquery=" + qry)
+	localFileName := "duration.json"
+	if err := executeN1QLStmt(localFileName, url, qry); err != nil {
+		//panic(err)
+		log.Println(err)
+	}
+	resultFile, err := os.Open(localFileName)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer resultFile.Close()
+
+	byteValue, _ := ioutil.ReadAll(resultFile)
+
+	var result RerunTotalCycleTimeQryResult
+
+	err = json.Unmarshal(byteValue, &result)
+
+	//if len(result.Results) < 1 {
+	//	continue
+	//}
+	if result.Status == "success" {
+		//fmt.Println(" Total time in millis: ", result.Results[0].Totaltime)
+
+		for i := 0; i < len(result.Results); i++ {
+			cbbuild = result.Results[i].Build
+
+			for key, value := range result.Results[i].BuildOS {
+				//fmt.Println("OS:", key, "Value:", value, "# of Jobs/Suites:", len(value))
+				totalRuns := 0
+				totalReruns := 0
+				totalJobs := 0
+				reranJobCount := 0
+				totalTestCount := 0
+				totalFailCount := 0
+				totalAborted := 0
+				totalFailed := 0
+				totalUnstable := 0
+				totalSuccess := 0
+				var totalRerunOnlyDuration int64
+				var totalGrandDuration int64
+				var totalDuration int64
+				var reranJobsList string
+				for key1, value1 := range value {
+					//fmt.Println("\nComponent:", key1, "Value1:", value1)
+					totalJobs += len(value1)
+					for key2, value2 := range value1 {
+						//fmt.Println("\nJob/Suite:", key2, "Value2:", value2)
+						tests := make([]TestResult, 10)
+						rerunCount := copy(tests, value2)
+						if rerunCount > 1 {
+							reranJobCount++
+							reranJobsList += fmt.Sprintf("\n\t%d. %s: %s -- %d ", reranJobCount, key1, key2, (rerunCount - 1))
+							for i := 0; i < len(tests)-1; i++ {
+								totalRerunOnlyDuration += tests[i].Duration
+							}
+						}
+						for i := 0; i < len(tests); i++ {
+							totalGrandDuration += tests[i].Duration
+						}
+						totalDuration += tests[0].Duration
+						totalFailCount += tests[0].FailCount
+						totalTestCount += tests[0].TotalCount
+						switch tests[0].Result {
+						case "ABORTED":
+							totalAborted++
+							break
+						case "FAILURE":
+							totalFailed++
+							break
+						case "UNSTABLE":
+							totalUnstable++
+							break
+						case "SUCCESS":
+							totalSuccess++
+							break
+						}
+						//fmt.Println("Reruns: ", rerunCount)
+						totalRuns += rerunCount
+						totalReruns += (rerunCount - 1)
+					}
+				}
+				//fmt.Printf("\nOS:%s \t%d \t%d \t%d \t%d \t%d \t%d \t%d \tComponents=%d \tJobs=%d \tTotal Runs=%d \tReruns=%d \tRerun jobs=%d",
+				//	key, totalTestCount, totalFailCount, totalAborted, totalFailed, totalUnstable, totalSuccess, totalDuration, len(value), totalJobs,
+				//	totalRuns, totalReruns, reranJobCount)
+				var totalPassCount = totalTestCount - totalFailCount
+				var totalPassRate = (totalPassCount * 100) / totalTestCount
+				var totalComps = len(value)
+				hours := math.Floor(float64(totalGrandDuration) / 1000 / 60 / 60)
+				secs := totalDuration % (1000 * 60 * 60)
+				mins := math.Floor(float64(secs) / 60 / 1000)
+
+				rerunHours := math.Floor(float64(totalRerunOnlyDuration) / 1000 / 60 / 60)
+				rerunSecs := totalRerunOnlyDuration % (1000 * 60 * 60)
+				rerunMins := math.Floor(float64(rerunSecs) / 60 / 1000)
+
+				var rerunsRate = (totalReruns * 100) / totalRuns
+				if totalJobs > 100 {
+					fmt.Printf("\n%d\t%s \t\t%d \t%d", (sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount)
+					fmt.Fprintf(outW, "\n%d\t%s \t\t%d \t%d", (sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount)
+					if rerunHours > 0 || rerunMins > 0 {
+						fmt.Printf("\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%3d%% \t\t%4dhrs:%2dmins",
+							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
+							totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins))
+						fmt.Fprintf(outW, "\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%3d%% \t\t%4dhrs:%2dmins",
+							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
+							totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins))
+						fmt.Fprintf(outW, "\n%s", reranJobsList)
+					} else {
+						fmt.Printf("\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d",
+							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
+							totalRuns, totalReruns, reranJobCount)
+						fmt.Fprintf(outW, "\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d",
+							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
+							totalRuns, totalReruns, reranJobCount)
+					}
+					sno++
+				}
+
+			}
+
+			outW.Flush()
+		}
+	} else {
+		fmt.Println("Status: Failed. " + err.Error())
+	}
+	//}
+	fmt.Println("\n-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "\n-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+
 	p := fmt.Println
 	t := time.Now()
 	p(t.Format(time.RFC3339))
