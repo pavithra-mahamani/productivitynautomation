@@ -84,13 +84,17 @@ do
         cat vmpools_${OS}_ips.ini >vmpools_${OS}_ips2.ini
         cat ~/.ansible_vars.ini >>vmpools_${OS}_ips2.ini
         #ansible ${NPOOL} -i vmpools_${OS}_ips2.ini -u root -m ping >${LOG_FILE}
-        echo ansible ${NPOOL} -i vmpools_${OS}_ips2.ini -u root -m setup --timeout 20 --tree ansible_out/
-        ansible ${NPOOL} -i vmpools_${OS}_ips2.ini -u root -m setup --timeout 20 --tree ansible_out/ >${LOG_FILE}
+        date
+        echo timeout 20m ansible ${NPOOL} -i vmpools_${OS}_ips2.ini -u root -m setup --timeout 20 --tree ansible_out/
+        timeout 20m ansible ${NPOOL} -i vmpools_${OS}_ips2.ini -u root -m setup --timeout 20 --tree ansible_out/ >${LOG_FILE}
+        date
       fi
     else
       #ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m ping >${LOG_FILE}
-      echo ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m setup --timeout 20 --tree ansible_out/
-      ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m setup --timeout 20 --tree ansible_out/ >${LOG_FILE}
+      date
+      echo timeout 20m ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m setup --timeout 20 --tree ansible_out/
+      timeout 20m ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m setup --timeout 20 --tree ansible_out/ >${LOG_FILE}
+      date
     fi
  
     #generate overview fancy html
