@@ -27,6 +27,11 @@ if [ "$LOS" = "linux" ]; then
   LOS="`cat ${VMS_COUNT_FILE} |cut -f1 -d":"|egrep -v win |xargs|sed 's/ /,/g'`"
 fi
 
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  SCRIPT_DIR=`dirname $(stat -f $0)`
+else
+  SCRIPT_DIR=`dirname $(readlink -f $0)`
+fi
 echo '*** Final Summary ***' >>${ALL_FINAL_UNIQUE_UNREACHABLE}
 
 FAILEDSTATE_LIST=failedstate_all.txt
@@ -73,6 +78,7 @@ do
     echo "$INDEX. Server Pool: $POOL"
     NPOOL="`echo $line|sed -e 's/ //' -e 's/-//g'`"
     LOG_FILE=ping_log_${OS}_${NPOOL}.txt
+    NTPLOGFILE=ntp_log_${OS}_${NPOOL}.txt
     OUT_UNREACHABLE=unreachable_${NPOOL}.ini
     #echo ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m ping
     if [ ! -d ansible_out/ ]; then
@@ -84,19 +90,29 @@ do
         cat vmpools_${OS}_ips.ini >vmpools_${OS}_ips2.ini
         cat ~/.ansible_vars.ini >>vmpools_${OS}_ips2.ini
         #ansible ${NPOOL} -i vmpools_${OS}_ips2.ini -u root -m ping >${LOG_FILE}
-        date
         echo timeout 20m ansible ${NPOOL} -i vmpools_${OS}_ips2.ini -u root -m setup --timeout 20 --tree ansible_out/
         timeout 20m ansible ${NPOOL} -i vmpools_${OS}_ips2.ini -u root -m setup --timeout 20 --tree ansible_out/ >${LOG_FILE}
-        date
+        echo timeout 20m ansible-playbook -i vmpools_${OS}_ips2.ini -u root --extra-vars "variable_host=${NPOOL}" $SCRIPT_DIR/ntp.yml
+        timeout 20m ansible-playbook -i vmpools_${OS}_ips2.ini -u root --extra-vars "variable_host=${NPOOL}" $SCRIPT_DIR/ntp.yml >${NTPLOGFILE}
       fi
     else
       #ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m ping >${LOG_FILE}
-      date
       echo timeout 20m ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m setup --timeout 20 --tree ansible_out/
       timeout 20m ansible ${NPOOL} -i vmpools_${OS}_ips.ini -u root -m setup --timeout 20 --tree ansible_out/ >${LOG_FILE}
-      date
+      echo timeout 20m ansible-playbook -i vmpools_${OS}_ips.ini -u root --extra-vars "variable_host=${NPOOL}" $SCRIPT_DIR/ntp.yml
+      timeout 20m ansible-playbook -i vmpools_${OS}_ips.ini -u root --extra-vars "variable_host=${NPOOL}" $SCRIPT_DIR/ntp.yml >${NTPLOGFILE}
     fi
  
+    #NTP change
+    echo " "
+    echo "${NPOOL}: NTP changes successful or failed VMs."
+    NTP_OK=`cat ${NTPLOGFILE} |egrep "ok=" |egrep "ok=4" | wc -l |xargs`
+    NTP_NOTOK=`cat ${NTPLOGFILE} |egrep "ok=" |egrep -v "ok=4" |egrep -v "ok=0"|wc -l |xargs`
+    echo "NTP enabled VMs: ${NTP_OK}, Not enabled VMs: ${NTP_NOTOK}"
+    if [ ! "${NTP_NOTOK}" = "0" ]; then
+       cat ${NTPLOGFILE} |egrep 'fatal|changed=1'|egrep -v UNREACH 
+    fi
+    echo " "
     #generate overview fancy html
     echo generate overview fancy html
     INVENTORY_FILE=inventory_for_selectedpools.html
