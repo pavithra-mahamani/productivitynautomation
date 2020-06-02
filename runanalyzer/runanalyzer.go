@@ -553,10 +553,10 @@ func getreruntotalbuildcycleduration(buildN string) int {
 
 	fmt.Println("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
 	//fmt.Println("S.No.\tBuild\t\tOS\tTestCount\tFailedCount\tPassedCount\tPassrate\tJobcount(A,F,U,S)\tTotaltime\tTotalComponents\tTotalJobs\tTotalRuns\tTotalReruns\tTotalRerunJobs")
-	fmt.Println("S.No.\tBuild\t\tOS\tTC\tFC\tPC\tRate\tAborted,Failed,Unstable,Succ\tTotalTime\t#Comp\t#Jobs\t#Runs\t#Reruns\t#RerunJobs RerunRate\tRerunTime\t\tRunStartTime\tRunEndTime\tClockTime\tRerunStartTime\tRerunEndTime\tRerunClockTime")
+	fmt.Println("S.No.\tBuild\t\tOS\tTC\tFC\tPC\tRate\tAborted,Failed,Unstable,Succ\tTotalTime\t#Comp\t#Jobs\t#Runs\t#Reruns\t#RerunJobs RerunRate\tRerunTime\t\tFirstRunStartTime\t\tFirstRunEndTime\tFirstClockTime\t\tRunStartTime\t\tRunEndTime\tClockTime\tRerunStartTime\t\tRerunEndTime\t\tRerunClockTime")
 	fmt.Println("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
 	fmt.Fprintln(outW, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
-	fmt.Fprintln(outW, "S.No.\tBuild\t\tOS\tTC\tFC\tPC\tRate\tAborted,Failed,Unstable,Succ\tTotalTime\t#Comp\t#Jobs\t#Runs\t#Reruns\t#RerunJobs RerunRate\tRerunTime\tRerunTime\t\tRunStartTime\tRunEndTime\tClockTime\tRerunStartTime\tRerunEndTime\tRerunClockTime")
+	fmt.Fprintln(outW, "S.No.\tBuild\t\tOS\tTC\tFC\tPC\tRate\tAborted,Failed,Unstable,Succ\tTotalTime\t#Comp\t#Jobs\t#Runs\t#Reruns\t#RerunJobs RerunRate\tRerunTime\tRerunTime\t\tFirstRunStartTime\t\tFirstRunEndTime\t\tFirstClockTime\tRunStartTime\t\tRunEndTime\t\tClockTime\tRerunStartTime\t\tRerunEndTime\t\tRerunClockTime")
 	fmt.Fprintln(outW, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
 
 	fmt.Fprintln(outClockW, "\n\tComponent\tTestSuite\t\tJenkinBuildURL\t\tStart\t\tEnd\t\tClockDuration")
@@ -1691,6 +1691,7 @@ func DownloadJenkinsURLToFile(buildURL string, outFile string) []byte {
 
 	byteValue, _ := ioutil.ReadAll(resultFile)
 	resultFile.Close()
+
 	return byteValue
 }
 
