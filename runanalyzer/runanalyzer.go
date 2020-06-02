@@ -557,7 +557,7 @@ func getreruntotalbuildcycleduration(buildN string) int {
 		"---------------------------------------------------------")
 	//fmt.Println("S.No.\tBuild\t\tOS\tTestCount\tFailedCount\tPassedCount\tPassrate\tJobcount(A,F,U,S)\tTotaltime\tTotalComponents\tTotalJobs\tTotalRuns\tTotalReruns\tTotalRerunJobs")
 	fmt.Println("S.No.\tBuild\t\tOS\tTC\tFC\tPC\tRate\tAborted,Failed,Unstable,Succ\tTotalTime\t#Comp\t#Jobs\t#Runs\t#Reruns\t#RerunJobs RerunRate\tRerunTime" +
-		"\t\tFirstRunStartTime\t\tFirstRunEndTime\t\t\tFirstClockTime\tRunStartTime\t\t\tRunEndTime\t\t\tClockTime\tRerunStartTime\t\tRerunEndTime\t\t\tRerunClockTime")
+		"\t\tFirstRunStartTime\t\tFirstRunEndTime\t\t\tFirstClockTime\tRunStartTime\t\t\tRunEndTime\t\t\tClockTime\tRerunStartTime\t\t\tRerunEndTime\t\t\tRerunClockTime")
 	fmt.Println("----------------------------------------------------------------------------------------------------------------------------" +
 		"-------------------------------------------------------------------------------------------------------------------------------------" +
 		"--------------------------------------------------------------------------------------------------------------------------------------" +
@@ -566,8 +566,8 @@ func getreruntotalbuildcycleduration(buildN string) int {
 		"-------------------------------------------------------------------------------------------------------------------------------------"+
 		"--------------------------------------------------------------------------------------------------------------------------------------"+
 		"---------------------------------------------------------")
-	fmt.Fprintln(outW, "S.No.\tBuild\t\tOS\tTC\tFC\tPC\tRate\tAborted,Failed,Unstable,Succ\tTotalTime\t#Comp\t#Jobs\t#Runs\t#Reruns\t#RerunJobs RerunRate\tRerunTime\tRerunTime"+
-		"\t\tFirstRunStartTime\t\tFirstRunEndTime\t\t\tFirstClockTime\tRunStartTime\t\t\tRunEndTime\t\t\tClockTime\tRerunStartTime\t\tRerunEndTime\t\t\tRerunClockTime")
+	fmt.Fprintln(outW, "S.No.\tBuild\t\tOS\tTC\tFC\tPC\tRate\tAborted,Failed,Unstable,Succ\tTotalTime\t#Comp\t#Jobs\t#Runs\t#Reruns\t#RerunJobs RerunRate\tRerunTime"+
+		"\t\tFirstRunStartTime\t\tFirstRunEndTime\t\t\tFirstClockTime\tRunStartTime\t\t\tRunEndTime\t\t\tClockTime\tRerunStartTime\t\t\tRerunEndTime\t\t\tRerunClockTime")
 	fmt.Fprintln(outW, "----------------------------------------------------------------------------------------------------------------------------"+
 		"-------------------------------------------------------------------------------------------------------------------------------------"+
 		"--------------------------------------------------------------------------------------------------------------------------------------"+
