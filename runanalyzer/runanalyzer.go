@@ -653,7 +653,7 @@ func getreruntotalbuildcycleduration(buildN string) int {
 									}
 									//fmt.Println("\nRerun Download..." + downloadURL)
 									//fmt.Printf("\nOverall Download...%s", downloadURL)
-									jsonValue := DownloadJenkinsURLToFile(downloadURL+"/api/json?prretty=true", "jenkins_build.json")
+									jsonValue := DownloadJenkinsURLContent(downloadURL + "/api/json?prretty=true")
 									var jenkinsBuild JenkinsBuildInfo
 									err := json.Unmarshal(jsonValue, &jenkinsBuild)
 									if err == nil {
@@ -681,7 +681,7 @@ func getreruntotalbuildcycleduration(buildN string) int {
 									downloadURL = fmt.Sprintf("%s%d", tests[i].URL, tests[i].Build_ID)
 								}
 								//fmt.Printf("\nOverall Download...%s", downloadURL)
-								jsonValue := DownloadJenkinsURLToFile(downloadURL+"/api/json?prretty=true", "jenkins_build.json")
+								jsonValue := DownloadJenkinsURLContent(downloadURL + "/api/json?prretty=true")
 								var jenkinsBuild JenkinsBuildInfo
 								err := json.Unmarshal(jsonValue, &jenkinsBuild)
 								if err == nil {
@@ -1680,19 +1680,46 @@ type JenkinsBuildInfo struct {
 	BuiltOn           string
 }
 
-//DownloadJenkinsURLToFile for given URL
-func DownloadJenkinsURLToFile(buildURL string, outFile string) []byte {
-	DownloadFromJenkins(outFile, buildURL)
-	resultFile, err := os.Open(outFile)
-	if err != nil {
-		fmt.Println(err)
-	}
-	defer resultFile.Close()
+//DownloadJenkinsURLContent for given URL
+func DownloadJenkinsURLContent(fromURL string) []byte {
+	//DownloadFromJenkins(outFile, buildURL)
 
-	byteValue, _ := ioutil.ReadAll(resultFile)
-	resultFile.Close()
+	URLParts := strings.Split(fromURL, "/")
+	jenkinsServer := strings.ToUpper(strings.Split(URLParts[2], ".")[0])
+
+	//fmt.Println("Jenkins Server: ", jenkinsServer)
+	props := properties.MustLoadFile("${HOME}/.jenkins_env.properties", properties.UTF8)
+	jenkinsUser := props.MustGetString(jenkinsServer + "_JENKINS_USER")
+	jenkinsUserPwd := props.MustGetString(jenkinsServer + "_JENKINS_TOKEN")
+
+	byteValue, _ := DownloadFileWithBasicAuthContent(fromURL, jenkinsUser, jenkinsUserPwd)
 
 	return byteValue
+}
+
+// DownloadFileWithBasicAuthContent will download the given url and return content.
+func DownloadFileWithBasicAuthContent(remoteURL string, userName string, pwd string) ([]byte, error) {
+	//fmt.Println("Downloading ...", localFilePath, "--", remoteURL, "---", userName, "---", pwd)
+	client := &http.Client{}
+	req, _ := http.NewRequest("GET", remoteURL, nil)
+	//localFilePath := path.Base(req.URL.Path)
+	req.SetBasicAuth(userName, pwd)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		//log.Println("Warning: ", remoteURL, " not found!")
+		return nil, err
+	}
+	responseData, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	resp.Body.Close()
+
+	return responseData, err
+
 }
 
 // TestSuiteN1QLQryResult type
