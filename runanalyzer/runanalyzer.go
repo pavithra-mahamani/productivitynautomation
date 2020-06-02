@@ -544,16 +544,23 @@ func getreruntotalbuildcycleduration(buildN string) int {
 	outW := bufio.NewWriter(outFile)
 	defer outFile.Close()
 
+	outClockTimeFile, _ := os.Create("clocktime_summary.txt")
+	outClockW := bufio.NewWriter(outClockTimeFile)
+	defer outClockTimeFile.Close()
+
 	fmt.Printf("\nSummary report of regression cycles on the last %s build(s) in %s %s\n", limits, cbbuild, qryfilter)
 	fmt.Fprintf(outW, "\nSummary report of regression cycles on the last %s build(s) in %s %s\n", limits, cbbuild, qryfilter)
 
-	fmt.Println("-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Println("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
 	//fmt.Println("S.No.\tBuild\t\tOS\tTestCount\tFailedCount\tPassedCount\tPassrate\tJobcount(A,F,U,S)\tTotaltime\tTotalComponents\tTotalJobs\tTotalRuns\tTotalReruns\tTotalRerunJobs")
-	fmt.Println("S.No.\tBuild\t\tOS\tTC\tFC\tPC\tRate\tAborted,Failed,Unstable,Succ\tTotalTime\t#Comp\t#Jobs\t#Runs\t#Reruns\t#RerunJobs RerunRate\tRerunTime\tRunStartTime\tRunEndTime\tClockTime\tRerunStartTime\tRerunEndTime\tRerunClockTime")
-	fmt.Println("-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
-	fmt.Fprintln(outW, "-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
-	fmt.Fprintln(outW, "S.No.\tBuild\t\tOS\tTC\tFC\tPC\tRate\tAborted,Failed,Unstable,Succ\tTotalTime\t#Comp\t#Jobs\t#Runs\t#Reruns\t#RerunJobs RerunRate\tRerunTime\tRerunTime\tRunStartTime\tRunEndTime\tClockTime\tRerunStartTime\tRerunEndTime\tRerunClockTime")
-	fmt.Fprintln(outW, "-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Println("S.No.\tBuild\t\tOS\tTC\tFC\tPC\tRate\tAborted,Failed,Unstable,Succ\tTotalTime\t#Comp\t#Jobs\t#Runs\t#Reruns\t#RerunJobs RerunRate\tRerunTime\t\tRunStartTime\tRunEndTime\tClockTime\tRerunStartTime\tRerunEndTime\tRerunClockTime")
+	fmt.Println("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "S.No.\tBuild\t\tOS\tTC\tFC\tPC\tRate\tAborted,Failed,Unstable,Succ\tTotalTime\t#Comp\t#Jobs\t#Runs\t#Reruns\t#RerunJobs RerunRate\tRerunTime\tRerunTime\t\tRunStartTime\tRunEndTime\tClockTime\tRerunStartTime\tRerunEndTime\tRerunClockTime")
+	fmt.Fprintln(outW, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+
+	fmt.Fprintln(outClockW, "\n\tComponent\tTestSuite\t\tJenkinBuildURL\t\tStart\t\tEnd\t\tClockDuration")
+	fmt.Fprintln(outClockW, "--------------------------------------------------------------------------------------------------------------------")
 
 	sno := 1
 	//for i := 0; i < len(cbbuilds); i++ {
@@ -595,6 +602,7 @@ func getreruntotalbuildcycleduration(buildN string) int {
 
 			for key, value := range result.Results[i].BuildOS {
 				//fmt.Println("OS:", key, "Value:", value, "# of Jobs/Suites:", len(value))
+
 				totalRuns := 0
 				totalReruns := 0
 				totalJobs := 0
@@ -607,18 +615,24 @@ func getreruntotalbuildcycleduration(buildN string) int {
 				totalSuccess := 0
 				var totalRerunOnlyDuration int64
 				var totalGrandDuration int64
-				var totalDuration int64
+				var totalFirstDuration int64
 				var reranJobsList string
 				var startTimeStamp int64
 				var endTimeStamp int64
 				var rerunStartTimeStamp int64
 				var rerunEndTimeStamp int64
+				var firstStartTimeStamp int64
+				var firstEndTimeStamp int64
 				startTimeStamp = 0
 				rerunStartTimeStamp = 0
 				endTimeStamp = 0
 				rerunEndTimeStamp = 0
+				firstStartTimeStamp = 0
+				firstEndTimeStamp = 0
+				jobIndex := 1
 				for key1, value1 := range value {
 					//fmt.Println("\nComponent:", key1, "Value1:", value1)
+					fmt.Fprintf(outClockW, "\n\t%s \t%s \n", cbbuild, key)
 					totalJobs += len(value1)
 					for key2, value2 := range value1 {
 						//fmt.Println("\nJob/Suite:", key2, "Value2:", value2)
@@ -647,7 +661,7 @@ func getreruntotalbuildcycleduration(buildN string) int {
 											rerunStartTimeStamp = jenkinsBuild.Timestamp
 											//fmt.Printf("\nRerun Download...%s", downloadURL)
 										}
-										if rerunEndTimeStamp < jenkinsBuild.Timestamp+jenkinsBuild.Duration {
+										if rerunEndTimeStamp < (jenkinsBuild.Timestamp + jenkinsBuild.Duration) {
 											rerunEndTimeStamp = jenkinsBuild.Timestamp + jenkinsBuild.Duration
 										}
 
@@ -675,15 +689,29 @@ func getreruntotalbuildcycleduration(buildN string) int {
 										startTimeStamp = jenkinsBuild.Timestamp
 										//fmt.Printf("\nOverall Download...%s", downloadURL)
 									}
-									if endTimeStamp < jenkinsBuild.Timestamp+jenkinsBuild.Duration {
+									if endTimeStamp < (jenkinsBuild.Timestamp + jenkinsBuild.Duration) {
 										endTimeStamp = jenkinsBuild.Timestamp + jenkinsBuild.Duration
+									}
+									if i == rerunCount-1 { //very first run
+										if firstStartTimeStamp == 0 || firstStartTimeStamp > jenkinsBuild.Timestamp {
+											firstStartTimeStamp = jenkinsBuild.Timestamp
+										}
+										if firstEndTimeStamp < (jenkinsBuild.Timestamp + jenkinsBuild.Duration) {
+											firstEndTimeStamp = jenkinsBuild.Timestamp + jenkinsBuild.Duration
+										}
 									}
 									//fmt.Printf("\n%d %s", jenkinsBuild.Timestamp, time.Unix(jenkinsBuild.Timestamp/1000, 0))
 								}
 
+								pstart1 := time.Unix(jenkinsBuild.Timestamp/1000, 0)
+								pend1 := time.Unix((jenkinsBuild.Timestamp+jenkinsBuild.Duration)/1000, 0)
+								pclockTime := pend1.Sub(pstart1)
+								fmt.Fprintf(outClockW, "\n%d\t%s \t%s \t%s \t%s \t%s \t%s", jobIndex, key1, key2, downloadURL, pstart1, pend1, pclockTime)
+								jobIndex++
 							}
+
 						}
-						totalDuration += tests[0].Duration
+						totalFirstDuration += tests[rerunCount-1].Duration
 						totalFailCount += tests[0].FailCount
 						totalTestCount += tests[0].TotalCount
 						switch tests[0].Result {
@@ -712,7 +740,7 @@ func getreruntotalbuildcycleduration(buildN string) int {
 				var totalPassRate = (totalPassCount * 100) / totalTestCount
 				var totalComps = len(value)
 				hours := math.Floor(float64(totalGrandDuration) / 1000 / 60 / 60)
-				secs := totalDuration % (1000 * 60 * 60)
+				secs := totalGrandDuration % (1000 * 60 * 60)
 				mins := math.Floor(float64(secs) / 60 / 1000)
 
 				rerunHours := math.Floor(float64(totalRerunOnlyDuration) / 1000 / 60 / 60)
@@ -729,24 +757,28 @@ func getreruntotalbuildcycleduration(buildN string) int {
 				end2 := time.Unix(rerunEndTimeStamp/1000, 0)
 				clockTime2 := end2.Sub(start2)
 
+				start0 := time.Unix(firstStartTimeStamp/1000, 0)
+				end0 := time.Unix(firstEndTimeStamp/1000, 0)
+				clockTime0 := end0.Sub(start0)
+
 				if totalJobs > 100 {
 					fmt.Printf("\n%d\t%s \t\t%d \t%d", (sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount)
 					fmt.Fprintf(outW, "\n%d\t%s \t\t%d \t%d", (sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount)
 					if rerunHours > 0 || rerunMins > 0 {
-						fmt.Printf("\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%3d%% \t\t%4dhrs:%2dmins  \t%s \t%s \t%s, \t%s \t%s \t%s",
+						fmt.Printf("\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%3d%% \t\t%4dhrs:%2dmins  \t%s \t%s \t%s, \t%s \t%s \t%s \t%s \t%s \t%s",
 							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
-							totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins), start1, end1, clockTime, start2, end2, clockTime2)
-						fmt.Fprintf(outW, "\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%3d%% \t\t%4dhrs:%2dmins  \t%s \t%s \t%s \t%s \t%s \t%s",
+							totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins), start0, end0, clockTime0, start1, end1, clockTime, start2, end2, clockTime2)
+						fmt.Fprintf(outW, "\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%3d%% \t\t%4dhrs:%2dmins  \t%s \t%s \t%s \t%s \t%s \t%s \t%s \t%s \t%s",
 							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
-							totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins), start1, end1, clockTime, start2, end2, clockTime2)
+							totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins), start0, end0, clockTime0, start1, end1, clockTime, start2, end2, clockTime2)
 						fmt.Fprintf(outW, "\n%s", reranJobsList)
 					} else {
-						fmt.Printf("\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \tstart=%s \tend=%s \t%s \t%s \t%s \t%s",
+						fmt.Printf("\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \tstart=%s \tend=%s \t%s \t%s \t%s \t%s \t%s \t%s \t%s",
 							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
-							totalRuns, totalReruns, reranJobCount, start1, end1, clockTime, start2, end2, clockTime2)
-						fmt.Fprintf(outW, "\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%s \t%s \t%s \t%s \t%s \t%s",
+							totalRuns, totalReruns, reranJobCount, start0, end0, clockTime0, start1, end1, clockTime, start2, end2, clockTime2)
+						fmt.Fprintf(outW, "\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%s \t%s \t%s \t%s \t%s \t%s \t%s \t%s \t%s",
 							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
-							totalRuns, totalReruns, reranJobCount, start1, end1, clockTime, start2, end2, clockTime2)
+							totalRuns, totalReruns, reranJobCount, start0, end0, clockTime0, start1, end1, clockTime, start2, end2, clockTime2)
 					}
 					sno++
 				}
@@ -754,13 +786,14 @@ func getreruntotalbuildcycleduration(buildN string) int {
 			}
 
 			outW.Flush()
+			outClockW.Flush()
 		}
 	} else {
 		fmt.Println("Status: Failed. " + err.Error())
 	}
 	//}
-	fmt.Println("\n-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
-	fmt.Fprintln(outW, "\n-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Println("\n-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+	fmt.Fprintln(outW, "\n-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
 
 	p := fmt.Println
 	t := time.Now()
@@ -1657,6 +1690,7 @@ func DownloadJenkinsURLToFile(buildURL string, outFile string) []byte {
 	defer resultFile.Close()
 
 	byteValue, _ := ioutil.ReadAll(resultFile)
+	resultFile.Close()
 	return byteValue
 }
 
