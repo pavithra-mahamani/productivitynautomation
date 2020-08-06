@@ -35,7 +35,7 @@ get_results_json()
 
 get_runtime()
 {
-  echo 
+  echo TestCase,TestCount,ExecutionTime
   cat ${RESULTS_JSON} | jq -r  '.suites[]|.name + "," + (.cases|length|tostring) + "," + (.duration |tostring)'
   TEST_COUNT=`cat ${RESULTS_JSON} | jq '.failCount + .passCount + .skipCount'`
   TOTAL_TIME=`cat ${RESULTS_JSON} | jq '.duration'`
