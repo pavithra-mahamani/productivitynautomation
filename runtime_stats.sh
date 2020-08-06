@@ -12,6 +12,7 @@
 
 JOB_URL="$1"
 RESULTS_JSON=results.json
+JQ_TOOL=~/jq
 if [ "${JOB_URL}" = "" ]; then
   echo Usage: $0 jenkins_job_url_or_save_logs_s3url
   exit 1
@@ -36,9 +37,9 @@ get_results_json()
 get_runtime()
 {
   echo TestCase,TestCount,ExecutionTime
-  cat ${RESULTS_JSON} | jq -r  '.suites[]|.name + "," + (.cases|length|tostring) + "," + (.duration |tostring)'
-  TEST_COUNT=`cat ${RESULTS_JSON} | jq '.failCount + .passCount + .skipCount'`
-  TOTAL_TIME=`cat ${RESULTS_JSON} | jq '.duration'`
+  cat ${RESULTS_JSON} | ${JQ_TOOL} -r  '.suites[]|.name + "," + (.cases|length|tostring) + "," + (.duration |tostring)'
+  TEST_COUNT=`cat ${RESULTS_JSON} | ${JQ_TOOL} '.failCount + .passCount + .skipCount'`
+  TOTAL_TIME=`cat ${RESULTS_JSON} | ${JQ_TOOL} '.duration'`
   echo 
   echo "TOTAL,${TEST_COUNT},${TOTAL_TIME}"
 }
