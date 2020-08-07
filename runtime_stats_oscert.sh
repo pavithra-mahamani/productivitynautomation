@@ -54,8 +54,8 @@ get_os_cert_jobs()
  declare -A ALL_PLATFORMS
  for LINE in `cat ${BUILD}_os_certify.csv`
  do
-   OS=`echo $LINE|cut -f1 -d','`
    NAME=`echo $LINE|cut -f2 -d','`
+   OS=`echo $NAME|cut -f1 -d'-'`
    URL=`echo $LINE|cut -f3 -d','`
    BUILD_ID=`echo $LINE|cut -f4 -d','`
    echo 
