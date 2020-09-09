@@ -5,12 +5,12 @@
 ########################################################
 command="$1"
 if [ "$command" = "" ]; then
-  echo "Usage $0: command"
+  echo "Usage $0: help|command"
   exit 1
 fi
 
 DATE_TIME="`date '+%m%d%y_%H%M%S'`"
-REPO="testrunner-dbaas"
+REPO="testrunner"
 CURDIR=`pwd`
 VIRTUAL_DIR=./virtualpy
 INI_FILE=cbruntime.ini
@@ -20,7 +20,10 @@ checkout()
 {
   if [ ! -d ./${REPO} ]; then
      echo "*** Cloud Tests runtime: checkout workspace ***"
-     git clone http://github.com/couchbaselabs/${REPO}.git
+     git clone -b cloud http://github.com/couchbase/${REPO}.git
+     #cd ${REPO}
+     #git fetch "http://review.couchbase.org/testrunner" refs/changes/30/135930/2 && git cherry-pick FETCH_HEAD
+     #cd ${CURDIR}
   #else
   #   cd ${REPO}
   #   git pull  
@@ -226,6 +229,12 @@ help()
   echo reset : reset buckets
   echo install version host rootpwd cbpwd cbuser services : new cluster
   echo run host cbuser cbpwd services : tests
+  echo Examples:
+  echo "   cloudtest.sh run 172.23.96.189"
+  echo "   cloudtest.sh run 172.31.24.84:ec2-52-33-68-73.us-west-2.compute.amazonaws.com"
+  echo "   cloudtest.sh reset default"
+  echo "   cloudtest.sh run 172.23.96.189 Administrator password 'kv,index,n1ql,fts,cbas,eventing' 18091 '-d CBASBucketOperations'"
+  echo "   cloudtest.sh run 172.31.20.29:ec2-18-234-243-66.compute-1.amazonaws.com Administrator password 'kv,index,n1ql,fts,cbas,eventing' 18091 '-d viewquerytests'"
 }
 
 $@
