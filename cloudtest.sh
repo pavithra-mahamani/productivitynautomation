@@ -141,6 +141,8 @@ prereq()
   echo "*** pre-requirements ***"
   if [ ! -d ./${CBTOOL_REPO} ]; then
      git clone http://github.com/couchbaselabs/${CBTOOL_REPO}.git
+  fi
+  if [ ! -f ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar ]; then
      cd ${CBTOOL_REPO}/${CBTOOL}
      mvn package
      cd ${CURDIR}
@@ -160,6 +162,8 @@ reset()
   BUCKET="$1"
   if [ ! -d ./${CBTOOL_REPO} ]; then
      git clone http://github.com/couchbaselabs/${CBTOOL_REPO}.git
+  fi
+  if [ ! -f ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar ]; then
      cd ${CBTOOL_REPO}/${CBTOOL}
      mvn package
      cd ${CURDIR}
