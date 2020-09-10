@@ -995,7 +995,7 @@ public class CouchbasePowerTool
 					BufferedReader reader = new BufferedReader(new FileReader(new File(file)));
 					String queryParts = null;
 					while ((query=reader.readLine())!=null) {
-						if (query.startsWith("--")||query.startsWith("/*")||query.startsWith("#")||query.strip()=="") {
+						if (query.startsWith("--")||query.startsWith("/*")||query.startsWith("#")||query.trim()=="") {
 							continue;
 						}
 						queryParts = query;
@@ -1220,7 +1220,7 @@ public class CouchbasePowerTool
 					String queryParts = null;
 					
 					while ((query=reader.readLine())!=null) {
-						if (query.startsWith("--")||query.startsWith("/*")||query.startsWith("#")||query.strip()=="") {
+						if (query.startsWith("--")||query.startsWith("/*")||query.startsWith("#")||query.trim()=="") {
 							continue;
 						}
 						
