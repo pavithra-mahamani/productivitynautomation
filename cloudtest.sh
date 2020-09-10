@@ -16,6 +16,7 @@ VIRTUAL_DIR=./virtualpy
 INI_FILE=cbruntime.ini
 BUCKET="default"
 CBTOOL="cbpowertool"
+CBTOOL_REPO="productivitynautomation"
 
 checkout()
 {
@@ -138,9 +139,9 @@ install()
 prereq()
 {
   echo "*** pre-requirements ***"
-  if [ ! -d ./${CBTOOL} ]; then
-     git clone http://github.com/couchbaselabs/${CBTOOL}.git
-     cd ${CBTOOL}
+  if [ ! -d ./${CBTOOL_REPO} ]; then
+     git clone http://github.com/couchbaselabs/${CBTOOL_REPO}.git
+     cd ${CBTOOL_REPO}/${CBTOOL}
      mvn package
      cd ${CURDIR}
   fi
@@ -150,17 +151,16 @@ prereq()
   CB_USER="`cat ${INI_FILE}|egrep rest_username|cut -f2 -d':'`"
   CB_USERPWD="`cat ${INI_FILE}|egrep rest_password|cut -f2 -d':'`"
   curl -v -X POST -u ${CB_USER}:${CB_USERPWD} http://${HOST}:${PORT}/pools/${BUCKET} -d memoryQuota=900 -d ftsMemoryQuota=256
-  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST}  -jar ${CURDIR}/${CBTOOL}/target/cbpowertool-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST}  -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
 
 }
 reset()
 {
   echo "*** Reset ***"
   BUCKET="$1"
-  if [ ! -d ./${CBTOOL} ]; then
-     echo "*** Cloud test util ***"
-     git clone http://github.com/jdmuntacb/${CBTOOL}.git
-     cd ${CBTOOL}
+  if [ ! -d ./${CBTOOL_REPO} ]; then
+     git clone http://github.com/couchbaselabs/${CBTOOL_REPO}.git
+     cd ${CBTOOL_REPO}/${CBTOOL}
      mvn package
      cd ${CURDIR}
   fi
@@ -168,8 +168,8 @@ reset()
   PORT="`cat ${INI_FILE}|egrep port|cut -f2 -d':'`"
   CB_USER="`cat ${INI_FILE}|egrep rest_username|cut -f2 -d':'`"
   CB_USERPWD="`cat ${INI_FILE}|egrep rest_password|cut -f2 -d':'`"
-  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET},src_bucket,dst_bucket,metadata -Doperation=drop -Durl=${HOST} -jar ${CURDIR}/${CBTOOL}/target/cbpowertool-0.0.1-SNAPSHOT-jar-with-dependencies.jar
-  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST}  -jar ${CURDIR}/${CBTOOL}/target/cbpowertool-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET},src_bucket,dst_bucket,metadata -Doperation=drop -Durl=${HOST} -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST}  -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
 }
 
 runtimeini()
