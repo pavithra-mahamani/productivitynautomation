@@ -15,19 +15,13 @@ CURDIR=`pwd`
 VIRTUAL_DIR=./virtualpy
 INI_FILE=cbruntime.ini
 BUCKET="default"
+CBTOOL="cbpowertool"
 
 checkout()
 {
   if [ ! -d ./${REPO} ]; then
      echo "*** Cloud Tests runtime: checkout workspace ***"
      git clone -b cloud http://github.com/couchbase/${REPO}.git
-     #cd ${REPO}
-     #git fetch "http://review.couchbase.org/testrunner" refs/changes/30/135930/2 && git cherry-pick FETCH_HEAD
-     #cd ${CURDIR}
-  #else
-  #   cd ${REPO}
-  #   git pull  
-  #   cd ${CURDIR} 
   fi
 }
 
@@ -144,24 +138,38 @@ install()
 prereq()
 {
   echo "*** pre-requirements ***"
+  if [ ! -d ./${CBTOOL} ]; then
+     git clone http://github.com/couchbaselabs/${CBTOOL}.git
+     cd ${CBTOOL}
+     mvn package
+     cd ${CURDIR}
+  fi
+  runtimeini cbruntime.ini $@
   HOST="`cat ${INI_FILE}|egrep ip|cut -f2 -d':'`"
   PORT="`cat ${INI_FILE}|egrep port|cut -f2 -d':'`"
   CB_USER="`cat ${INI_FILE}|egrep rest_username|cut -f2 -d':'`"
   CB_USERPWD="`cat ${INI_FILE}|egrep rest_password|cut -f2 -d':'`"
   curl -v -X POST -u ${CB_USER}:${CB_USERPWD} http://${HOST}:${PORT}/pools/${BUCKET} -d memoryQuota=900 -d ftsMemoryQuota=256
-  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST}  -jar ~/couchbaselabs/cbtest/target/cbtest-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST}  -jar ${CURDIR}/${CBTOOL}/target/cbpowertool-0.0.1-SNAPSHOT-jar-with-dependencies.jar
 
 }
 reset()
 {
   echo "*** Reset ***"
   BUCKET="$1"
+  if [ ! -d ./${CBTOOL} ]; then
+     echo "*** Cloud test util ***"
+     git clone http://github.com/jdmuntacb/${CBTOOL}.git
+     cd ${CBTOOL}
+     mvn package
+     cd ${CURDIR}
+  fi
   HOST="`cat ${INI_FILE}|egrep ip|cut -f2 -d':'`"
   PORT="`cat ${INI_FILE}|egrep port|cut -f2 -d':'`"
   CB_USER="`cat ${INI_FILE}|egrep rest_username|cut -f2 -d':'`"
   CB_USERPWD="`cat ${INI_FILE}|egrep rest_password|cut -f2 -d':'`"
-  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET},src_bucket,dst_bucket,metadata -Doperation=drop -Durl=${HOST} -jar ~/couchbaselabs/cbtest/target/cbtest-0.0.1-SNAPSHOT-jar-with-dependencies.jar
-  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST}  -jar ~/couchbaselabs/cbtest/target/cbtest-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET},src_bucket,dst_bucket,metadata -Doperation=drop -Durl=${HOST} -jar ${CURDIR}/${CBTOOL}/target/cbpowertool-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST}  -jar ${CURDIR}/${CBTOOL}/target/cbpowertool-0.0.1-SNAPSHOT-jar-with-dependencies.jar
 }
 
 runtimeini()
@@ -208,14 +216,14 @@ run()
   runtimeini cbruntime.ini $@
   export testrunner_client="python_sdk"
   setuppython
-  reset ${BUCKET}
+  #reset ${BUCKET}
   cd ${REPO}
   if [[ $1 == *":"* ]]; then
     SERVERS_MAP="$1"
   fi
   echo time python3 testrunner.py -i ${INI_FILE} -c py-1node-sanity-cloud.conf ${6} ${7} -p skip_host_login=True,skip_init_check_cbserver=True,get-cbcollect-info=False,http_protocol=https,bucket_size=100,default_bucket_name=${BUCKET},use_sdk_client=True,skip_bucket_setup=True,skip_buckets_handle=True,is_secure=True,skip_setup_cleanup=True,servers_map=${SERVERS_MAP}
   #read n
-  time python3 testrunner.py -i ${INI_FILE} -c py-1node-sanity-cloud.conf ${6} ${7} -p skip_host_login=True,skip_init_check_cbserver=True,get-cbcollect-info=False,http_protocol=https,bucket_size=100,default_bucket_name=${BUCKET},use_sdk_client=True,skip_bucket_setup=True,skip_buckets_handle=True,is_secure=True,skip_setup_cleanup=True,servers_map=${SERVERS_MAP}  |tee ${CURDIR}/run_${DATETIME}.txt
+  time python3 testrunner.py -i ${INI_FILE} -c py-1node-sanity-cloud.conf ${6} ${7} -p skip_host_login=True,skip_init_check_cbserver=True,get-cbcollect-info=False,http_protocol=https,bucket_size=100,default_bucket_name=${BUCKET},use_sdk_client=True,skip_bucket_setup=True,skip_buckets_handle=True,is_secure=True,skip_setup_cleanup=True,servers_map=${SERVERS_MAP}  |tee ${CURDIR}/run_${DATE_TIME}.txt
   cd ${CURDIR}
 }
 
