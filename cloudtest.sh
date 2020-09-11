@@ -63,6 +63,7 @@ setuppython()
     pip3 install pyes
     pip3 install bs4
     pip3 install requests
+    pip3 install kubernetes
   else
     echo "Python virtual env exists"
     source $VIRTUAL_DIR/bin/activate
