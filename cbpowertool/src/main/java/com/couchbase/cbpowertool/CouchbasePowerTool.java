@@ -16,8 +16,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
@@ -28,6 +30,7 @@ import com.couchbase.client.core.deps.io.netty.handler.ssl.util.InsecureTrustMan
 import com.couchbase.client.core.diagnostics.PingResult;
 import com.couchbase.client.core.env.IoConfig;
 import com.couchbase.client.core.env.SecurityConfig;
+import com.couchbase.client.core.env.SeedNode;
 import com.couchbase.client.core.error.BucketExistsException;
 import com.couchbase.client.core.error.BucketNotFoundException;
 import com.couchbase.client.core.error.CollectionExistsException;
@@ -180,10 +183,11 @@ public class CouchbasePowerTool
     	String pwd = props.getProperty("password", "password");
     	String bucketName = props.getProperty("bucket","default");
     	boolean isdbaas = Boolean.parseBoolean(props.getProperty("dbaas", "false"));
-    	
+    	boolean istls = Boolean.parseBoolean(props.getProperty("tls", ""+isdbaas));
+    	print("tls="+istls+", dbaas="+isdbaas);
     	ClusterEnvironment env = ClusterEnvironment.builder()
     		       .ioConfig(IoConfig.enableDnsSrv(isdbaas))
-    		       .securityConfig(SecurityConfig.enableTls(isdbaas)
+    		       .securityConfig(SecurityConfig.enableTls(istls)
     		               .trustManagerFactory(InsecureTrustManagerFactory.INSTANCE))
     		       .build();
     	print("Connecting to cluster");
@@ -202,18 +206,30 @@ public class CouchbasePowerTool
             params = {"props - Properties, Ex: -Drun=connectCluster -Durl=localhost -Duser=Administrator -Dpassword=password -Dbucket=default -Ddbaas=false"}) 
     public Cluster connectClusterOnly(Properties props) {
     	String url = props.getProperty("url", "localhost");
+    	int port = Integer.parseInt(props.getProperty("port", "8091"));
+    	int kvport = Integer.parseInt(props.getProperty("kvport", "11207"));
     	String user = props.getProperty("user","Administrator");
     	String pwd = props.getProperty("password", "password");
     	String bucketName = props.getProperty("bucket","default");
     	boolean isdbaas = Boolean.parseBoolean(props.getProperty("dbaas", "false"));
+    	boolean istls = Boolean.parseBoolean(props.getProperty("tls", ""+isdbaas));
+    	
+    	print("tls="+istls+", dbaas="+isdbaas+", port="+port);
+    	if (istls) {
+    		
+    	}
     	
     	ClusterEnvironment env = ClusterEnvironment.builder()
     		       .ioConfig(IoConfig.enableDnsSrv(isdbaas))
-    		       .securityConfig(SecurityConfig.enableTls(isdbaas)
+    		       .securityConfig(SecurityConfig.enableTls(istls)
     		               .trustManagerFactory(InsecureTrustManagerFactory.INSTANCE))
     		       .build();
     	print("Connecting to cluster");
-		cluster = Cluster.connect(url, 
+    	Set seedNodes = new HashSet<>(Collections.singletonList(
+    			   SeedNode.create(url, Optional.of(kvport), Optional.of(port))
+    			 ));
+    	
+		cluster = Cluster.connect(seedNodes, 
 				ClusterOptions.clusterOptions(user, pwd).environment(env));
 		
 		print("Connected to cluster");
@@ -271,7 +287,11 @@ public class CouchbasePowerTool
 	    			while (st1.hasMoreTokens()) {
 	    				String bucketName1 = st1.nextToken();
 	    				print("Droping bucket: "+bucketName1);
-	    				manager.dropBucket(bucketName1);
+	    				try {
+	    					manager.dropBucket(bucketName1);
+	    				} catch (BucketNotFoundException bnfe) {
+	    	        		print(bucketName +" doesn't exist!");
+	    	        	}
 	    			}
 	    			break;
 	    		case "dropall":
@@ -281,7 +301,11 @@ public class CouchbasePowerTool
 	    			for (String bKey: bucketNames) {
 	    				print("Droping..."+buckets.get(bKey).toString());
 	    				BucketSettings b = (BucketSettings)buckets.get(bKey);
-	    				manager.dropBucket(b.name());
+	    				try {
+	    					manager.dropBucket(b.name());
+	    				} catch (BucketNotFoundException bnfe) {
+	    	        		print(b.name() +" doesn't exist!");
+	    	        	}
 	    			}
 	        	    break;    
 	    			
@@ -321,8 +345,11 @@ public class CouchbasePowerTool
 				    		 }
 			    			break;
 			    		case "drop":
-			    			
-			    			manager.dropBucket(bName);
+			    			try {
+			    				manager.dropBucket(bName);
+			    			} catch (BucketNotFoundException bnfe) {
+		    	        		print(bName +" doesn't exist!");
+		    	        	}
 			    			break;
 			    		case "dropall":
 			    			Map<String, BucketSettings> buckets = manager.getAllBuckets();
@@ -331,7 +358,11 @@ public class CouchbasePowerTool
 			    			for (String bKey: bucketNames) {
 			    				print("Droping..."+buckets.get(bKey).toString());
 			    				BucketSettings b = (BucketSettings)buckets.get(bKey);
-			    				manager.dropBucket(b.name());
+			    				try {
+			    					manager.dropBucket(b.name());
+			    				} catch (BucketNotFoundException bnfe) {
+			    	        		print(b.name() +" doesn't exist!");
+			    	        	}
 			    			}
 			        	    return;    
 			    			

@@ -172,8 +172,13 @@ prereq()
   PORT="`cat ${INI_FILE}|egrep port|cut -f2 -d':'`"
   CB_USER="`cat ${INI_FILE}|egrep rest_username|cut -f2 -d':'`"
   CB_USERPWD="`cat ${INI_FILE}|egrep rest_password|cut -f2 -d':'`"
+  if [ "${PORT}" = "18091" ]; then
+     TLS="true"
+  else
+     TLS="false"
+  fi
   curl -v -X POST -u ${CB_USER}:${CB_USERPWD} http://${HOST}:${PORT}/pools/${BUCKET} -d memoryQuota=900 -d ftsMemoryQuota=256
-  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST}  -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST} -Dport=${PORT} -Dtls=${TLS} -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
 
 }
 reset()
@@ -192,8 +197,13 @@ reset()
   PORT="`cat ${INI_FILE}|egrep port|cut -f2 -d':'`"
   CB_USER="`cat ${INI_FILE}|egrep rest_username|cut -f2 -d':'`"
   CB_USERPWD="`cat ${INI_FILE}|egrep rest_password|cut -f2 -d':'`"
-  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET},src_bucket,dst_bucket,metadata -Doperation=drop -Durl=${HOST} -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
-  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST}  -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+  if [ "${PORT}" = "18091" ]; then
+     TLS="true"
+  else
+     TLS="false"
+  fi
+  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET},src_bucket,dst_bucket,metadata -Doperation=drop -Durl=${HOST} -Dport=${PORT} -Dtls=${TLS} -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST} -Dport=${PORT} -Dtls=${TLS} -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
 }
 
 runtimeini()
