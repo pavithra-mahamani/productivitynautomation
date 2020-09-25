@@ -265,10 +265,11 @@ run()
   if [[ $1 == *":"* ]]; then
     SERVERS_MAP="$1"
   fi
-  if [ -z ${ADDL_PARAMS} ]; then
-    ADDL_PARAMS=",${8}"
-  else
+  if [ ! -z ${ADDL_PARAMS} ]; then
     ADDL_PARAMS=",${ADDL_PARAMS}"
+  fi
+  if [ ! "${8}" = "" ]; then
+     ADDL_PARAMS="${ADDL_PARAMS},${8}"
   fi
   echo "ADDL_PARAMS=${ADDL_PARAMS}"
   echo time python3 testrunner.py -i ${INI_FILE} -c py-1node-sanity-cloud.conf ${6} ${7} -p skip_host_login=True,skip_init_check_cbserver=True,get-cbcollect-info=False,http_protocol=https,bucket_size=100,default_bucket_name=${BUCKET},use_sdk_client=True,skip_bucket_setup=True,skip_buckets_handle=True,is_secure=True,skip_setup_cleanup=True,skip_stats_verify=True,servers_map=${SERVERS_MAP}${ADDL_PARAMS}
