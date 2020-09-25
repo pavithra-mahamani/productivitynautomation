@@ -265,7 +265,9 @@ run()
   if [[ $1 == *":"* ]]; then
     SERVERS_MAP="$1"
   fi
-  if [ ! -z ${ADDL_PARAMS} ]; then
+  if [ -z ${ADDL_PARAMS} ]; then
+    ADDL_PARAMS=",${8}"
+  else
     ADDL_PARAMS=",${ADDL_PARAMS}"
   fi
   echo "ADDL_PARAMS=${ADDL_PARAMS}"
