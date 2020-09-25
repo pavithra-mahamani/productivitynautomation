@@ -22,7 +22,11 @@ checkout()
 {
   if [ ! -d ./${REPO} ]; then
      echo "*** Cloud Tests runtime: checkout workspace ***"
-     git clone -b cloud http://github.com/couchbase/${REPO}.git
+     if [ ! -z "${REPO_BRANCH}" ]; then
+        git clone -b ${REPO_BRANCH} http://github.com/couchbase/${REPO}.git
+     else
+        git clone -b cloud http://github.com/couchbase/${REPO}.git   
+     fi
      cd ${REPO}
      if [ ! -z "${GERRIT_PICK}" ]; then
         IFS=';' read -ra PICKS <<< "${GERRIT_PICK}"
@@ -32,6 +36,9 @@ checkout()
           ${CP}
         done
         git cherry-pick FETCH_HEAD
+        if [ ! "$?" = "0" ]; then
+          git checkout FETCH_HEAD
+        fi
      fi
      if [ ! -z "${CHERRY_PICK}" ]; then
         IFS=';' read -ra PICKS <<< "${CHERRY_PICK}"
