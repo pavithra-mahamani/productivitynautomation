@@ -182,17 +182,19 @@ prereq()
   if [ "${PORT}" = "18091" ]; then
      TLS="true"
      PROTOCOL="https"
+     KVPORT="11207"
   else
      TLS="false"
      PROTOCOL="http"
+     KVPORT="11210"
   fi
   IS_DBAAS=$6
   echo curl -k -v -X PUT -u ${CB_USER}:${CB_USERPWD} ${PROTOCOL}://${HOST}:${PORT}/node/controller/setupAlternateAddresses/external -d hostname=${HOST}
   curl -k -v -X PUT -u ${CB_USER}:${CB_USERPWD} ${PROTOCOL}://${HOST}:${PORT}/node/controller/setupAlternateAddresses/external -d hostname=${HOST}
   echo curl -v -X POST -u ${CB_USER}:${CB_USERPWD} ${PROTOCOL}://${HOST}:${PORT}/pools/${BUCKET} -d memoryQuota=900 -d ftsMemoryQuota=256
   curl -v -X POST -u ${CB_USER}:${CB_USERPWD} ${PROTOCOL}://${HOST}:${PORT}/pools/${BUCKET} -d memoryQuota=900 -d ftsMemoryQuota=256
-  echo java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST} -Dport=${PORT} -Duser=${CB_USER} -Dpassword=${CB_USERPWD} -Dtls=${TLS} -Ddbaas=${IS_DBAAS} -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
-  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST} -Dport=${PORT} -Duser=${CB_USER} -Dpassword=${CB_USERPWD} -Dtls=${TLS} -Ddbaas=${IS_DBAAS} -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+  echo java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST} -Dport=${PORT} -Dkvport=${KVPORT} -Duser=${CB_USER} -Dpassword=${CB_USERPWD} -Dtls=${TLS} -Ddbaas=${IS_DBAAS} -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST} -Dport=${PORT} -Dkvport=${KVPORT} -Duser=${CB_USER} -Dpassword=${CB_USERPWD} -Dtls=${TLS} -Ddbaas=${IS_DBAAS} -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
 
 }
 reset()
@@ -213,14 +215,16 @@ reset()
   CB_USERPWD="`cat ${INI_FILE}|egrep rest_password|cut -f2 -d':'`"
   if [ "${PORT}" = "18091" ]; then
      TLS="true"
+     KVPORT="11207"
   else
      TLS="false"
+     KVPORT="11210"
   fi
   IS_DBAAS=$6
-  echo java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET},src_bucket,dst_bucket,metadata -Doperation=drop -Durl=${HOST} -Dport=${PORT} -Duser=${CB_USER} -Dpassword=${CB_USERPWD} -Dtls=${TLS} -Ddbaas=${IS_DBAAS} -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
-  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET},src_bucket,dst_bucket,metadata -Doperation=drop -Durl=${HOST} -Dport=${PORT} -Duser=${CB_USER} -Dpassword=${CB_USERPWD} -Dtls=${TLS} -Ddbaas=${IS_DBAAS} -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
-  echo java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST} -Dport=${PORT} -Duser=${CB_USER} -Dpassword=${CB_USERPWD} -Dtls=${TLS} -Ddbaas=${IS_DBAAS} -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
-  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST} -Dport=${PORT} -Duser=${CB_USER} -Dpassword=${CB_USERPWD} -Dtls=${TLS} -Ddbaas=${IS_DBAAS} -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+  echo java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET},src_bucket,dst_bucket,metadata -Doperation=drop -Durl=${HOST} -Dport=${PORT} -Dkvport=${KVPORT} -Duser=${CB_USER} -Dpassword=${CB_USERPWD} -Dtls=${TLS} -Ddbaas=${IS_DBAAS} -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET},src_bucket,dst_bucket,metadata -Doperation=drop -Durl=${HOST} -Dport=${PORT} -Dkvport=${KVPORT} -Duser=${CB_USER} -Dpassword=${CB_USERPWD} -Dtls=${TLS} -Ddbaas=${IS_DBAAS} -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+  echo java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST} -Dport=${PORT} -Dkvport=${KVPORT} -Duser=${CB_USER} -Dpassword=${CB_USERPWD} -Dtls=${TLS} -Ddbaas=${IS_DBAAS} -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+  java -Drun=connectClusterOnly,createBuckets -Dbucket=${BUCKET} -Durl=${HOST} -Dport=${PORT} -Dkvport=${KVPORT} -Duser=${CB_USER} -Dpassword=${CB_USERPWD} -Dtls=${TLS} -Ddbaas=${IS_DBAAS} -jar ${CURDIR}/${CBTOOL_REPO}/${CBTOOL}/target/${CBTOOL}-0.0.1-SNAPSHOT-jar-with-dependencies.jar
 }
 
 runtimeini()
