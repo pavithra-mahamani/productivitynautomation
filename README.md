@@ -1,4 +1,9 @@
-# This repository contains the Engineering productivity automation helperscripts
+# This repository contains the Engineering productivity and automation helperscripts
+
+Notes:
+ Add new scripts to the relevant folders.
+ Create new folders if required.
+ Use general folder if none of the existing folders make sense and no need for new folders.
 
 Some of the key tools:
 
