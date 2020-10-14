@@ -12,6 +12,8 @@ import sys
 import json
 import csv
 
+TARGETS_FILE = "targets.json"
+
 app = Flask(__name__)
 
 app.config['ENV'] = 'development'
@@ -19,20 +21,22 @@ app.config['ENV'] = 'development'
 cache_lock = Lock()
 cache = {}
 
+# Load stored targets on startup
 targets_lock = Lock()
 try:
-    with open("targets.json") as json_file:
+    with open(TARGETS_FILE) as json_file:
         targets = json.load(json_file)
 except Exception:
     targets = {}
-    with open('targets.json', 'w') as outfile:
+    with open(TARGETS_FILE, 'w') as outfile:
         json.dump(targets, outfile)
 
 
 clusters_lock = Lock()
 clusters = {}  # cluster by host
 
-grafana_connection_string = sys.argv[1]
+if len(sys.argv) > 1:
+    grafana_connection_string = sys.argv[1]
 
 
 def add_cluster(host: str, username: str, password: str):
@@ -61,7 +65,9 @@ class UpdateThread(Thread):
         self._terminate = True
 
     def run(self):
-        """This is a test"""
+        """
+        UpdateThread periodically refreshes data based on the refresh value specified by the user
+        """
         while True:
             time.sleep(1)
 
@@ -124,7 +130,9 @@ class UpdateThread(Thread):
 
 @app.route("/add", methods=["POST"])
 def add():
-
+    """
+    /add creates a new dashboard in grafana and returns the dashboard URL if it was created successfully
+    """
     try:
 
         req = request.json
@@ -133,14 +141,14 @@ def add():
 
         panels = []
 
-        # add targets
+        # store any new targets
         for target in data:
 
             targets_lock.acquire()
 
             targets[target['name']] = target
 
-            with open('targets.json', 'w') as outfile:
+            with open(TARGETS_FILE, 'w') as outfile:
                 json.dump(targets, outfile)
 
             targets_lock.release()
@@ -257,7 +265,7 @@ def add():
         }
 
         grafana_response = requests.post(
-            "http://" + grafana_connection_string + "/api/dashboards/db", json=res).json()
+            grafana_connection_string + "/api/dashboards/db", json=res).json()
 
         if grafana_response['status'] == "success":
             return {
@@ -274,11 +282,17 @@ def add():
 
 @ app.route("/")
 def status():
+    """
+    / responds with a 200 status as required by the Grafana JSON plugin
+    """
     return {'status': 'ok'}
 
 
 @ app.route("/search", methods=['POST'])
 def search():
+    """
+    /search responds with all of the targets. This allows any data source added with the /add endpoint to show up in Grafana
+    """
     targets_lock.acquire()
     ret = jsonify(list(targets.keys()))
     targets_lock.release()
@@ -286,6 +300,12 @@ def search():
 
 
 def calculate_rows_and_columns(target):
+    """
+    Returns data in a tabular format for Grafana.
+    columns is a list of column names and types
+    rows is a list of values for each column
+    """
+
     target = targets[target]
     columns = target['columns']
 
@@ -314,6 +334,11 @@ def calculate_rows_and_columns(target):
 
 
 def calculate_datapoints(target: str):
+    """
+    Returns data in a timeseries format
+    datapoints is formatted as a list of 2 item tuples in the format [value, timestamp]
+    """
+
     target = targets[target]
 
     def calculate_group_by(data, group_by: str, value_key, timestamp_key):
@@ -392,6 +417,10 @@ def cache_table(target: str, table):
 
 @ app.route("/query", methods=['POST'])
 def query():
+    """
+    /query responds to a Grafana data request and is formatted as either datapoints for time series data 
+    or rows and columns for tabular data
+    """
 
     data = []
 
@@ -434,8 +463,15 @@ def query():
 
 
 if __name__ == "__main__":
-    update_thread = UpdateThread()
-    update_thread.start()
-    app.run(host="0.0.0.0")
-    update_thread.terminate()
-    update_thread.join()
+
+    # show usage
+    if len(sys.argv) == 1 or sys.argv[1] == "--help":
+        print('Automated Grafana Dashboards\n')
+        print(
+            'USAGE: python dashboard.py [GRAFANA_URL] (e.g. http://admin:password@127.0.0.1:3000)')
+    else:
+        update_thread = UpdateThread()
+        update_thread.start()
+        app.run(host="0.0.0.0")
+        update_thread.terminate()
+        update_thread.join()
