@@ -144,7 +144,11 @@ def add():
         # store any new targets
         for target in data:
 
+            cache_lock.acquire()
             targets_lock.acquire()
+
+            if target['name'] in cache:
+                cache.pop(target['name'])
 
             targets[target['name']] = target
 
@@ -152,6 +156,7 @@ def add():
                 json.dump(targets, outfile)
 
             targets_lock.release()
+            cache_lock.release()
 
             if target['source'] == "couchbase":
                 add_cluster(target['host'],
@@ -269,7 +274,7 @@ def add():
 
         if grafana_response['status'] == "success":
             return {
-                'url': grafana_response['url'],
+                'result': grafana_response['url'],
             }
         else:
             return {
