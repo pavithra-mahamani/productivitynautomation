@@ -390,12 +390,28 @@ This example JSON generates the entire dashboard shown [here](http://172.23.104.
   ],
   "grafana": [
     {
+      "title": "Links",
+      "grid_position": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "type": "text",
+      "links": [
+        {
+          "text": "Visit the wiki to learn how to create your own dashboard",
+          "link": "https://hub.internal.couchbase.com/confluence/display/QA/Dynamic+VMs+Usage"
+        }
+      ]
+    },
+    {
       "title": "Daily",
       "grid_position": {
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 0
+        "y": 4
       },
       "type": "graph",
       "targets": ["compute_hours_daily", "vms_created_daily"],
@@ -407,7 +423,7 @@ This example JSON generates the entire dashboard shown [here](http://172.23.104.
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 0
+        "y": 4
       },
       "type": "graph",
       "targets": ["compute_hours_weekly", "vms_created_weekly"],
@@ -427,7 +443,7 @@ This example JSON generates the entire dashboard shown [here](http://172.23.104.
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 0
+        "y": 4
       },
       "type": "graph",
       "targets": ["compute_hours_monthly", "vms_created_monthly"],
@@ -447,7 +463,7 @@ This example JSON generates the entire dashboard shown [here](http://172.23.104.
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 8
+        "y": 12
       },
       "type": "gauge",
       "targets": ["compute_hours_daily"],
@@ -477,7 +493,7 @@ This example JSON generates the entire dashboard shown [here](http://172.23.104.
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 8
+        "y": 12
       },
       "type": "stat",
       "targets": ["vms_created_daily"],
@@ -489,7 +505,7 @@ This example JSON generates the entire dashboard shown [here](http://172.23.104.
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 12
+        "y": 16
       },
       "type": "table",
       "targets": ["daily_stats"],
@@ -530,7 +546,7 @@ This example JSON generates the entire dashboard shown [here](http://172.23.104.
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 8
+        "y": 12
       },
       "type": "gauge",
       "targets": ["compute_hours_weekly"],
@@ -560,7 +576,7 @@ This example JSON generates the entire dashboard shown [here](http://172.23.104.
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 8
+        "y": 12
       },
       "type": "stat",
       "targets": ["vms_created_weekly"],
@@ -572,7 +588,7 @@ This example JSON generates the entire dashboard shown [here](http://172.23.104.
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 12
+        "y": 16
       },
       "type": "table",
       "targets": ["weekly_stats"],
@@ -613,7 +629,7 @@ This example JSON generates the entire dashboard shown [here](http://172.23.104.
         "h": 4,
         "w": 4,
         "x": 16,
-        "y": 8
+        "y": 12
       },
       "type": "gauge",
       "targets": ["compute_hours_monthly"],
@@ -643,7 +659,7 @@ This example JSON generates the entire dashboard shown [here](http://172.23.104.
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 8
+        "y": 12
       },
       "type": "stat",
       "targets": ["vms_created_monthly"],
@@ -655,7 +671,7 @@ This example JSON generates the entire dashboard shown [here](http://172.23.104.
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 12
+        "y": 16
       },
       "type": "table",
       "targets": ["monthly_stats"],
@@ -696,7 +712,7 @@ This example JSON generates the entire dashboard shown [here](http://172.23.104.
         "h": 12,
         "w": 12,
         "x": 0,
-        "y": 20
+        "y": 24
       },
       "type": "graph",
       "targets": ["compute_hours_by_os"],
@@ -708,7 +724,7 @@ This example JSON generates the entire dashboard shown [here](http://172.23.104.
         "h": 12,
         "w": 12,
         "x": 12,
-        "y": 20
+        "y": 24
       },
       "type": "graph",
       "targets": ["compute_hours_by_xen_host"],
