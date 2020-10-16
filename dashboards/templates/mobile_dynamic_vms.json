@@ -1,0 +1,558 @@
+{
+    "dashboard_title": "Mobile Dynamic VMs",
+    "data": [
+        {
+            "source": "couchbase",
+            "type": "timeseries",
+            "host": "172.23.120.41",
+            "username": "Administrator",
+            "password": "password",
+            "query": "SELECT MAX(created_time*1000) as timestamp, (SUM(NVL(live_duration_secs,0))+SUM(NVL(create_duration_secs,0))+SUM(NVL(delete_duration_secs,0)))/3600 AS compute_hours FROM `QE-dynserver-pool` WHERE ipaddr != '' GROUP BY DATE_TRUNC_MILLIS(created_time*1000, 'day') order by timestamp asc",
+            "refresh": 60,
+            "timestamp_key": "timestamp",
+            "value_key": "compute_hours",
+            "name": "mobile_compute_hours_daily"
+        },
+        {
+            "source": "couchbase",
+            "type": "timeseries",
+            "host": "172.23.120.41",
+            "username": "Administrator",
+            "password": "password",
+            "query": "SELECT MAX(created_time*1000) as timestamp, count(*) AS count FROM `QE-dynserver-pool` WHERE ipaddr != '' GROUP BY DATE_TRUNC_MILLIS(created_time*1000, 'day') order by timestamp asc",
+            "refresh": 60,
+            "timestamp_key": "timestamp",
+            "value_key": "count",
+            "name": "mobile_vms_created_daily"
+        },
+        {
+            "source": "couchbase",
+            "type": "timeseries",
+            "host": "172.23.120.41",
+            "username": "Administrator",
+            "password": "password",
+            "query": "SELECT (SUM(NVL(live_duration_secs,0))+SUM(NVL(create_duration_secs,0))+SUM(NVL(delete_duration_secs,0)))/3600 AS compute_hours, MAX(created_time)*1000 AS timestamp FROM `QE-dynserver-pool` WHERE ipaddr != '' GROUP BY DATE_PART_MILLIS(created_time*1000, 'iso_week') ORDER BY timestamp ASC",
+            "refresh": 60,
+            "timestamp_key": "timestamp",
+            "value_key": "compute_hours",
+            "name": "mobile_compute_hours_weekly"
+        },
+        {
+            "source": "couchbase",
+            "type": "timeseries",
+            "host": "172.23.120.41",
+            "username": "Administrator",
+            "password": "password",
+            "query": "SELECT COUNT(*) as count, MAX(created_time)*1000 AS timestamp FROM `QE-dynserver-pool` WHERE ipaddr != '' GROUP BY DATE_PART_MILLIS(created_time*1000, 'iso_week') AS week ORDER BY timestamp ASC",
+            "refresh": 60,
+            "timestamp_key": "timestamp",
+            "value_key": "count",
+            "name": "mobile_vms_created_weekly"
+        },
+        {
+            "source": "couchbase",
+            "type": "timeseries",
+            "host": "172.23.120.41",
+            "username": "Administrator",
+            "password": "password",
+            "query": "SELECT MAX(created_time*1000) as timestamp, (SUM(NVL(live_duration_secs,0))+SUM(NVL(create_duration_secs,0))+SUM(NVL(delete_duration_secs,0)))/3600 AS compute_hours FROM `QE-dynserver-pool` WHERE ipaddr != '' GROUP BY DATE_TRUNC_MILLIS(created_time*1000, 'month') order by timestamp asc",
+            "refresh": 60,
+            "timestamp_key": "timestamp",
+            "value_key": "compute_hours",
+            "name": "mobile_compute_hours_monthly"
+        },
+        {
+            "source": "couchbase",
+            "type": "timeseries",
+            "host": "172.23.120.41",
+            "username": "Administrator",
+            "password": "password",
+            "query": "SELECT MAX(created_time*1000) as timestamp, count(*) AS count FROM `QE-dynserver-pool` WHERE ipaddr != '' GROUP BY DATE_TRUNC_MILLIS(created_time*1000, 'month') order by timestamp asc",
+            "refresh": 60,
+            "timestamp_key": "timestamp",
+            "value_key": "count",
+            "name": "mobile_vms_created_monthly"
+        },
+        {
+            "source": "couchbase",
+            "type": "table",
+            "host": "172.23.120.41",
+            "username": "Administrator",
+            "password": "password",
+            "query": "select timestamp, (SUM(NVL(live_duration_secs,0))+SUM(NVL(create_duration_secs,0))+SUM(NVL(delete_duration_secs,0)))/3600 AS compute_hours, count(*) as vms_created FROM `QE-dynserver-pool` WHERE ipaddr != '' GROUP BY DATE_TRUNC_MILLIS(created_time*1000, 'day') as timestamp order by timestamp desc",
+            "refresh": 60,
+            "columns": [
+                {
+                    "text": "timestamp",
+                    "type": "time"
+                },
+                {
+                    "text": "compute_hours",
+                    "type": "number"
+                },
+                {
+                    "text": "vms_created",
+                    "type": "number"
+                }
+            ],
+            "name": "mobile_daily_stats"
+        },
+        {
+            "source": "couchbase",
+            "type": "table",
+            "host": "172.23.120.41",
+            "username": "Administrator",
+            "password": "password",
+            "query": "SELECT MAX(created_time*1000) as timestamp, (SUM(NVL(live_duration_secs,0))+SUM(NVL(create_duration_secs,0))+SUM(NVL(delete_duration_secs,0)))/3600 AS compute_hours, count(*) as vms_created FROM `QE-dynserver-pool` WHERE ipaddr != '' GROUP BY DATE_PART_MILLIS(created_time*1000, 'iso_week') order by timestamp desc",
+            "refresh": 60,
+            "columns": [
+                {
+                    "text": "timestamp",
+                    "type": "time"
+                },
+                {
+                    "text": "compute_hours",
+                    "type": "number"
+                },
+                {
+                    "text": "vms_created",
+                    "type": "number"
+                }
+            ],
+            "name": "mobile_weekly_stats"
+        },
+        {
+            "source": "couchbase",
+            "type": "table",
+            "host": "172.23.120.41",
+            "username": "Administrator",
+            "password": "password",
+            "query": "select timestamp, (SUM(NVL(live_duration_secs,0))+SUM(NVL(create_duration_secs,0))+SUM(NVL(delete_duration_secs,0)))/3600 AS compute_hours, count(*) as vms_created FROM `QE-dynserver-pool` WHERE ipaddr != '' GROUP BY DATE_TRUNC_MILLIS(created_time*1000, 'month') as timestamp order by timestamp desc",
+            "refresh": 60,
+            "columns": [
+                {
+                    "text": "timestamp",
+                    "type": "time"
+                },
+                {
+                    "text": "compute_hours",
+                    "type": "number"
+                },
+                {
+                    "text": "vms_created",
+                    "type": "number"
+                }
+            ],
+            "name": "mobile_monthly_stats"
+        },
+        {
+            "source": "couchbase",
+            "type": "timeseries",
+            "host": "172.23.120.41",
+            "username": "Administrator",
+            "password": "password",
+            "query": "SELECT os,timestamp,(SUM(NVL(live_duration_secs,0))+SUM(NVL(create_duration_secs,0))+SUM(NVL(delete_duration_secs,0)))/3600 AS compute_hours FROM `QE-dynserver-pool` WHERE ipaddr != '' GROUP BY os, DATE_TRUNC_MILLIS(created_time*1000,'day') AS timestamp ORDER BY timestamp ASC",
+            "refresh": 60,
+            "timestamp_key": "timestamp",
+            "value_key": "compute_hours",
+            "name": "mobile_compute_hours_by_os",
+            "group_by": "os"
+        },
+        {
+            "source": "couchbase",
+            "type": "timeseries",
+            "host": "172.23.120.41",
+            "username": "Administrator",
+            "password": "password",
+            "query": "SELECT origin,timestamp,(SUM(NVL(live_duration_secs,0))+SUM(NVL(create_duration_secs,0))+SUM(NVL(delete_duration_secs,0)))/3600 AS compute_hours FROM `QE-dynserver-pool` WHERE ipaddr != '' GROUP BY origin, DATE_TRUNC_MILLIS(created_time*1000,'day') AS timestamp ORDER BY timestamp ASC",
+            "refresh": 60,
+            "timestamp_key": "timestamp",
+            "value_key": "compute_hours",
+            "name": "mobile_compute_hours_by_xen_host",
+            "group_by": "origin"
+        }
+    ],
+    "grafana": [
+        {
+            "title": "Links",
+            "grid_position": {
+                "h": 4,
+                "w": 24,
+                "x": 0,
+                "y": 0
+            },
+            "type": "text",
+            "links": [
+                {
+                    "text": "Visit the wiki to learn how to create your own dashboard",
+                    "link": "https://hub.internal.couchbase.com/confluence/display/QA/Dynamic+VMs+Usage"
+                }
+            ]
+        },
+        {
+            "title": "Daily",
+            "grid_position": {
+                "h": 8,
+                "w": 8,
+                "x": 0,
+                "y": 4
+            },
+            "type": "graph",
+            "targets": [
+                "mobile_compute_hours_daily",
+                "mobile_vms_created_daily"
+            ],
+            "relative_time": "now-7d",
+             "overrides": {
+                "mobile_vms_created_daily": {
+                    "displayName": "VMs Created"
+                },
+                "mobile_compute_hours_daily": {
+                    "displayName": "Compute Hours"
+                }
+            }
+        },
+        {
+            "title": "Weekly",
+            "grid_position": {
+                "h": 8,
+                "w": 8,
+                "x": 8,
+                "y": 4
+            },
+            "type": "graph",
+            "targets": [
+                "mobile_compute_hours_weekly",
+                "mobile_vms_created_weekly"
+            ],
+            "relative_time": "now-4w",
+            "overrides": {
+                "mobile_vms_created_weekly": {
+                    "displayName": "VMs Created"
+                },
+                "mobile_compute_hours_weekly": {
+                    "displayName": "Compute Hours"
+                }
+            }
+        },
+        {
+            "title": "Monthly",
+            "grid_position": {
+                "h": 8,
+                "w": 8,
+                "x": 16,
+                "y": 4
+            },
+            "type": "graph",
+            "targets": [
+                "mobile_compute_hours_monthly",
+                "mobile_vms_created_monthly"
+            ],
+            "relative_time": "now-12M",
+            "overrides": {
+                "mobile_vms_created_monthly": {
+                    "displayName": "VMs Created"
+                },
+                "mobile_compute_hours_monthly": {
+                    "displayName": "Compute Hours"
+                }
+            }
+        },
+        {
+            "title": "Compute Hours Today",
+            "grid_position": {
+                "h": 4,
+                "w": 4,
+                "x": 0,
+                "y": 12
+            },
+            "type": "gauge",
+            "targets": [
+                "mobile_compute_hours_daily"
+            ],
+            "thresholds": {
+                "mode": "percentage",
+                "steps": [
+                    {
+                        "color": "red",
+                        "value": null
+                    },
+                    {
+                        "color": "#EAB839",
+                        "value": 50
+                    },
+                    {
+                        "color": "green",
+                        "value": 75
+                    }
+                ]
+            },
+            "max": 960,
+            "calculation": "last"
+        },
+        {
+            "title": "VMs Created Today",
+            "grid_position": {
+                "h": 4,
+                "w": 4,
+                "x": 4,
+                "y": 12
+            },
+            "type": "stat",
+            "targets": [
+                "mobile_vms_created_daily"
+            ],
+            "calculation": "last"
+        },
+        {
+            "title": "Daily",
+            "grid_position": {
+                "h": 8,
+                "w": 8,
+                "x": 0,
+                "y": 16
+            },
+            "type": "table",
+            "targets": [
+                "mobile_daily_stats"
+            ],
+            "overrides": {
+                "vms_created": {
+                    "displayName": "VMs Created"
+                },
+                "timestamp": {
+                    "displayName": "Timestamp"
+                },
+                "compute_hours": {
+                    "custom.displayMode": "basic",
+                    "displayName": "Compute Hours",
+                    "thresholds": {
+                        "mode": "percentage",
+                        "steps": [
+                            {
+                                "color": "red",
+                                "value": null
+                            },
+                            {
+                                "color": "#EAB839",
+                                "value": 50
+                            },
+                            {
+                                "color": "green",
+                                "value": 75
+                            }
+                        ]
+                    },
+                    "max": 960
+                }
+            }
+        },
+        {
+            "title": "Compute Hours This Week",
+            "grid_position": {
+                "h": 4,
+                "w": 4,
+                "x": 8,
+                "y": 12
+            },
+            "type": "gauge",
+            "targets": [
+                "mobile_compute_hours_weekly"
+            ],
+            "thresholds": {
+                "mode": "percentage",
+                "steps": [
+                    {
+                        "color": "red",
+                        "value": null
+                    },
+                    {
+                        "color": "#EAB839",
+                        "value": 50
+                    },
+                    {
+                        "color": "green",
+                        "value": 75
+                    }
+                ]
+            },
+            "max": 6720,
+            "calculation": "last"
+        },
+        {
+            "title": "VMs Created This Week",
+            "grid_position": {
+                "h": 4,
+                "w": 4,
+                "x": 12,
+                "y": 12
+            },
+            "type": "stat",
+            "targets": [
+                "mobile_vms_created_weekly"
+            ],
+            "calculation": "last"
+        },
+        {
+            "title": "Weekly",
+            "grid_position": {
+                "h": 8,
+                "w": 8,
+                "x": 8,
+                "y": 16
+            },
+            "type": "table",
+            "targets": [
+                "mobile_weekly_stats"
+            ],
+            "overrides": {
+                "vms_created": {
+                    "displayName": "VMs Created"
+                },
+                "timestamp": {
+                    "displayName": "Timestamp"
+                },
+                "compute_hours": {
+                    "custom.displayMode": "basic",
+                    "displayName": "Compute Hours",
+                    "thresholds": {
+                        "mode": "percentage",
+                        "steps": [
+                            {
+                                "color": "red",
+                                "value": null
+                            },
+                            {
+                                "color": "#EAB839",
+                                "value": 50
+                            },
+                            {
+                                "color": "green",
+                                "value": 75
+                            }
+                        ]
+                    },
+                    "max": 6720
+                }
+            }
+        },
+        {
+            "title": "Compute Hours This Month",
+            "grid_position": {
+                "h": 4,
+                "w": 4,
+                "x": 16,
+                "y": 12
+            },
+            "type": "gauge",
+            "targets": [
+                "mobile_compute_hours_monthly"
+            ],
+            "thresholds": {
+                "mode": "percentage",
+                "steps": [
+                    {
+                        "color": "red",
+                        "value": null
+                    },
+                    {
+                        "color": "#EAB839",
+                        "value": 50
+                    },
+                    {
+                        "color": "green",
+                        "value": 75
+                    }
+                ]
+            },
+            "max": 28800,
+            "calculation": "last"
+        },
+        {
+            "title": "VMs Created This Month",
+            "grid_position": {
+                "h": 4,
+                "w": 4,
+                "x": 20,
+                "y": 12
+            },
+            "type": "stat",
+            "targets": [
+                "mobile_vms_created_monthly"
+            ],
+            "calculation": "last"
+        },
+        {
+            "title": "Monthly",
+            "grid_position": {
+                "h": 8,
+                "w": 8,
+                "x": 16,
+                "y": 16
+            },
+            "type": "table",
+            "targets": [
+                "mobile_monthly_stats"
+            ],
+            "overrides": {
+                "vms_created": {
+                    "displayName": "VMs Created"
+                },
+                "timestamp": {
+                    "displayName": "Timestamp"
+                },
+                "compute_hours": {
+                    "custom.displayMode": "basic",
+                    "displayName": "Compute Hours",
+                    "thresholds": {
+                        "mode": "percentage",
+                        "steps": [
+                            {
+                                "color": "red",
+                                "value": null
+                            },
+                            {
+                                "color": "#EAB839",
+                                "value": 50
+                            },
+                            {
+                                "color": "green",
+                                "value": 75
+                            }
+                        ]
+                    },
+                    "max": 28800
+                }
+            }
+        },
+        {
+            "title": "Daily Compute Hours by OS",
+            "grid_position": {
+                "h": 12,
+                "w": 12,
+                "x": 0,
+                "y": 24
+            },
+            "type": "graph",
+            "targets": [
+                "mobile_compute_hours_by_os"
+            ],
+            "relative_time": "now-6M"
+        },
+        {
+            "title": "Daily Compute Hours by Xen Host",
+            "grid_position": {
+                "h": 12,
+                "w": 12,
+                "x": 12,
+                "y": 24
+            },
+            "type": "graph",
+            "targets": [
+                "mobile_compute_hours_by_xen_host"
+            ],
+            "relative_time": "now-6M",
+            "stack": true
+        }
+    ]
+}
