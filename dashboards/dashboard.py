@@ -326,7 +326,8 @@ def calculate_rows_and_columns(target):
         rows = [[row[column['text']] for column in columns] for row in data]
     elif target['source'] == "csv":
         data = requests.get(target['file']).text.splitlines()
-        data = list(csv.reader(data))
+        delimiter = target['delimiter'] if 'delimiter' in target else ','
+        data = list(csv.reader(data, delimiter=delimiter))
         column_names = [column['text'] for column in columns]
         csv_columns = dict(enumerate(data[0])).items()
         selected_columns = [i for [i, col]
@@ -389,13 +390,16 @@ def calculate_datapoints(target: str):
         timestamp_column = int(target['timestamp_column'])
         value_column = int(target['value_column'])
         data = requests.get(target['file']).text.splitlines()
-        data = list(csv.reader(data))
+        delimiter = target['delimiter'] if 'delimiter' in target else ','
+        data = list(csv.reader(data, delimiter=delimiter))
 
-        if "group_by" in target:
+        if len(data) == 0:
+            datapoints = []
+        elif "group_by" in target:
             return calculate_group_by(data[1:], target['group_by'], value_column, timestamp_column)
-
-        datapoints = [[int(row[value_column]), int(row[timestamp_column])]
-                      for row in data[1:]]
+        else:
+            datapoints = [[int(row[value_column]), int(row[timestamp_column])]
+                          for row in data[1:]]
 
     return {
         "target": target['name'],

@@ -72,6 +72,15 @@ JSON or CSV source
 }
 ```
 
+CSV source
+
+```json
+{
+  // how the values in the csv are separated
+  "delimiter": "<comma, space, tab or custom character>"
+}
+```
+
 Timeseries type (\_key for JSON and couchbase, \_column for CSV)
 
 ```json
