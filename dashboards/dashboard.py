@@ -242,14 +242,17 @@ def add():
                     }
 
                 if "links" in panel_options:
-                    links = ''
+                    links = '<ul>'
 
                     for link in panel_options['links']:
-                        links += '[' + link['text'] + \
-                            '](' + link['link'] + ')\n'
+
+                        links += '<li><a target="_blank" href="' + \
+                            link['link'] + '">' + link['text'] + '</a></li>'
+
+                    links += "</ul>"
 
                     panel['options'] = {
-                        "mode": "markdown",
+                        "mode": "html",
                         "content": links,
                     }
 
