@@ -144,7 +144,11 @@ def add():
         # store any new targets
         for target in data:
 
+            cache_lock.acquire()
             targets_lock.acquire()
+
+            if target['name'] in cache:
+                cache.pop(target['name'])
 
             targets[target['name']] = target
 
@@ -152,6 +156,7 @@ def add():
                 json.dump(targets, outfile)
 
             targets_lock.release()
+            cache_lock.release()
 
             if target['source'] == "couchbase":
                 add_cluster(target['host'],
@@ -237,14 +242,17 @@ def add():
                     }
 
                 if "links" in panel_options:
-                    links = ''
+                    links = '<ul>'
 
                     for link in panel_options['links']:
-                        links += '[' + link['text'] + \
-                            '](' + link['link'] + ')\n'
+
+                        links += '<li><a target="_blank" href="' + \
+                            link['link'] + '">' + link['text'] + '</a></li>'
+
+                    links += "</ul>"
 
                     panel['options'] = {
-                        "mode": "markdown",
+                        "mode": "html",
                         "content": links,
                     }
 
@@ -269,7 +277,7 @@ def add():
 
         if grafana_response['status'] == "success":
             return {
-                'url': grafana_response['url'],
+                'result': grafana_response['url'],
             }
         else:
             return {
@@ -318,7 +326,8 @@ def calculate_rows_and_columns(target):
         rows = [[row[column['text']] for column in columns] for row in data]
     elif target['source'] == "csv":
         data = requests.get(target['file']).text.splitlines()
-        data = list(csv.reader(data))
+        delimiter = target['delimiter'] if 'delimiter' in target else ','
+        data = list(csv.reader(data, delimiter=delimiter))
         column_names = [column['text'] for column in columns]
         csv_columns = dict(enumerate(data[0])).items()
         selected_columns = [i for [i, col]
@@ -381,13 +390,16 @@ def calculate_datapoints(target: str):
         timestamp_column = int(target['timestamp_column'])
         value_column = int(target['value_column'])
         data = requests.get(target['file']).text.splitlines()
-        data = list(csv.reader(data))
+        delimiter = target['delimiter'] if 'delimiter' in target else ','
+        data = list(csv.reader(data, delimiter=delimiter))
 
-        if "group_by" in target:
+        if len(data) == 0:
+            datapoints = []
+        elif "group_by" in target:
             return calculate_group_by(data[1:], target['group_by'], value_column, timestamp_column)
-
-        datapoints = [[int(row[value_column]), int(row[timestamp_column])]
-                      for row in data[1:]]
+        else:
+            datapoints = [[int(row[value_column]), int(row[timestamp_column])]
+                          for row in data[1:]]
 
     return {
         "target": target['name'],
