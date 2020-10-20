@@ -42,7 +42,7 @@ get_hist()
   ORG="$1"
   echo "--> Organization : ${ORG}"
   curl -Is -u${USER_PWD} "https://api.github.com/search/repositories?q=org%3A${ORG}&per_page=100" |egrep -i 'link:' > ${ORG}_pages.txt
-  PAGES="`cat ${ORG}_pages.txt|egrep -i 'link' |cut -f2 -d',' | egrep last |grep -o '\&page=\d.' |cut -f2 -d'='|cut -f1 -d'>'`"
+  PAGES="`cat ${ORG}_pages.txt|egrep -i 'link' |cut -f2 -d',' | egrep last |grep -o '\&page=.' |cut -f2 -d'='|cut -f1 -d'>'`"
   #echo "Total pages: ${PAGES}"
   for PAGE in `seq ${PAGES}`
   do
