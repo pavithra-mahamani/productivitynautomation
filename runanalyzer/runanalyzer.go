@@ -544,6 +544,10 @@ func getreruntotalbuildcycleduration(buildN string) int {
 	outW := bufio.NewWriter(outFile)
 	defer outFile.Close()
 
+	outFileCsv, _ := os.Create("totaltime_summary.csv")
+	outWCsv := bufio.NewWriter(outFileCsv)
+	defer outFileCsv.Close()
+
 	outClockTimeFile, _ := os.Create("clocktime_summary.txt")
 	outClockW := bufio.NewWriter(outClockTimeFile)
 	defer outClockTimeFile.Close()
@@ -575,6 +579,9 @@ func getreruntotalbuildcycleduration(buildN string) int {
 
 	fmt.Fprintln(outClockW, "\n\tComponent\tTestSuite\t\tJenkinBuildURL\t\tStart\t\tEnd\t\tClockDuration")
 	fmt.Fprintln(outClockW, "--------------------------------------------------------------------------------------------------------------------")
+
+	fmt.Fprintln(outWCsv, "S.No.,Build,GrandTC,GrandFC,OS,TC,FC,PC,Rate,Aborted,Failed,Unstable,Succ,TotalTime,#Comp,#Jobs,#Runs,#Reruns,#RerunJobs,RerunRate,RerunTime"+
+		",FirstRunStartTime,FirstRunEndTime,FirstClockTime,RunStartTime,RunEndTime,ClockTime,RerunStartTime,RerunEndTime,RerunClockTime")
 
 	sno := 1
 	//for i := 0; i < len(cbbuilds); i++ {
@@ -786,12 +793,19 @@ func getreruntotalbuildcycleduration(buildN string) int {
 							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
 							totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins), start0, end0, clockTime0, start1, end1, clockTime, start2, end2, clockTime2)
 						fmt.Fprintf(outW, "\n%s", reranJobsList)
+						fmt.Fprintf(outWCsv, "%d,%s,%d,%d,%s,%d,%d,%d,%d%%,%d,%d,%d,%d,%dhrs:%dmins,%d,%d,%d,%d,%d,%d%%,%dhrs:%dmins,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
+							(sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount, key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
+							totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins), start0, end0, clockTime0, start1, end1, clockTime, start2, end2, clockTime2)
+						//fmt.Fprintf(outWCsv, "\n%s", reranJobsList)
 					} else {
 						fmt.Printf("\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \tstart=%s \tend=%s \t%s \t%s \t%s \t%s \t%s \t%s \t%s",
 							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
 							totalRuns, totalReruns, reranJobCount, start0, end0, clockTime0, start1, end1, clockTime, start2, end2, clockTime2)
 						fmt.Fprintf(outW, "\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%s \t%s \t%s \t%s \t%s \t%s \t%s \t%s \t%s",
 							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
+							totalRuns, totalReruns, reranJobCount, start0, end0, clockTime0, start1, end1, clockTime, start2, end2, clockTime2)
+						fmt.Fprintf(outWCsv, "%d,%s,%d,%d,%s,%d,%d,%d,%d%%,%d,%d,%d,%d,%dhrs:%dmins,%d,%d,%d,%d,%d,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
+							(sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount, key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
 							totalRuns, totalReruns, reranJobCount, start0, end0, clockTime0, start1, end1, clockTime, start2, end2, clockTime2)
 					}
 					sno++
@@ -801,6 +815,7 @@ func getreruntotalbuildcycleduration(buildN string) int {
 
 			outW.Flush()
 			outClockW.Flush()
+			outWCsv.Flush()
 		}
 	} else {
 		fmt.Println("Status: Failed. " + err.Error())
@@ -822,7 +837,9 @@ func getreruntotalbuildcycleduration(buildN string) int {
 	//fmt.Fprintf(outW, "\n%s\t\t\t\t\t\t\t\t\t\tGrand total time=%6d hours\n", t.Format(time.RFC3339), totalhours)
 
 	outW.Flush()
-
+	outFile.Close()
+	outClockTimeFile.Close()
+	outFileCsv.Close()
 	return totalhours
 
 }
