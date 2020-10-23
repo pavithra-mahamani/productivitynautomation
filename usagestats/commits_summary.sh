@@ -63,6 +63,7 @@ get_hist()
      REPONAME="`echo ${URL}|sed 's/.git//g'|rev|cut -f1 -d'/'|rev`"
      echo "${REPONAME}"
      if [ ! -d ${REPONAME} ]; then
+      echo git clone ${URL}
       git clone ${URL}
      fi
      CURDIR=`pwd`
