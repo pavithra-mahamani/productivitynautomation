@@ -101,10 +101,7 @@ class UpdateThread(Thread):
                 if target_name not in cache:
                     continue
 
-                if "refresh" in target:
-                    refresh = target['refresh']
-                else:
-                    refresh = 60
+                refresh = target['refresh'] if 'refresh' in target else 60
 
                 if now >= cache[target_name]['last_update'] + refresh:
 
@@ -139,21 +136,65 @@ class UpdateThread(Thread):
                 print("refreshed cache: " + target)
 
 
+def add_targets(data):
+    # store any new targets
+    for target in data:
+
+        cache_lock.acquire()
+        targets_lock.acquire()
+
+        if target['name'] in cache:
+            cache.pop(target['name'])
+
+        targets[target['name']] = target
+
+        write_targets_to_disk()
+
+        targets_lock.release()
+        cache_lock.release()
+
+        if target['source'] == "couchbase":
+            add_cluster(target['host'],
+                        target['username'], target['password'])
+
+
 @app.route("/import", methods=["POST"])
-def import_targets():
-    global targets
+def import_():
+    """
+    /import creates or overwrites a dashboard & its required data and returns the dashboard URL if it was created successfully
+    """
+    try:
 
-    targets_lock.acquire()
-    targets = request.json
-    write_targets_to_disk()
-    targets_lock.release()
+        req = request.json
+        data = req['data']
+        grafana = req['grafana']
+        overwrite = req['overwrite'] if 'overwrite' in req else False
 
-    populate_couchbase_clusters()
+        add_targets(data)
 
-    return {
-        "result": "imported successfully"
-    }
+        # we use the name to determine unique dashboards
+        grafana.pop('uid')
+        grafana.pop('id')
 
+        res = {
+            "dashboard": grafana,
+            "overwrite": overwrite
+        }
+
+        grafana_response = requests.post(
+            grafana_connection_string + "/api/dashboards/db", json=res).json()
+
+        if grafana_response['status'] == "success":
+            return {
+                'result': grafana_response['url'],
+            }
+        else:
+            return {
+                "error": grafana_response['message']
+            }
+
+    except Exception as e:
+        return {"error": str(e)}, 500
 
 @app.route("/export")
 def export_targets():
