@@ -785,29 +785,16 @@ func getreruntotalbuildcycleduration(buildN string) int {
 				if totalJobs > 100 {
 					fmt.Printf("\n%d\t%s \t\t%d \t%d", (sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount)
 					fmt.Fprintf(outW, "\n%d\t%s \t\t%d \t%d", (sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount)
-					if rerunHours > 0 || rerunMins > 0 {
-						fmt.Printf("\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%3d%% \t\t%4dhrs:%2dmins  \t%s \t%s \t%s, \t%s \t%s \t%s \t%s \t%s \t%s",
-							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
-							totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins), start0, end0, clockTime0, start1, end1, clockTime, start2, end2, clockTime2)
-						fmt.Fprintf(outW, "\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%3d%% \t\t%4dhrs:%2dmins  \t%s \t%s \t%s \t%s \t%s \t%s \t%s \t%s \t%s",
-							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
-							totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins), start0, end0, clockTime0, start1, end1, clockTime, start2, end2, clockTime2)
-						fmt.Fprintf(outW, "\n%s", reranJobsList)
-						fmt.Fprintf(outWCsv, "%d,%s,%d,%d,%s,%d,%d,%d,%d%%,%d,%d,%d,%d,%dhrs:%dmins,%d,%d,%d,%d,%d,%d%%,%dhrs:%dmins,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
-							(sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount, key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
-							totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins), start0, end0, clockTime0, start1, end1, clockTime, start2, end2, clockTime2)
-						//fmt.Fprintf(outWCsv, "\n%s", reranJobsList)
-					} else {
-						fmt.Printf("\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \tstart=%s \tend=%s \t%s \t%s \t%s \t%s \t%s \t%s \t%s",
-							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
-							totalRuns, totalReruns, reranJobCount, start0, end0, clockTime0, start1, end1, clockTime, start2, end2, clockTime2)
-						fmt.Fprintf(outW, "\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%s \t%s \t%s \t%s \t%s \t%s \t%s \t%s \t%s",
-							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
-							totalRuns, totalReruns, reranJobCount, start0, end0, clockTime0, start1, end1, clockTime, start2, end2, clockTime2)
-						fmt.Fprintf(outWCsv, "%d,%s,%d,%d,%s,%d,%d,%d,%d%%,%d,%d,%d,%d,%dhrs:%dmins,%d,%d,%d,%d,%d,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
-							(sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount, key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
-							totalRuns, totalReruns, reranJobCount, start0, end0, clockTime0, start1, end1, clockTime, start2, end2, clockTime2)
-					}
+					fmt.Printf("\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%3d%% \t\t%4dhrs:%2dmins  \t%s \t%s \t%s, \t%s \t%s \t%s \t%s \t%s \t%s",
+						key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
+						totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins), start0, end0, clockTime0, start1, end1, clockTime, start2, end2, clockTime2)
+					fmt.Fprintf(outW, "\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%3d%% \t\t%4dhrs:%2dmins  \t%s \t%s \t%s \t%s \t%s \t%s \t%s \t%s \t%s",
+						key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
+						totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins), start0, end0, clockTime0, start1, end1, clockTime, start2, end2, clockTime2)
+					fmt.Fprintf(outW, "\n%s", reranJobsList)
+					fmt.Fprintf(outWCsv, "%d,%s,%d,%d,%s,%d,%d,%d,%d%%,%d,%d,%d,%d,%dhrs:%dmins,%d,%d,%d,%d,%d,%d%%,%dhrs:%dmins,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
+						(sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount, key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
+						totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins), start0, end0, clockTime0, start1, end1, clockTime, start2, end2, clockTime2)
 					sno++
 				}
 
