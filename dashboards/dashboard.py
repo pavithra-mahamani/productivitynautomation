@@ -21,6 +21,12 @@ app.config['ENV'] = 'development'
 cache_lock = Lock()
 cache = {}
 
+
+def write_targets_to_disk():
+    with open(TARGETS_FILE, 'w') as outfile:
+        json.dump(targets, outfile)
+
+
 # Load stored targets on startup
 targets_lock = Lock()
 try:
@@ -28,8 +34,7 @@ try:
         targets = json.load(json_file)
 except Exception:
     targets = {}
-    with open(TARGETS_FILE, 'w') as outfile:
-        json.dump(targets, outfile)
+    write_targets_to_disk()
 
 
 clusters_lock = Lock()
@@ -49,13 +54,17 @@ def add_cluster(host: str, username: str, password: str):
     clusters_lock.release()
 
 
+def populate_couchbase_clusters():
+    for target in targets.values():
+        if target['source'] == "couchbase":
+            host = target['host']
+            username = target['username']
+            password = target['password']
+            add_cluster(host, username, password)
+
+
 # add any couchbase clusters on startup
-for target in targets.values():
-    if target['source'] == "couchbase":
-        host = target['host']
-        username = target['username']
-        password = target['password']
-        add_cluster(host, username, password)
+populate_couchbase_clusters()
 
 
 class UpdateThread(Thread):
@@ -128,6 +137,31 @@ class UpdateThread(Thread):
                 print("refreshed cache: " + target)
 
 
+@app.route("/import", methods=["POST"])
+def import_targets():
+    global targets
+
+    targets_lock.acquire()
+    targets = request.json
+    write_targets_to_disk()
+    targets_lock.release()
+
+    populate_couchbase_clusters()
+
+    return {
+        "result": "imported successfully"
+    }
+
+
+@app.route("/export")
+def export_targets():
+    targets_lock.acquire()
+    ret = targets
+    targets_lock.release()
+
+    return ret
+
+
 @app.route("/add", methods=["POST"])
 def add():
     """
@@ -152,8 +186,7 @@ def add():
 
             targets[target['name']] = target
 
-            with open(TARGETS_FILE, 'w') as outfile:
-                json.dump(targets, outfile)
+            write_targets_to_disk()
 
             targets_lock.release()
             cache_lock.release()
