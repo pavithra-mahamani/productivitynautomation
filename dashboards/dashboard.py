@@ -45,13 +45,15 @@ if len(sys.argv) > 1:
 
 
 def add_cluster(host: str, username: str, password: str):
-    clusters_lock.acquire()
-    if host not in clusters:
-        clusters[host] = Cluster('couchbase://' + host,
-                                 ClusterOptions(
-                                     PasswordAuthenticator(username, password)),
-                                 lockmode=LockMode.WAIT)
-    clusters_lock.release()
+    try:
+        clusters_lock.acquire()
+        if host not in clusters:
+            clusters[host] = Cluster('couchbase://' + host,
+                                     ClusterOptions(
+                                         PasswordAuthenticator(username, password)),
+                                     lockmode=LockMode.WAIT)
+    finally:
+        clusters_lock.release()
 
 
 def populate_couchbase_clusters():
@@ -476,22 +478,16 @@ def query():
             target = target['target']
 
             if data_type == "timeseries":
-                cache_lock.acquire()
                 if target in cache:
                     datapoints = cache[target]['datapoints']
-                    cache_lock.release()
                 else:
-                    cache_lock.release()
                     datapoints = calculate_datapoints(target)
                     cache_datapoints(target, datapoints)
 
             elif data_type == "table":
-                cache_lock.acquire()
                 if target in cache:
                     datapoints = cache[target]['table']
-                    cache_lock.release()
                 else:
-                    cache_lock.release()
                     datapoints = calculate_rows_and_columns(target)
                     cache_table(target, datapoints)
 
