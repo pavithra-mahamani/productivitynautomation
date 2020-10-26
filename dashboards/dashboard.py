@@ -196,13 +196,42 @@ def import_():
     except Exception as e:
         return {"error": str(e)}, 500
 
-@app.route("/export")
-def export_targets():
-    targets_lock.acquire()
-    ret = targets
-    targets_lock.release()
 
-    return ret
+@app.route("/export/<uid>")
+def export(uid: str):
+    """
+    export the data and grafana ui for a dashboard with the given uid
+    """
+
+    grafana = requests.get(
+        grafana_connection_string + "/api/dashboards/uid/"+uid).json()
+
+    dashboard = grafana['dashboard']
+    required_targets = {}
+
+    targets_lock.acquire()
+
+    try:
+
+        for panel in dashboard['panels']:
+            # text or another visualisation type might not have targets
+            if 'targets' in panel:
+                for target in panel['targets']:
+                    # prometheus or another data source may not have a target
+                    if 'target' in target:
+                        target = target['target']
+                        if target not in required_targets:
+                            required_targets[target] = targets[target]
+
+    finally:
+        targets_lock.release()
+
+    ret = {
+        "data": list(required_targets.values()),
+        "grafana": dashboard
+    }
+
+    return jsonify(ret)
 
 
 @app.route("/add", methods=["POST"])
