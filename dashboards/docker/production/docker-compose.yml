@@ -1,0 +1,30 @@
+version: "3"
+services:
+  dashboard:
+    build: ../../
+    ports:
+      - 5000:5000
+    environment:
+      - GRAFANA_HOST=http://admin:password@grafana:3000
+    volumes:
+      - ./config/targets.json:/app/targets.json
+
+  grafana:
+    image: grafana/grafana
+    volumes:
+      - ./config/grafana:/var/lib/grafana
+    environment:
+      GF_INSTALL_PLUGINS: simpod-json-datasource
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+    ports:
+      - 3000:3000
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  exporter:
+    build: ../../exporter
+    volumes:
+      - ./config/queries.json:/app/queries.json

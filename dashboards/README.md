@@ -26,6 +26,23 @@ python dashboard.py http://admin:password@127.0.0.1:3000
 
 The API is now listening on port 5000
 
+# Docker deployment
+
+The easiest way to get prometheus, grafana, exporter.py and dashboard.py working is with docker
+
+A Dockerfile is provided for dashboard.py and exporter.py and the docker folder contains the necessary files for a full deployment
+
+(TODO: Deduplicate the staging and production folders)
+
+From within the docker/staging folder, running docker-compose up will start grafana on port 4000 and dashboard.py on port 5001 as well as prometheus and the exporter
+
+Persistent data will be stored in:
+
+config/grafana for grafana
+config/queries.json for exporter.py
+config/targets.json for dashboad.py
+config/prometheus.yml for prometheus configuration (TODO: persistent prometheus storage for database)
+
 # Using the API
 
 There are 2 relevant endpoints /add and /import.
