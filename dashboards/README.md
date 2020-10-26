@@ -28,15 +28,36 @@ The API is now listening on port 5000
 
 # Using the API
 
-The only relevant endpoint is /add which is used to add data sources and Grafana dashboards. For any request you don't understand it may be useful to view the next section which contains a comprehensive example
+There are 2 relevant endpoints /add and /import.
 
-A request should be in this format:
+/add is used to add data sources and Grafana dashboards with a simpler custom json format.
+
+/import is also used to import data source and grafana dashboards however it uses the grafana JSON format for the UI section allowing more flexibility.
+
+/export/:uid is used to export a grafana dashboard as well as the data sources that dashboard uses. The result can be used directly in /import to move dashboards around easily
+
+For any request you don't understand it may be useful to view the next section which contains a comprehensive example
+
+A request for /export/:uid is a GET request where uid is replaced with the unique ID of the dashboard you wish to export. This id can be found in the url when viewing a dashboard e.g. http:// your-grafana-hostname/d/:uid/your-dashboard-name
+
+A request for /add should be in this format:
 
 ```json
 {
-  "dashboard_title": "",
   "data": [],
-  "grafana": []
+  "grafana": [],
+  "dashboard_title": ""
+}
+```
+
+A request for /import should be in this format:
+
+```json
+{
+  "data": [],
+  "grafana": {},
+  // if a dashboad exists with the same name, it is only overwritten if overwrite is true otherwise an error is returned
+  "overwrite": "<true|false>"
 }
 ```
 
@@ -114,7 +135,9 @@ Table type
 }
 ```
 
-Each item in the grafana array should be formatted as follows:
+For the /import endpoint, the grafana object can be found from an existing template or from the grafana ui by going to the dashboard, settings, JSON Model and copying all the JSON presented
+
+For the /add endpoint each item in the grafana array should be formatted as follows:
 
 ```json
 {
@@ -207,7 +230,7 @@ Error response:
 
 ```json
 {
-    "error" ""
+  "error": ""
 }
 ```
 
@@ -230,4 +253,4 @@ Creating a dashboard (i.e. panels defined in the grafana array):
 # Example
 
 JSON templates can be found in the templates directory.
-dynamic_vms.json creates the dashboard found here [here](http://172.23.104.178:3000/d/o2jiYTFMz/dynamic-vms) (VPN required)
+server_dynamic_vms.json creates the dashboard found here [here](http://172.23.104.178:3000/d/_kqmMwcMk/server-dynamic-vms?orgId=1&refresh=1m) (VPN required)
