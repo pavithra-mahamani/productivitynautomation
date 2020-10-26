@@ -367,11 +367,23 @@ def calculate_rows_and_columns(target):
         data = requests.get(target['file']).text.splitlines()
         delimiter = target['delimiter'] if 'delimiter' in target else ','
         data = list(csv.reader(data, delimiter=delimiter))
+
+        column_by_name = {column['text']: column for column in columns}
         column_names = [column['text'] for column in columns]
-        csv_columns = dict(enumerate(data[0])).items()
-        selected_columns = [i for [i, col]
-                            in csv_columns if col in column_names]
-        rows = [[row[column] for column in selected_columns]
+
+        selected_columns = []
+
+        for [i, col] in enumerate(data[0]):
+            if col in column_names:
+                selected_columns.append([i, column_by_name[col]])
+
+        def calculate_cell(row, i, column):
+            if column['type'] == "number":
+                return int(row[i])
+            else:
+                return row[i]
+
+        rows = [[calculate_cell(row, i, column) for [i, column] in selected_columns]
                 for row in data[1:]]
 
     return {
