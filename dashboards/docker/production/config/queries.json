@@ -1,0 +1,99 @@
+{
+  "clusters": {
+    "static_vms": {
+      "host": "172.23.109.245",
+      "username": "Administrator",
+      "password": "password"
+    }
+  },
+  "queries": [
+    {
+      "name": "available_vms",
+      "cluster": "static_vms",
+      "query": "SELECT COUNT(*) AS count, poolId as `pool` FROM `QE-server-pool` UNNEST poolId WHERE `QE-server-pool`.state = 'available' GROUP BY poolId",
+      "description": "Available VMs for each server pool",
+      "value_key": "count",
+      "labels": ["pool"]
+    },
+    {
+      "name": "busy_vms",
+      "cluster": "static_vms",
+      "query": "SELECT COUNT(*) AS count, poolId as `pool` FROM `QE-server-pool` UNNEST poolId WHERE `QE-server-pool`.state != 'available' GROUP BY poolId",
+      "description": "Busy VMs for each server pool",
+      "value_key": "count",
+      "labels": ["pool"]
+    },
+    {
+      "name": "vm_states",
+      "cluster": "static_vms",
+      "query": "SELECT COUNT(*) AS count, state FROM `QE-server-pool` GROUP BY state",
+      "description": "Count of VMs in each state",
+      "value_key": "count",
+      "labels": ["state"]
+    },
+    {
+      "name": "available_vms_by_os",
+      "cluster": "static_vms",
+      "query": "SELECT os, COUNT(*) AS count FROM `QE-server-pool` WHERE state = 'available' and os is not missing GROUP BY os",
+      "description": "Available VMs by OS",
+      "value_key": "count",
+      "labels": ["os"]
+    },
+    {
+      "name": "busy_vms_by_os",
+      "cluster": "static_vms",
+      "query": "SELECT os, COUNT(*) AS count FROM `QE-server-pool` WHERE state != 'available' and os is not missing GROUP BY os",
+      "description": "Busy VMs by OS",
+      "value_key": "count",
+      "labels": ["os"]
+    },
+    {
+      "name": "total_available_vms",
+      "cluster": "static_vms",
+      "query": "SELECT COUNT(*) AS count FROM `QE-server-pool` WHERE state = 'available'",
+      "description": "Available VMs",
+      "value_key": "count",
+      "labels": []
+    },
+    {
+      "name": "total_busy_vms",
+      "cluster": "static_vms",
+      "query": "SELECT COUNT(*) AS count FROM `QE-server-pool` WHERE state != 'available'",
+      "description": "Busy VMs",
+      "value_key": "count",
+      "labels": []
+    },
+    {
+      "name": "available_vms_by_os_and_pool",
+      "cluster": "static_vms",
+      "query": "SELECT COUNT(*) AS count, poolId AS `pool`, `QE-server-pool`.os FROM `QE-server-pool` UNNEST poolId WHERE `QE-server-pool`.state = 'available' GROUP BY poolId, `QE-server-pool`.os",
+      "description": "OS by Pool",
+      "value_key": "count",
+      "labels": ["pool", "os"]
+    },
+    {
+      "name": "vms_by_state_and_pool",
+      "cluster": "static_vms",
+      "query": "SELECT COUNT(*) AS count, poolId AS `pool`, `QE-server-pool`.state FROM `QE-server-pool` UNNEST poolId GROUP BY poolId, `QE-server-pool`.state",
+      "description": "State by Pool",
+      "value_key": "count",
+      "labels": ["pool", "state"]
+    },
+    {
+      "name": "vms_by_state_and_os",
+      "cluster": "static_vms",
+      "query": "SELECT COUNT(*) AS count, state, os FROM `QE-server-pool` where os is not missing GROUP BY os, state",
+      "description": "State by OS",
+      "value_key": "count",
+      "labels": ["os", "state"]
+    },
+    {
+      "name": "busy_vms_by_os_and_pool",
+      "cluster": "static_vms",
+      "query": "SELECT COUNT(*) AS count, poolId AS `pool`, `QE-server-pool`.os FROM `QE-server-pool` UNNEST poolId WHERE `QE-server-pool`.state != 'avaiable' GROUP BY poolId, `QE-server-pool`.os",
+      "description": "OS by Pool",
+      "value_key": "count",
+      "labels": ["pool", "os"]
+    }
+  ]
+}
