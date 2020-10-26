@@ -1,0 +1,1084 @@
+{
+  "data": [
+    {
+      "columns": [
+        {
+          "text": "count",
+          "type": "number"
+        }
+      ],
+      "host": "172.23.120.41",
+      "name": "mobile_active_vms_windows",
+      "password": "password",
+      "query": "SELECT COUNT(*) AS count FROM `QE-dynserver-pool` WHERE ipaddr != '' AND live_duration_secs IS MISSING AND os like '%win%' AND DATE_TRUNC_MILLIS(created_time*1000,'day') = DATE_TRUNC_MILLIS(CLOCK_MILLIS(), 'day')",
+      "refresh": 60,
+      "source": "couchbase",
+      "type": "table",
+      "username": "Administrator"
+    },
+    {
+      "columns": [
+        {
+          "text": "count",
+          "type": "number"
+        }
+      ],
+      "host": "172.23.120.41",
+      "name": "mobile_active_vms_linux",
+      "password": "password",
+      "query": "SELECT COUNT(*) AS count FROM `QE-dynserver-pool` WHERE ipaddr != '' AND live_duration_secs IS MISSING AND os not like '%win%' AND DATE_TRUNC_MILLIS(created_time*1000,'day') = DATE_TRUNC_MILLIS(CLOCK_MILLIS(), 'day')",
+      "refresh": 60,
+      "source": "couchbase",
+      "type": "table",
+      "username": "Administrator"
+    },
+    {
+      "columns": [
+        {
+          "text": "count",
+          "type": "number"
+        }
+      ],
+      "file": "http://172.23.120.41:5000/getavailablecount/windows",
+      "name": "mobile_available_vms_windows",
+      "refresh": 60,
+      "single_value": true,
+      "source": "json",
+      "type": "table"
+    },
+    {
+      "columns": [
+        {
+          "text": "count",
+          "type": "number"
+        }
+      ],
+      "file": "http://172.23.120.41:5000/getavailablecount/centos",
+      "name": "mobile_available_vms_centos",
+      "refresh": 60,
+      "single_value": true,
+      "source": "json",
+      "type": "table"
+    },
+    {
+      "columns": [
+        {
+          "text": "count",
+          "type": "number"
+        }
+      ],
+      "host": "172.23.104.180",
+      "name": "active_vms_windows",
+      "password": "password",
+      "query": "SELECT COUNT(*) AS count FROM `QE-dynserver-pool` WHERE ipaddr != '' AND live_duration_secs IS MISSING AND os like '%win%' AND DATE_TRUNC_MILLIS(created_time*1000,'day') = DATE_TRUNC_MILLIS(CLOCK_MILLIS(), 'day')",
+      "refresh": 60,
+      "source": "couchbase",
+      "type": "table",
+      "username": "Administrator"
+    },
+    {
+      "columns": [
+        {
+          "text": "count",
+          "type": "number"
+        }
+      ],
+      "file": "http://172.23.104.180:5000/getavailablecount/windows",
+      "name": "available_vms_windows",
+      "refresh": 60,
+      "single_value": true,
+      "source": "json",
+      "type": "table"
+    },
+    {
+      "columns": [
+        {
+          "text": "count",
+          "type": "number"
+        }
+      ],
+      "host": "172.23.104.180",
+      "name": "active_vms_linux",
+      "password": "password",
+      "query": "SELECT COUNT(*) AS count FROM `QE-dynserver-pool` WHERE ipaddr != '' AND live_duration_secs IS MISSING AND os not like '%win%' AND DATE_TRUNC_MILLIS(created_time*1000,'day') = DATE_TRUNC_MILLIS(CLOCK_MILLIS(), 'day')",
+      "refresh": 60,
+      "source": "couchbase",
+      "type": "table",
+      "username": "Administrator"
+    },
+    {
+      "columns": [
+        {
+          "text": "count",
+          "type": "number"
+        }
+      ],
+      "file": "http://172.23.104.180:5000/getavailablecount/centos",
+      "name": "available_vms_centos",
+      "refresh": 60,
+      "single_value": true,
+      "source": "json",
+      "type": "table"
+    }
+  ],
+  "grafana": {
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": "-- Grafana --",
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": true,
+    "gnetId": null,
+    "graphTooltip": 0,
+    "id": 4,
+    "links": [],
+    "panels": [
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "custom": {}
+          },
+          "overrides": []
+        },
+        "folderId": null,
+        "gridPos": {
+          "h": 10,
+          "w": 4,
+          "x": 0,
+          "y": 0
+        },
+        "headings": true,
+        "id": 2,
+        "limit": null,
+        "pluginVersion": "7.2.0",
+        "query": "",
+        "recent": false,
+        "search": true,
+        "starred": false,
+        "tags": [],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Dashboards",
+        "type": "dashlist"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "custom": {}
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 1,
+          "w": 8,
+          "x": 4,
+          "y": 0
+        },
+        "id": 19,
+        "options": {
+          "content": "",
+          "mode": "markdown"
+        },
+        "pluginVersion": "7.1.0",
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Dynamic VMs (Server)",
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "custom": {}
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 1,
+          "w": 6,
+          "x": 12,
+          "y": 0
+        },
+        "id": 22,
+        "options": {
+          "content": "",
+          "mode": "markdown"
+        },
+        "pluginVersion": "7.1.0",
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Dynamic VMs (Mobile)",
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "custom": {}
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 1,
+          "w": 6,
+          "x": 18,
+          "y": 0
+        },
+        "id": 23,
+        "options": {
+          "content": "",
+          "mode": "markdown"
+        },
+        "pluginVersion": "7.1.0",
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Static VMs",
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "custom": {}
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 1,
+          "w": 4,
+          "x": 4,
+          "y": 1
+        },
+        "id": 24,
+        "options": {
+          "content": "",
+          "mode": "markdown"
+        },
+        "pluginVersion": "7.1.0",
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Windows",
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "custom": {}
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 1,
+          "w": 4,
+          "x": 8,
+          "y": 1
+        },
+        "id": 25,
+        "options": {
+          "content": "",
+          "mode": "markdown"
+        },
+        "pluginVersion": "7.1.0",
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Linux",
+        "type": "text"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "none"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 5,
+          "w": 3,
+          "x": 12,
+          "y": 1
+        },
+        "id": 16,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": ["sum"],
+            "fields": "",
+            "values": true
+          },
+          "textMode": "auto"
+        },
+        "pluginVersion": "7.2.1",
+        "targets": [
+          {
+            "data": "",
+            "refId": "A",
+            "target": "mobile_active_vms_windows",
+            "type": "table"
+          },
+          {
+            "data": "",
+            "refId": "B",
+            "target": "mobile_active_vms_linux",
+            "type": "table"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Busy",
+        "transformations": [
+          {
+            "id": "reduce",
+            "options": {
+              "reducers": ["last"]
+            }
+          },
+          {
+            "id": "groupBy",
+            "options": {
+              "fields": {
+                "Field": {
+                  "aggregations": [],
+                  "operation": "groupby"
+                },
+                "Last": {
+                  "aggregations": ["sum"],
+                  "operation": "aggregate"
+                }
+              }
+            }
+          }
+        ],
+        "type": "stat"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "none"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 5,
+          "w": 3,
+          "x": 15,
+          "y": 1
+        },
+        "id": 15,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": ["sum"],
+            "fields": "",
+            "values": true
+          },
+          "textMode": "auto"
+        },
+        "pluginVersion": "7.2.1",
+        "targets": [
+          {
+            "data": "",
+            "refId": "A",
+            "target": "mobile_available_vms_windows",
+            "type": "table"
+          },
+          {
+            "data": "",
+            "refId": "B",
+            "target": "mobile_available_vms_centos",
+            "type": "table"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Available",
+        "transformations": [
+          {
+            "id": "reduce",
+            "options": {
+              "reducers": ["last"]
+            }
+          },
+          {
+            "id": "groupBy",
+            "options": {
+              "fields": {
+                "Field": {
+                  "aggregations": [],
+                  "operation": "groupby"
+                },
+                "Last": {
+                  "aggregations": ["sum"],
+                  "operation": "aggregate"
+                }
+              }
+            }
+          }
+        ],
+        "type": "stat"
+      },
+      {
+        "datasource": "Prometheus",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 5,
+          "w": 3,
+          "x": 18,
+          "y": 1
+        },
+        "id": 9,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": ["mean"],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto"
+        },
+        "pluginVersion": "7.2.1",
+        "targets": [
+          {
+            "expr": "total_busy_vms",
+            "instant": true,
+            "interval": "",
+            "legendFormat": "",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Busy",
+        "type": "stat"
+      },
+      {
+        "datasource": "Prometheus",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 5,
+          "w": 3,
+          "x": 21,
+          "y": 1
+        },
+        "id": 7,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": ["mean"],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto"
+        },
+        "pluginVersion": "7.2.1",
+        "targets": [
+          {
+            "expr": "total_available_vms",
+            "instant": true,
+            "interval": "",
+            "legendFormat": "",
+            "refId": "A"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Available",
+        "type": "stat"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "none"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 2,
+          "x": 4,
+          "y": 2
+        },
+        "id": 12,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": ["sum"],
+            "fields": "",
+            "values": true
+          },
+          "textMode": "auto"
+        },
+        "pluginVersion": "7.2.1",
+        "targets": [
+          {
+            "data": "",
+            "refId": "A",
+            "target": "active_vms_windows",
+            "type": "table"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Busy",
+        "transformations": [],
+        "type": "stat"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "none"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 2,
+          "x": 6,
+          "y": 2
+        },
+        "id": 13,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": ["sum"],
+            "fields": "",
+            "values": true
+          },
+          "textMode": "auto"
+        },
+        "pluginVersion": "7.2.1",
+        "targets": [
+          {
+            "data": "",
+            "refId": "A",
+            "target": "available_vms_windows",
+            "type": "table"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Available",
+        "transformations": [],
+        "type": "stat"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "none"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 2,
+          "x": 8,
+          "y": 2
+        },
+        "id": 20,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": ["sum"],
+            "fields": "",
+            "values": true
+          },
+          "textMode": "auto"
+        },
+        "pluginVersion": "7.2.1",
+        "targets": [
+          {
+            "data": "",
+            "refId": "B",
+            "target": "active_vms_linux",
+            "type": "table"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Busy",
+        "transformations": [],
+        "type": "stat"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "none"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 2,
+          "x": 10,
+          "y": 2
+        },
+        "id": 21,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": ["sum"],
+            "fields": "",
+            "values": true
+          },
+          "textMode": "auto"
+        },
+        "pluginVersion": "7.2.1",
+        "targets": [
+          {
+            "data": "",
+            "refId": "B",
+            "target": "available_vms_centos",
+            "type": "table"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Available",
+        "transformations": [],
+        "type": "stat"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "purple",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "none"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 4,
+          "y": 6
+        },
+        "id": 14,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": ["sum"],
+            "fields": "",
+            "values": true
+          },
+          "textMode": "auto"
+        },
+        "pluginVersion": "7.2.1",
+        "targets": [
+          {
+            "data": "",
+            "refId": "A",
+            "target": "available_vms_windows",
+            "type": "table"
+          },
+          {
+            "data": "",
+            "refId": "B",
+            "target": "available_vms_centos",
+            "type": "table"
+          },
+          {
+            "data": "",
+            "refId": "C",
+            "target": "active_vms_linux",
+            "type": "table"
+          },
+          {
+            "data": "",
+            "refId": "D",
+            "target": "active_vms_windows",
+            "type": "table"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Total",
+        "transformations": [
+          {
+            "id": "reduce",
+            "options": {
+              "reducers": ["last"]
+            }
+          },
+          {
+            "id": "groupBy",
+            "options": {
+              "fields": {
+                "Field": {
+                  "aggregations": [],
+                  "operation": "groupby"
+                },
+                "Last": {
+                  "aggregations": ["sum"],
+                  "operation": "aggregate"
+                }
+              }
+            }
+          }
+        ],
+        "type": "stat"
+      },
+      {
+        "datasource": null,
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "purple",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "none"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 12,
+          "y": 6
+        },
+        "id": 17,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": ["sum"],
+            "fields": "",
+            "values": true
+          },
+          "textMode": "auto"
+        },
+        "pluginVersion": "7.2.1",
+        "targets": [
+          {
+            "data": "",
+            "refId": "A",
+            "target": "mobile_available_vms_windows",
+            "type": "table"
+          },
+          {
+            "data": "",
+            "refId": "B",
+            "target": "mobile_available_vms_centos",
+            "type": "table"
+          },
+          {
+            "data": "",
+            "refId": "C",
+            "target": "mobile_active_vms_linux",
+            "type": "table"
+          },
+          {
+            "data": "",
+            "refId": "D",
+            "target": "mobile_active_vms_windows",
+            "type": "table"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Total",
+        "transformations": [
+          {
+            "id": "reduce",
+            "options": {
+              "reducers": ["last"]
+            }
+          },
+          {
+            "id": "groupBy",
+            "options": {
+              "fields": {
+                "Field": {
+                  "aggregations": [],
+                  "operation": "groupby"
+                },
+                "Last": {
+                  "aggregations": ["sum"],
+                  "operation": "aggregate"
+                }
+              }
+            }
+          }
+        ],
+        "type": "stat"
+      },
+      {
+        "datasource": "Prometheus",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": null,
+              "filterable": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "purple",
+                  "value": null
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 18,
+          "y": 6
+        },
+        "id": 10,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": ["mean"],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto"
+        },
+        "pluginVersion": "7.2.1",
+        "targets": [
+          {
+            "expr": "total_available_vms",
+            "format": "table",
+            "instant": true,
+            "interval": "",
+            "legendFormat": "",
+            "refId": "A"
+          },
+          {
+            "expr": "total_busy_vms",
+            "format": "table",
+            "instant": true,
+            "interval": "",
+            "legendFormat": "",
+            "refId": "B"
+          }
+        ],
+        "timeFrom": null,
+        "timeShift": null,
+        "title": "Total",
+        "transformations": [
+          {
+            "id": "calculateField",
+            "options": {
+              "mode": "reduceRow",
+              "reduce": {
+                "include": ["Value #A", "Value #B"],
+                "reducer": "sum"
+              },
+              "replaceFields": true
+            }
+          }
+        ],
+        "type": "stat"
+      }
+    ],
+    "refresh": "10s",
+    "schemaVersion": 26,
+    "style": "dark",
+    "tags": [],
+    "templating": {
+      "list": []
+    },
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "",
+    "title": "QE Dashboards",
+    "uid": "KGQcTucGk",
+    "version": 24
+  }
+}
