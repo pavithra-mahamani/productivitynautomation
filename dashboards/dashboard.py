@@ -45,13 +45,15 @@ if len(sys.argv) > 1:
 
 
 def add_cluster(host: str, username: str, password: str):
-    clusters_lock.acquire()
-    if host not in clusters:
-        clusters[host] = Cluster('couchbase://' + host,
-                                 ClusterOptions(
-                                     PasswordAuthenticator(username, password)),
-                                 lockmode=LockMode.WAIT)
-    clusters_lock.release()
+    try:
+        clusters_lock.acquire()
+        if host not in clusters:
+            clusters[host] = Cluster('couchbase://' + host,
+                                     ClusterOptions(
+                                         PasswordAuthenticator(username, password)),
+                                     lockmode=LockMode.WAIT)
+    finally:
+        clusters_lock.release()
 
 
 def populate_couchbase_clusters():
@@ -99,10 +101,7 @@ class UpdateThread(Thread):
                 if target_name not in cache:
                     continue
 
-                if "refresh" in target:
-                    refresh = target['refresh']
-                else:
-                    refresh = 60
+                refresh = target['refresh'] if 'refresh' in target else 60
 
                 if now >= cache[target_name]['last_update'] + refresh:
 
@@ -137,29 +136,102 @@ class UpdateThread(Thread):
                 print("refreshed cache: " + target)
 
 
+def add_targets(data):
+    # store any new targets
+    for target in data:
+
+        cache_lock.acquire()
+        targets_lock.acquire()
+
+        if target['name'] in cache:
+            cache.pop(target['name'])
+
+        targets[target['name']] = target
+
+        write_targets_to_disk()
+
+        targets_lock.release()
+        cache_lock.release()
+
+        if target['source'] == "couchbase":
+            add_cluster(target['host'],
+                        target['username'], target['password'])
+
+
 @app.route("/import", methods=["POST"])
-def import_targets():
-    global targets
+def import_():
+    """
+    /import creates or overwrites a dashboard & its required data and returns the dashboard URL if it was created successfully
+    """
+    try:
+
+        req = request.json
+        data = req['data']
+        grafana = req['grafana']
+        overwrite = req['overwrite'] if 'overwrite' in req else False
+
+        add_targets(data)
+
+        # we use the name to determine unique dashboards
+        grafana.pop('uid')
+        grafana.pop('id')
+
+        res = {
+            "dashboard": grafana,
+            "overwrite": overwrite
+        }
+
+        grafana_response = requests.post(
+            grafana_connection_string + "/api/dashboards/db", json=res).json()
+
+        if grafana_response['status'] == "success":
+            return {
+                'result': grafana_response['url'],
+            }
+        else:
+            return {
+                "error": grafana_response['message']
+            }
+
+    except Exception as e:
+        return {"error": str(e)}, 500
+
+
+@app.route("/export/<uid>")
+def export(uid: str):
+    """
+    export the data and grafana ui for a dashboard with the given uid
+    """
+
+    grafana = requests.get(
+        grafana_connection_string + "/api/dashboards/uid/"+uid).json()
+
+    dashboard = grafana['dashboard']
+    required_targets = {}
 
     targets_lock.acquire()
-    targets = request.json
-    write_targets_to_disk()
-    targets_lock.release()
 
-    populate_couchbase_clusters()
+    try:
 
-    return {
-        "result": "imported successfully"
+        for panel in dashboard['panels']:
+            # text or another visualisation type might not have targets
+            if 'targets' in panel:
+                for target in panel['targets']:
+                    # prometheus or another data source may not have a target
+                    if 'target' in target:
+                        target = target['target']
+                        if target not in required_targets:
+                            required_targets[target] = targets[target]
+
+    finally:
+        targets_lock.release()
+
+    ret = {
+        "data": list(required_targets.values()),
+        "grafana": dashboard
     }
 
-
-@app.route("/export")
-def export_targets():
-    targets_lock.acquire()
-    ret = targets
-    targets_lock.release()
-
-    return ret
+    return jsonify(ret)
 
 
 @app.route("/add", methods=["POST"])
@@ -356,16 +428,32 @@ def calculate_rows_and_columns(target):
         rows = [[row[column['text']] for column in columns] for row in data]
     elif target['source'] == "json":
         data = requests.get(target['file']).json()
-        rows = [[row[column['text']] for column in columns] for row in data]
+        if "single_value" in target and target["single_value"] == True:
+            rows = [[data]]
+        else:
+            rows = [[row[column['text']] for column in columns]
+                    for row in data]
     elif target['source'] == "csv":
         data = requests.get(target['file']).text.splitlines()
         delimiter = target['delimiter'] if 'delimiter' in target else ','
         data = list(csv.reader(data, delimiter=delimiter))
+
+        column_by_name = {column['text']: column for column in columns}
         column_names = [column['text'] for column in columns]
-        csv_columns = dict(enumerate(data[0])).items()
-        selected_columns = [i for [i, col]
-                            in csv_columns if col in column_names]
-        rows = [[row[column] for column in selected_columns]
+
+        selected_columns = []
+
+        for [i, col] in enumerate(data[0]):
+            if col in column_names:
+                selected_columns.append([i, column_by_name[col]])
+
+        def calculate_cell(row, i, column):
+            if column['type'] == "number":
+                return int(row[i])
+            else:
+                return row[i]
+
+        rows = [[calculate_cell(row, i, column) for [i, column] in selected_columns]
                 for row in data[1:]]
 
     return {
@@ -476,22 +564,16 @@ def query():
             target = target['target']
 
             if data_type == "timeseries":
-                cache_lock.acquire()
                 if target in cache:
                     datapoints = cache[target]['datapoints']
-                    cache_lock.release()
                 else:
-                    cache_lock.release()
                     datapoints = calculate_datapoints(target)
                     cache_datapoints(target, datapoints)
 
             elif data_type == "table":
-                cache_lock.acquire()
                 if target in cache:
                     datapoints = cache[target]['table']
-                    cache_lock.release()
                 else:
-                    cache_lock.release()
                     datapoints = calculate_rows_and_columns(target)
                     cache_table(target, datapoints)
 
