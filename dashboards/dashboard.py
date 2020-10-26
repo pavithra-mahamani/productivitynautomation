@@ -358,7 +358,11 @@ def calculate_rows_and_columns(target):
         rows = [[row[column['text']] for column in columns] for row in data]
     elif target['source'] == "json":
         data = requests.get(target['file']).json()
-        rows = [[row[column['text']] for column in columns] for row in data]
+        if "single_value" in target and target["single_value"] == True:
+            rows = [[data]]
+        else:
+            rows = [[row[column['text']] for column in columns]
+                    for row in data]
     elif target['source'] == "csv":
         data = requests.get(target['file']).text.splitlines()
         delimiter = target['delimiter'] if 'delimiter' in target else ','

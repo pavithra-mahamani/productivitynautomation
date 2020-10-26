@@ -72,6 +72,15 @@ JSON or CSV source
 }
 ```
 
+JSON source
+
+```json
+{
+  // single value is true if the json file is a single value rather than an array of values
+  "single_value": "<true|false>"
+}
+```
+
 CSV source
 
 ```json
