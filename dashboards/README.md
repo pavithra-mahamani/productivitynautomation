@@ -15,6 +15,26 @@ Install grafana https://grafana.com/docs/grafana/latest/installation/ and setup 
 
 Install the JSON plugin https://grafana.com/grafana/plugins/simpod-json-datasource/installation
 
+# Setup all services
+
+1) Setup API, grafana, prometheus, 
+ cd docker
+ docker-compose up
+
+2) Create a new dashboard
+ Take the input metadata json (modify the data sources and visual elements) and import into the Dashboard API service. 
+
+ Example: 
+    curl -X POST -H “Content-Type: application/json” -d @./templates/server_dynamic_vms.json http://localhost:5000/import
+
+  This gives the <Dashboard ID>
+
+3) Visit  the dashboard
+  http://localhost:grafana_port/<dashboardid>
+
+If any changes needed in the dashboard resources/visual, then rerun the above import into API service curl command.
+
+
 # Run the service
 
 The only command line argument is the connection string for grafana in the format of username:password@host:port
