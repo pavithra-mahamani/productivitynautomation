@@ -14,10 +14,20 @@ A simple Jenkins helper tool to do the general activities
    - find the list of queued builds
    - find the list of running builds
 
+  Usage:
+    python jenkinshelper.py -h
+    Edit the config jenkinshelper.ini for TOKEN and use as below.
+  Example: 
+     To get all the running jobs:
+       python jenkinshelper.py -c jenkinshelper.ini -r
+     To get all the queued jobs:
+       python jenkinshelper.py -c jenkinshelper.ini -q
+     To get all the slaves:
+       python jenkinshelper.py -c jenkinshelper.ini -s    
+
 """
 
 CONFIG_FILE = ".jenkinshelper.ini"
-#server = jenkins.Jenkins('http://qa.sc.couchbase.com', username='qeinfra', password='password')
 server = None
 
 logger = logging.getLogger(__name__)
