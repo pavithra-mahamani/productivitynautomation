@@ -15,8 +15,7 @@ formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messag
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
-def get_hanging_jobs(jenkins_server_url):
-    server = jenkinshelper.connect_to_jenkins(jenkins_server_url)
+def get_hanging_jobs(server, timeout):
     running_builds = server.get_running_builds()
 
     hanging_jobs = []
@@ -66,8 +65,7 @@ def get_hanging_jobs(jenkins_server_url):
                 now = datetime.now().astimezone()
                 difference = (now - latest_timestamp).total_seconds() / 60
 
-                # 1 hour
-                if difference >= 60:
+                if difference >= timeout:
                     logger.info("{} is hanging (last console output: {} ({:2.2f} minutes ago)".format(build['url'], latest_timestamp, difference))
                     hanging_jobs.append(build)
 
@@ -87,6 +85,7 @@ def parse_arguments():
                         help="Configuration file")
     parser.add_option("-u", "--url", dest="build_url_to_check",
                       default='http://qa.sc.couchbase.com', help="Build URL to check")
+    parser.add_option("-t", "--timeout", dest="timeout", help="No console output timeout (minutes)", default=60, type="int")
     parser.add_option("-e", "--exclude", dest="exclude", help="List of job names to exclude")
     parser.add_option("-i", "--include", dest="include", help="List of job names to include")
     parser.add_option("-p", "--print", dest="print", help="Just print hanging jobs, don't stop them", action="store_true")
@@ -117,9 +116,7 @@ def parse_arguments():
 
     return options
 
-def stop_hanging_jobs(hanging_jobs, include, exclude):
-    server = jenkinshelper.connect_to_jenkins(options.build_url_to_check)
-
+def stop_hanging_jobs(server, hanging_jobs, include, exclude):
     for job in hanging_jobs:
         if len(options.include) > 0 and job['name'] not in options.include:
             logger.info("Skipping {}, not included".format(job['name']))
@@ -135,6 +132,7 @@ def stop_hanging_jobs(hanging_jobs, include, exclude):
 
 if __name__ == "__main__":
     options = parse_arguments()
-    hanging_jobs = get_hanging_jobs(options.build_url_to_check)
+    server = jenkinshelper.connect_to_jenkins(options.build_url_to_check)
+    hanging_jobs = get_hanging_jobs(server, options.timeout)
     if not options.print:
-        stop_hanging_jobs(hanging_jobs, options.include, options.exclude)
+        stop_hanging_jobs(server, hanging_jobs, options.include, options.exclude)
