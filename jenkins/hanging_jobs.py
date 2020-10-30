@@ -4,11 +4,22 @@ from datetime import datetime
 import pytz
 from pytz import timezone
 import requests
+from optparse import OptionParser
+import logging
 
+logger = logging.getLogger("hanging_jobs")
+logger.setLevel(logging.DEBUG)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+ch.setFormatter(formatter)
+logger.addHandler(ch)
 
 def get_hanging_jobs(jenkins_server_url):
     server = jenkinshelper.connect_to_jenkins(jenkins_server_url)
     running_builds = server.get_running_builds()
+
+    hanging_jobs = []
 
     for build in running_builds:
         try:
@@ -57,15 +68,73 @@ def get_hanging_jobs(jenkins_server_url):
 
                 # 1 hour
                 if difference >= 60:
-                    print("{0} is hanging (last console output: {1} ({2:2.2f} minutes ago)".format(build['url'], latest_timestamp, difference))
+                    logger.info("{} is hanging (last console output: {} ({:2.2f} minutes ago)".format(build['url'], latest_timestamp, difference))
+                    hanging_jobs.append(build)
 
             else:
 
-                print("timestamp not found for ", build['url'])
+                logger.warning("timestamp not found for {}".format(build['url']))
             
         except Exception as e:
             traceback.print_exc()
             pass
 
+    return hanging_jobs
+
+def parse_arguments():
+    parser = OptionParser()
+    parser.add_option("-c", "--config", dest="configfile", default=".jenkinshelper.ini",
+                        help="Configuration file")
+    parser.add_option("-u", "--url", dest="build_url_to_check",
+                      default='http://qa.sc.couchbase.com', help="Build URL to check")
+    parser.add_option("-e", "--exclude", dest="exclude", help="List of job names to exclude")
+    parser.add_option("-i", "--include", dest="include", help="List of job names to include")
+    parser.add_option("-p", "--print", dest="print", help="Just print hanging jobs, don't stop them", action="store_true")
+
+    options, args = parser.parse_args()
+
+    if options.exclude:
+        options.exclude = options.exclude.split(",")
+    else:
+        options.exclude = []
+
+    if options.include:
+        options.include = options.include.split(",")
+    else:
+        options.include = []
+
+    if options.build_url_to_check:
+        build_url_to_check = options.build_url_to_check
+
+    if len(args)==1:
+        build_url_to_check = args[0]
+
+    if not build_url_to_check:
+        logger.error("No jenkins build url given!")
+        sys.exit(1)
+
+    logger.info("Given build url={}".format(build_url_to_check))
+
+    return options
+
+def stop_hanging_jobs(hanging_jobs, include, exclude):
+    server = jenkinshelper.connect_to_jenkins(options.build_url_to_check)
+
+    for job in hanging_jobs:
+        if len(options.include) > 0 and job['name'] not in options.include:
+            logger.info("Skipping {}, not included".format(job['name']))
+            continue
+
+        if job['name'] in options.exclude:
+            logger.info("Skipping {}, excluded".format(job['name']))
+            continue
+        
+        logger.info("Stopping {}/{}".format(job['name'], job['number']))
+        # server.stop_build(job['name'], job['number'])
+    
+
 if __name__ == "__main__":
-    get_hanging_jobs("http://qa.sc.couchbase.com")
+    options = parse_arguments()
+    hanging_jobs = get_hanging_jobs(options.build_url_to_check)
+    if not options.print:
+        stop_hanging_jobs(hanging_jobs, options.include, options.exclude)
