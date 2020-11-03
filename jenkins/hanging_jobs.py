@@ -6,6 +6,7 @@ from pytz import timezone
 import requests
 from optparse import OptionParser
 import logging
+import re
 
 logger = logging.getLogger("hanging_jobs")
 logger.setLevel(logging.DEBUG)
@@ -23,9 +24,9 @@ def get_hanging_jobs(server, timeout):
     for build in running_builds:
         try:
             latest_timestamp = None
-            console = requests.get(
-                build['url'] + 'consoleText').iter_lines(decode_unicode=True)
-            for line in console:
+            console = list(requests.get(
+                build['url'] + 'consoleText').iter_lines(decode_unicode=True))
+            for line in reversed(console):
 
                 def parse_timestamp(timestamp, format):
                     timestamp = datetime.strptime(timestamp, format)
@@ -38,7 +39,7 @@ def get_hanging_jobs(server, timeout):
                     day = split[0]
                     time = split[1].split(",")[0]
                     latest_timestamp = parse_timestamp(day + " " + time, "%Y-%m-%d %H:%M:%S")
-                    continue
+                    break
                 except Exception:
                     pass
 
@@ -47,7 +48,7 @@ def get_hanging_jobs(server, timeout):
                     day = split[0].split("[")[1]
                     time = split[1].split("]")[0].split(",")[0]
                     latest_timestamp = parse_timestamp(day + " " + time, "%Y-%m-%d %H:%M:%S")
-                    continue
+                    break
                 except Exception:
                     pass
 
@@ -56,7 +57,7 @@ def get_hanging_jobs(server, timeout):
 
                     timestamp = line.split(" ")[0].split("[")[1][:19]
                     latest_timestamp = parse_timestamp(timestamp, "%Y-%m-%dT%H:%M:%S")
-                    continue
+                    break
                 except Exception:
                     pass
 
@@ -86,21 +87,12 @@ def parse_arguments():
     parser.add_option("-u", "--url", dest="build_url_to_check",
                       default='http://qa.sc.couchbase.com', help="Build URL to check")
     parser.add_option("-t", "--timeout", dest="timeout", help="No console output timeout (minutes)", default=60, type="int")
-    parser.add_option("-e", "--exclude", dest="exclude", help="List of job names to exclude")
-    parser.add_option("-i", "--include", dest="include", help="List of job names to include")
+    parser.add_option("-e", "--exclude", dest="exclude", help="Regular expression of job names to exclude")
+    parser.add_option("-i", "--include", dest="include", help="Regular expression of job names to include")
     parser.add_option("-p", "--print", dest="print", help="Just print hanging jobs, don't stop them", action="store_true")
 
     options, args = parser.parse_args()
 
-    if options.exclude:
-        options.exclude = options.exclude.split(",")
-    else:
-        options.exclude = []
-
-    if options.include:
-        options.include = options.include.split(",")
-    else:
-        options.include = []
 
     if options.build_url_to_check:
         build_url_to_check = options.build_url_to_check
@@ -118,11 +110,11 @@ def parse_arguments():
 
 def stop_hanging_jobs(server, hanging_jobs, include, exclude):
     for job in hanging_jobs:
-        if len(options.include) > 0 and job['name'] not in options.include:
+        if options.include and not re.search(options.include, job['name']):
             logger.info("Skipping {}, not included".format(job['name']))
             continue
 
-        if job['name'] in options.exclude:
+        if options.exclude and re.search(options.exclude, job['name']):
             logger.info("Skipping {}, excluded".format(job['name']))
             continue
         
