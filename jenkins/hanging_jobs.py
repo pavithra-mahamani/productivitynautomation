@@ -24,9 +24,9 @@ def get_hanging_jobs(server, timeout):
     for build in running_builds:
         try:
             latest_timestamp = None
-            console = requests.get(
-                build['url'] + 'consoleText').iter_lines(decode_unicode=True)
-            for line in console:
+            console = list(requests.get(
+                build['url'] + 'consoleText').iter_lines(decode_unicode=True))
+            for line in reversed(console):
 
                 def parse_timestamp(timestamp, format):
                     timestamp = datetime.strptime(timestamp, format)
@@ -39,7 +39,7 @@ def get_hanging_jobs(server, timeout):
                     day = split[0]
                     time = split[1].split(",")[0]
                     latest_timestamp = parse_timestamp(day + " " + time, "%Y-%m-%d %H:%M:%S")
-                    continue
+                    break
                 except Exception:
                     pass
 
@@ -48,7 +48,7 @@ def get_hanging_jobs(server, timeout):
                     day = split[0].split("[")[1]
                     time = split[1].split("]")[0].split(",")[0]
                     latest_timestamp = parse_timestamp(day + " " + time, "%Y-%m-%d %H:%M:%S")
-                    continue
+                    break
                 except Exception:
                     pass
 
@@ -57,7 +57,7 @@ def get_hanging_jobs(server, timeout):
 
                     timestamp = line.split(" ")[0].split("[")[1][:19]
                     latest_timestamp = parse_timestamp(timestamp, "%Y-%m-%dT%H:%M:%S")
-                    continue
+                    break
                 except Exception:
                     pass
 
