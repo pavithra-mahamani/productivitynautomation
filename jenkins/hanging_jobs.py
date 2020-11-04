@@ -16,12 +16,18 @@ formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messag
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
-def get_hanging_jobs(server, timeout):
+def get_hanging_jobs(server, timeout, include, exclude):
     running_builds = server.get_running_builds()
 
     hanging_jobs = []
 
     for build in running_builds:
+        if include and not re.search(include, build['name']):
+            continue
+
+        if exclude and re.search(exclude, build['name']):
+            continue
+
         try:
             latest_timestamp = None
             console = list(requests.get(
@@ -108,23 +114,15 @@ def parse_arguments():
 
     return options
 
-def stop_hanging_jobs(server, hanging_jobs, include, exclude):
+def stop_hanging_jobs(server, hanging_jobs):
     for job in hanging_jobs:
-        if options.include and not re.search(options.include, job['name']):
-            logger.info("Skipping {}, not included".format(job['name']))
-            continue
-
-        if options.exclude and re.search(options.exclude, job['name']):
-            logger.info("Skipping {}, excluded".format(job['name']))
-            continue
-        
         logger.info("Stopping {}/{}".format(job['name'], job['number']))
-        # server.stop_build(job['name'], job['number'])
+        server.stop_build(job['name'], job['number'])
     
 
 if __name__ == "__main__":
     options = parse_arguments()
     server = jenkinshelper.connect_to_jenkins(options.build_url_to_check)
-    hanging_jobs = get_hanging_jobs(server, options.timeout)
+    hanging_jobs = get_hanging_jobs(server, options.timeout, options.include, options.exclude)
     if not options.print:
-        stop_hanging_jobs(server, hanging_jobs, options.include, options.exclude)
+        stop_hanging_jobs(server, hanging_jobs)
