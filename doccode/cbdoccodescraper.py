@@ -25,6 +25,21 @@ from scrapy.utils.project import get_project_settings
   
   Extracted as
    <lang>/<pagetitle>Code.<lang>
+   
+   python3 cbdoccodescraper.py --help
+usage: cbdoccodescraper.py [-h] [-u URL] [-e EXCLUDE] [-l LANGUAGE] [-csl CSLANGUAGE] [-p USEPATHFILE]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -u URL, --url URL     starting url
+  -e EXCLUDE, --exclude EXCLUDE
+                        excluded string in url
+  -l LANGUAGE, --language LANGUAGE
+                        extract specific language
+  -csl CSLANGUAGE, --cslanguage CSLANGUAGE
+                        extract specific case sensitive language
+  -p USEPATHFILE, --usepathfile USEPATHFILE
+                        use path as file name
   
 '''
 class CouchbaseDocCodeSpider(scrapy.Spider):
@@ -42,7 +57,7 @@ class CouchbaseDocCodeSpider(scrapy.Spider):
         urls = [self.url]
         self.urldomain = urlparse(self.url).netloc
         self.urlscheme = urlparse(self.url).scheme
-        self.allowed_domains = [self.urldomain]
+        allowed_domains = [self.urldomain]
         logging.info("-->urlscheme={}, urldomain={}".format(self.urlscheme, self.urldomain))
         for url in urls:
             yield scrapy.Request(url=url, callback=self.parse)
@@ -107,25 +122,33 @@ class CouchbaseDocCodeSpider(scrapy.Spider):
                 if not next_visit in self.urldict:
                     self.urldict.append(next_visit)
                     if self.language:
-                        if codelang_lower == self.language:
+                        if re.search(self.language, codelang_lower):
                             write_code()
                     else:
                         write_code()
 
         for href in response.css('a::attr(href)'):
+            url_referer = str(response.request.headers.get('Referer', self.urldomain))
             if not self.exclude:
-                if ('data=\'' + self.urlscheme + '://' +
+                if self.urldomain in url_referer and (( 'data=\'' +
+                        self.urlscheme + '://' +
                      self.urldomain + '\'' in str(href)) and ('data=\'http' in str(
                     href) and self.urldomain in str(href)) or (not 'data=\'http' in str(
-                    href) and not 'data=\'#' in str(href)):
+                    href) and not 'data=\'#' in str(href))):
+                    logging.info("Matched url in data:{}, {}".format(
+                        response.request.headers.get('Referer', None), href))
                     try:
                         yield response.follow(href, callback=self.parse)
                     except Exception as e:
                         pass
-            elif (self.exclude not in str(href)) and ((not 'data=\''+self.urlscheme
-                                                  +'://'+self.urldomain+'\'' in str(href)) and (
-                    'data=\'http' in str(href) and self.urldomain in str(href)) or (
-                    not 'data=\'http' in str(href) and not 'data=\'#' in str(href))):
+                else:
+                    logging.info("Not matched url in data:{}".format(href))
+            elif self.urldomain in url_referer and ( not re.search(self.exclude,str(href))) and (\
+                    ('data=\'' +
+                        self.urlscheme + '://' +
+                     self.urldomain + '\'' in str(href)) and ('data=\'http' in str(
+                    href) and self.urldomain in str(href)) or (not 'data=\'http' in str(
+                    href) and not 'data=\'#' in str(href))):
                 try:
                     yield response.follow(href, callback=self.parse)
                 except Exception as e:
@@ -136,8 +159,9 @@ def parse_arguments():
     parser.add_argument("-u", "--url", dest="url", default="https://docs.couchbase.com",
                         help="starting url")
     parser.add_argument("-e", "--exclude", dest="exclude",
-                        help="excluded string in url")
-    parser.add_argument("-l", "--language", dest="language", help="extract specific language")
+                        help="excluded regular expression string in url")
+    parser.add_argument("-l", "--language", dest="language", help="extract specific language(s) "
+                                                                  "regular expression")
     parser.add_argument("-csl", "--cslanguage", dest="cslanguage", help="extract specific "
                                                                         "case sensitive language")
     parser.add_argument("-p", "--usepathfile", dest="usepathfile", help="use path as file "
