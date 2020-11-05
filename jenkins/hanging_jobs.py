@@ -7,6 +7,7 @@ import requests
 from optparse import OptionParser
 import logging
 import re
+import csv
 
 logger = logging.getLogger("hanging_jobs")
 logger.setLevel(logging.DEBUG)
@@ -74,6 +75,7 @@ def get_hanging_jobs(server, options):
 
                 if difference >= options.timeout:
                     logger.info("{} is hanging (last console output: {} ({:2.2f} minutes ago)".format(build['url'], latest_timestamp, difference))
+                    build['last_console_output'] = difference
                     hanging_jobs.append(build)
 
             else:
@@ -85,6 +87,14 @@ def get_hanging_jobs(server, options):
             pass
 
     return hanging_jobs
+
+def write_to_csv(jobs):
+    with open('hung_jobs.csv', 'w') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_rows = [['name', 'number', 'last_console_output']]
+        for job in jobs:
+            csv_rows.append([job['name'], job['number'], job['last_console_output']])
+        csv_writer.writerows(csv_rows)
 
 def parse_arguments():
     parser = OptionParser()
@@ -124,5 +134,6 @@ if __name__ == "__main__":
     options = parse_arguments()
     server = jenkinshelper.connect_to_jenkins(options.build_url_to_check)
     hanging_jobs = get_hanging_jobs(server, options)
+    write_to_csv(hanging_jobs)
     if not options.print:
         stop_hanging_jobs(server, hanging_jobs)
