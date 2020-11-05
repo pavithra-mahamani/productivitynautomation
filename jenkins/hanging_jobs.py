@@ -16,16 +16,16 @@ formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messag
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
-def get_hanging_jobs(server, timeout, include, exclude):
+def get_hanging_jobs(server, options):
     running_builds = server.get_running_builds()
 
     hanging_jobs = []
 
     for build in running_builds:
-        if include and not re.search(include, build['name']):
+        if options.include and not re.search(options.include, build['name']):
             continue
 
-        if exclude and re.search(exclude, build['name']):
+        if options.exclude and re.search(options.exclude, build['name']):
             continue
 
         try:
@@ -72,7 +72,7 @@ def get_hanging_jobs(server, timeout, include, exclude):
                 now = datetime.now().astimezone()
                 difference = (now - latest_timestamp).total_seconds() / 60
 
-                if difference >= timeout:
+                if difference >= options.timeout:
                     logger.info("{} is hanging (last console output: {} ({:2.2f} minutes ago)".format(build['url'], latest_timestamp, difference))
                     hanging_jobs.append(build)
 
@@ -123,6 +123,6 @@ def stop_hanging_jobs(server, hanging_jobs):
 if __name__ == "__main__":
     options = parse_arguments()
     server = jenkinshelper.connect_to_jenkins(options.build_url_to_check)
-    hanging_jobs = get_hanging_jobs(server, options.timeout, options.include, options.exclude)
+    hanging_jobs = get_hanging_jobs(server, options)
     if not options.print:
         stop_hanging_jobs(server, hanging_jobs)
