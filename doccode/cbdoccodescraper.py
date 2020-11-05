@@ -60,11 +60,35 @@ class CouchbaseDocCodeSpider(scrapy.Spider):
         allowed_domains = [self.urldomain]
         logging.info("-->urlscheme={}, urldomain={}".format(self.urlscheme, self.urldomain))
         for url in urls:
-            yield scrapy.Request(url=url, callback=self.parse)
+            if not ".htm" in url and not url.endswith("/") and not url.endswith(self.urldomain):
+                yield scrapy.Request(url=url, callback=self.save_nontext)
+            else:
+                yield scrapy.Request(url=url, callback=self.parse)
+
+    def save_nontext(self, response):
+        logging.info("--> Downloading non text file...{}".format(response.url))
+        file_name = os.path.basename(urlparse(response.url).path)
+        dirpath = "downloads/"+re.sub('\W', '', urlparse(response.url).path.split(file_name)[0])
+        if not os.path.exists(dirpath):
+            os.makedirs(dirpath)
+        path = dirpath + "/" + file_name
+        with open(path, "wb") as f:
+            f.write(response.body)
 
     def parse(self, response):
-        title = ''.join(response.css('title ::text').getall())
-        file_title = re.sub('[ |()!-:/@#$]', '', title)
+        try:
+            if not ".htm" in response.url and not response.url.endswith("/") and not \
+                    response.url.endswith(
+                    self.urldomain):
+                yield scrapy.Request(response.url, callback=self.save_nontext)
+                return
+            else:
+                title = ''.join(response.css('title ::text').getall())
+        except scrapy.exceptions.NotSupported as nse:
+            logging.warning("--> Not supported url file ...{}".format(response.url))
+            return
+
+        file_title = re.sub('\W', '', title)
 
         LANG_SELECTOR = '//*[@data-lang]'
         if self.cslanguage:
@@ -105,8 +129,8 @@ class CouchbaseDocCodeSpider(scrapy.Spider):
                     if not os.path.exists(file_extn):
                         os.makedirs(file_extn)
                     if self.usepathfile:
-                        file_urlpath = re.sub('[ |()!-:/@#$]', '', urlparse(
-                            response.url).path.split("htm")[0])
+                        file_urlpath = re.sub('\W', '',
+                                              urlparse(response.url).path.split("htm")[0])
                     else:
                         file_urlpath = ''
 
@@ -134,15 +158,21 @@ class CouchbaseDocCodeSpider(scrapy.Spider):
                         self.urlscheme + '://' +
                      self.urldomain + '\'' in str(href)) and ('data=\'http' in str(
                     href) and self.urldomain in str(href)) or (not 'data=\'http' in str(
+                    href) and not 'data=\'ftp' in str(
                     href) and not 'data=\'#' in str(href))):
-                    logging.info("Matched url in data:{}, {}".format(
-                        response.request.headers.get('Referer', None), href))
+                    #logging.info("Matched url in data:{}, {}".format(
+                    #    response.request.headers.get('Referer', None), href.get()))
                     try:
-                        yield response.follow(href, callback=self.parse)
+                        if not ".htm" in href.get() and not href.get().endswith("/") and not \
+                                href.get().endswith(self.urldomain):
+                            yield scrapy.Request(url=href, callback=self.save_nontext)
+                        else:
+                            yield response.follow(href, callback=self.parse)
                     except Exception as e:
                         pass
                 else:
-                    logging.info("Not matched url in data:{}".format(href))
+                    #logging.info("Not matched url in data:{}".format(href))
+                    pass
             elif self.urldomain in url_referer and ( not re.search(self.exclude,str(href))) and (\
                     ('data=\'' +
                         self.urlscheme + '://' +
@@ -150,7 +180,11 @@ class CouchbaseDocCodeSpider(scrapy.Spider):
                     href) and self.urldomain in str(href)) or (not 'data=\'http' in str(
                     href) and not 'data=\'#' in str(href))):
                 try:
-                    yield response.follow(href, callback=self.parse)
+                    if not ".htm" in href.get() and not href.get().endswith(
+                            "/") and not href.get().endswith(self.urldomain):
+                        yield scrapy.Request(url=href, callback=self.save_nontext)
+                    else:
+                        yield response.follow(href, callback=self.parse)
                 except Exception as e:
                     pass
 
@@ -164,8 +198,8 @@ def parse_arguments():
                                                                   "regular expression")
     parser.add_argument("-csl", "--cslanguage", dest="cslanguage", help="extract specific "
                                                                         "case sensitive language")
-    parser.add_argument("-p", "--usepathfile", dest="usepathfile", help="use path as file "
-                                                                             "name")
+    parser.add_argument("-p", "--usepathfile", action="store_true", dest="usepathfile",
+                        help="use path as file name")
     options = parser.parse_args()
     return options
 
