@@ -95,7 +95,7 @@ def parse_arguments():
     parser.add_option("-t", "--timeout", dest="timeout", help="No console output timeout (minutes)", default=60, type="int")
     parser.add_option("-e", "--exclude", dest="exclude", help="Regular expression of job names to exclude")
     parser.add_option("-i", "--include", dest="include", help="Regular expression of job names to include")
-    parser.add_option("-p", "--print", dest="print", help="Just print hanging jobs, don't stop them", action="store_true")
+    parser.add_option("-n", "--noop", dest="print", help="Just print hanging jobs, don't stop them", action="store_true")
 
     options, args = parser.parse_args()
 
