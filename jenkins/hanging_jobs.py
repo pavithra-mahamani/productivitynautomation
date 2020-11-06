@@ -7,6 +7,7 @@ import requests
 from optparse import OptionParser
 import logging
 import re
+import csv
 
 logger = logging.getLogger("hanging_jobs")
 logger.setLevel(logging.DEBUG)
@@ -16,12 +17,18 @@ formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messag
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
-def get_hanging_jobs(server, timeout):
+def get_hanging_jobs(server, options):
     running_builds = server.get_running_builds()
 
     hanging_jobs = []
 
     for build in running_builds:
+        if options.include and not re.search(options.include, build['name']):
+            continue
+
+        if options.exclude and re.search(options.exclude, build['name']):
+            continue
+
         try:
             latest_timestamp = None
             console = list(requests.get(
@@ -66,8 +73,9 @@ def get_hanging_jobs(server, timeout):
                 now = datetime.now().astimezone()
                 difference = (now - latest_timestamp).total_seconds() / 60
 
-                if difference >= timeout:
+                if difference >= options.timeout:
                     logger.info("{} is hanging (last console output: {} ({:2.2f} minutes ago)".format(build['url'], latest_timestamp, difference))
+                    build['last_console_output'] = difference
                     hanging_jobs.append(build)
 
             else:
@@ -80,6 +88,14 @@ def get_hanging_jobs(server, timeout):
 
     return hanging_jobs
 
+def write_to_csv(jobs):
+    with open('hung_jobs.csv', 'w') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_rows = [['name', 'number', 'last_console_output']]
+        for job in jobs:
+            csv_rows.append([job['name'], job['number'], job['last_console_output']])
+        csv_writer.writerows(csv_rows)
+
 def parse_arguments():
     parser = OptionParser()
     parser.add_option("-c", "--config", dest="configfile", default=".jenkinshelper.ini",
@@ -89,7 +105,7 @@ def parse_arguments():
     parser.add_option("-t", "--timeout", dest="timeout", help="No console output timeout (minutes)", default=60, type="int")
     parser.add_option("-e", "--exclude", dest="exclude", help="Regular expression of job names to exclude")
     parser.add_option("-i", "--include", dest="include", help="Regular expression of job names to include")
-    parser.add_option("-p", "--print", dest="print", help="Just print hanging jobs, don't stop them", action="store_true")
+    parser.add_option("-n", "--noop", dest="print", help="Just print hanging jobs, don't stop them", action="store_true")
 
     options, args = parser.parse_args()
 
@@ -108,23 +124,16 @@ def parse_arguments():
 
     return options
 
-def stop_hanging_jobs(server, hanging_jobs, include, exclude):
+def stop_hanging_jobs(server, hanging_jobs):
     for job in hanging_jobs:
-        if options.include and not re.search(options.include, job['name']):
-            logger.info("Skipping {}, not included".format(job['name']))
-            continue
-
-        if options.exclude and re.search(options.exclude, job['name']):
-            logger.info("Skipping {}, excluded".format(job['name']))
-            continue
-        
         logger.info("Stopping {}/{}".format(job['name'], job['number']))
-        # server.stop_build(job['name'], job['number'])
+        server.stop_build(job['name'], job['number'])
     
 
 if __name__ == "__main__":
     options = parse_arguments()
     server = jenkinshelper.connect_to_jenkins(options.build_url_to_check)
-    hanging_jobs = get_hanging_jobs(server, options.timeout)
+    hanging_jobs = get_hanging_jobs(server, options)
+    write_to_csv(hanging_jobs)
     if not options.print:
-        stop_hanging_jobs(server, hanging_jobs, options.include, options.exclude)
+        stop_hanging_jobs(server, hanging_jobs)
