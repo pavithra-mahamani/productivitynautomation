@@ -8,6 +8,7 @@ from optparse import OptionParser
 import logging
 import re
 import csv
+import os
 
 logger = logging.getLogger("hanging_jobs")
 logger.setLevel(logging.DEBUG)
@@ -88,8 +89,12 @@ def get_hanging_jobs(server, options):
 
     return hanging_jobs
 
-def write_to_csv(jobs):
-    with open('hung_jobs.csv', 'w') as csvfile:
+def write_to_csv(jobs, options):
+    if options.output:
+        output_path = os.path.join(options.output, "hung_jobs.csv")
+    else:
+        output_path = "hung_jobs.csv"
+    with open(output_path, 'w') as csvfile:
         csv_writer = csv.writer(csvfile)
         csv_rows = [['name', 'number', 'last_console_output']]
         for job in jobs:
@@ -106,6 +111,7 @@ def parse_arguments():
     parser.add_option("-e", "--exclude", dest="exclude", help="Regular expression of job names to exclude")
     parser.add_option("-i", "--include", dest="include", help="Regular expression of job names to include")
     parser.add_option("-n", "--noop", dest="print", help="Just print hanging jobs, don't stop them", action="store_true")
+    parser.add_option("-o", "--output", dest="output", help="Directory to output the CSV to")
 
     options, args = parser.parse_args()
 
@@ -134,6 +140,6 @@ if __name__ == "__main__":
     options = parse_arguments()
     server = jenkinshelper.connect_to_jenkins(options.build_url_to_check)
     hanging_jobs = get_hanging_jobs(server, options)
-    write_to_csv(hanging_jobs)
+    write_to_csv(hanging_jobs, options)
     if not options.print:
         stop_hanging_jobs(server, hanging_jobs)
