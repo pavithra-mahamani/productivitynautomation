@@ -86,6 +86,8 @@ class CouchbaseDocCodeSpider(scrapy.Spider):
                 title = ''.join(response.css('title ::text').getall())
         except scrapy.exceptions.NotSupported as nse:
             logging.warning("--> Not supported url file ...{}".format(response.url))
+            with open("not_supported.txt", "w") as f:
+                f.write(response.url)
             return
 
         file_title = re.sub('\W', '', title)
@@ -163,9 +165,11 @@ class CouchbaseDocCodeSpider(scrapy.Spider):
                     #logging.info("Matched url in data:{}, {}".format(
                     #    response.request.headers.get('Referer', None), href.get()))
                     try:
-                        if not ".htm" in href.get() and not href.get().endswith("/") and not \
-                                href.get().endswith(self.urldomain):
-                            yield scrapy.Request(url=href, callback=self.save_nontext)
+                        #if not ".htm" in href.get() and not href.get().endswith(
+                        #        "/") and not href.get().endswith(self.urldomain):
+                        if href.get().endswith(".zip"):
+                            logging.info("--> zip file...{}".format(href.get()))
+                            yield response.follow(href, callback=self.save_nontext)
                         else:
                             yield response.follow(href, callback=self.parse)
                     except Exception as e:
@@ -180,9 +184,11 @@ class CouchbaseDocCodeSpider(scrapy.Spider):
                     href) and self.urldomain in str(href)) or (not 'data=\'http' in str(
                     href) and not 'data=\'#' in str(href))):
                 try:
-                    if not ".htm" in href.get() and not href.get().endswith(
-                            "/") and not href.get().endswith(self.urldomain):
-                        yield scrapy.Request(url=href, callback=self.save_nontext)
+                    #if not ".htm" in href.get() and not href.get().endswith(
+                    #        "/") and not href.get().endswith(self.urldomain):
+                    if href.get().endswith(".zip"):
+                        logging.info("--> zip file...{}".format(href.get()))
+                        yield response.follow(href, callback=self.save_nontext)
                     else:
                         yield response.follow(href, callback=self.parse)
                 except Exception as e:
