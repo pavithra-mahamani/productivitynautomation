@@ -96,9 +96,9 @@ def write_to_csv(jobs, options):
         output_path = "hung_jobs.csv"
     with open(output_path, 'w') as csvfile:
         csv_writer = csv.writer(csvfile)
-        csv_rows = [['name', 'number', 'last_console_output']]
+        csv_rows = [['name', 'number', 'url', 'last_console_output_minutes']]
         for job in jobs:
-            csv_rows.append([job['name'], job['number'], job['last_console_output']])
+            csv_rows.append([job['name'], job['number'], job['url'], job['last_console_output']])
         csv_writer.writerows(csv_rows)
 
 def parse_arguments():
