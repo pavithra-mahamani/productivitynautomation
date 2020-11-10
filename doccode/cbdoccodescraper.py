@@ -102,12 +102,14 @@ class CouchbaseDocCodeSpider(scrapy.Spider):
                 codelang_lower = codelang.lower()
                 comment_text = "Automated code extraction on {} from URL: {}".format(
                     datetime.datetime.now(), response.url)
-                comment_line = "// "+comment_text
+                comment_symbol = "// "
+                comment_line = comment_symbol + comment_text
                 if codelang_lower == "java":
                     file_extn = 'java'
                 elif codelang_lower == "python":
                     file_extn = 'py'
-                    comment_line = "# "+comment_text
+                    comment_symbol = "# "
+                    comment_line = comment_symbol + comment_text
                 elif codelang_lower == "c++":
                     file_extn = 'cpp'
                 elif codelang_lower == "javascript":
@@ -118,12 +120,14 @@ class CouchbaseDocCodeSpider(scrapy.Spider):
                     file_extn = 'cs'
                 elif codelang_lower == "bourne" or codelang_lower == 'shell':
                     file_extn = 'sh'
-                    comment_line = "# " + comment_text
+                    comment_symbol = "# "
+                    comment_line = comment_symbol + comment_text
                 else:
                     file_extn = codelang.lower()
 
                 if (codelang_lower == "bash") or (codelang_lower == "console"):
-                    comment_line = "# " + comment_text
+                    comment_symbol = "# "
+                    comment_line = comment_symbol + comment_text
 
                 next_visit = response.url
 
@@ -139,7 +143,8 @@ class CouchbaseDocCodeSpider(scrapy.Spider):
                     out = open("{}/{}_{}Code.{}".format(file_extn, file_title, file_urlpath,
                                                        file_extn), "a")
                     out.write(comment_line + "\n\n")
-                    out.write(' '.join(
+                    snippet_comment = '\n\n{}Next snippet \n'.format(comment_symbol)
+                    out.write(snippet_comment.join(
                         langref.xpath('//code[@data-lang="{}"]/text()'.format(codelang)).getall()))
                     out.write("\n")
                     out.flush()
@@ -204,7 +209,7 @@ def parse_arguments():
                                                                   "regular expression")
     parser.add_argument("-csl", "--cslanguage", dest="cslanguage", help="extract specific "
                                                                         "case sensitive language")
-    parser.add_argument("-p", "--usepathfile", action="store_true", dest="usepathfile",
+    parser.add_argument("-p", "--usepathfile", default=True, dest="usepathfile",
                         help="use path as file name")
     options = parser.parse_args()
     return options
