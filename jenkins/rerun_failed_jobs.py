@@ -11,6 +11,9 @@ import logging
 import re
 import traceback
 from deepdiff import DeepDiff
+import requests
+import jenkins
+import time
 
 logger = logging.getLogger("rerun_failed_jobs")
 logger.setLevel(logging.DEBUG)
@@ -58,8 +61,10 @@ def parse_arguments():
 
     parser.add_option("-o", "--os", dest="os",
                       help="List of operating systems: win, magma, centos, ubuntu, mac, debian, suse, oel")
-    parser.add_option("-y", "--components", dest="components",
-                      help="Regex of components to include")
+    parser.add_option("--components", dest="components",
+                      help="List of components to include")
+    parser.add_option("--subcomponents", dest="subcomponents",
+                      help="List of subcomponents to include")
 
     options, _ = parser.parse_args()
 
@@ -77,6 +82,12 @@ def parse_arguments():
     if options.components:
         options.components = options.components.split(",")
 
+    if options.subcomponents:
+        if len(options.components) > 1:
+            logger.error("Can't supply multiple components with subcomponents")
+            sys.exit(1)
+        options.subcomponents = options.subcomponents.split(",")
+
     if options.previous_builds:
         options.previous_builds = options.previous_builds.split(",")
 
@@ -85,8 +96,14 @@ def parse_arguments():
     return options
 
 
-def parameters_for_job(name, number):
-    info = server.get_build_info(name, number)
+def parameters_for_job(name, number, version_number=None):
+    try:
+        info = server.get_build_info(name, number)
+    except jenkins.JenkinsException:
+        if version_number:
+            info = requests.get("http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/{}/jenkins_logs/{}/{}/jobinfo.json".format(version_number, name, number)).json()
+        else:
+            raise ValueError("no version number for build missing from jenkins")
     parameters = {}
     for a in info["actions"]:
         try:
@@ -99,6 +116,60 @@ def parameters_for_job(name, number):
     return parameters
 
 
+ # these parameters could be different even for duplicate jobs
+ignore_params_list = ["descriptor", "servers", "dispatcher_params", "fresh_run", "rerun_params",
+                          "retries", "timeout", "mailing_list", "addPoolServers", "version_number"]
+
+
+def get_running_builds(server):
+    # get all running builds so we know if a duplicate job is already running
+    running_builds = server.get_running_builds()
+
+    # server.get_running_builds() can take a while so these can be used to cache the value and reuse
+
+    # with open("running_builds.json", 'w') as outfile:
+    #     json.dump(running_builds, outfile)
+
+    # with open("running_builds.json") as json_file:
+    #     running_builds = json.load(json_file)
+
+    builds_with_params = []
+
+    for build in running_builds:
+        parameters = parameters_for_job(build['name'], build['number'])
+        for param in ignore_params_list:
+            if param in parameters:
+                parameters.pop(param)
+        builds_with_params.append({
+            "name": build['name'],
+            "number": build['number'],
+            "parameters": parameters
+        })
+
+    return builds_with_params
+
+def get_duplicate_jobs(running_builds, job_name, parameters):
+    parameters = parameters.copy()
+    duplicates = []
+
+    for param in ignore_params_list:
+        if param in parameters:
+            parameters.pop(param)
+
+    for running_build in running_builds:
+        if running_build['name'] != job_name:
+            continue
+
+        diffs = DeepDiff(parameters, running_build['parameters'], ignore_order=True,
+                            ignore_string_type_changes=True)
+        
+        if not diffs:
+            duplicates.append(running_build)
+    return duplicates
+
+def job_name_from_url(jenkins_server, url):
+    return url.replace("{}/job/".format(jenkins_server), "").strip("/")
+
 if __name__ == "__main__":
     options = parse_arguments()
 
@@ -107,7 +178,7 @@ if __name__ == "__main__":
 
     server = connect_to_jenkins(options.build_url_to_check)
 
-    query = "select component, subcomponent, failCount, url, build_id from server where `build` in {} and url like '{}/job/%'".format(
+    query = "select component, subcomponent, failCount, url, build_id, `build` from server where `build` in {} and url like '{}/job/%'".format(
         options.previous_builds, options.build_url_to_check)
 
     if options.aborted:
@@ -119,113 +190,107 @@ if __name__ == "__main__":
     if options.os:
         query += " and lower(os) in {}".format(options.os)
 
-    if options.components:
-        query += " and lower(component) in {}".format(options.components)
-
-    print(query)
+    logger.info(query)
 
     # get all jobs that match the options (e.g. with failed tests)
     rows = cluster.query(query).rows()
 
-    # get all running builds so we know if a duplicate job is already running
-    running_buils = server.get_running_builds()
-
-    # server.get_running_builds() can take a while so these can be used to cache the value and reuse
-
-    # with open("running_builds.json", 'w') as outfile:
-    #     json.dump(running_buils, outfile)
-
-    with open("running_builds.json") as json_file:
-        running_builds = json.load(json_file)
-
-    builds_with_params = []
-
-    # these parameters could be different even for duplicate jobs
-    ignore_params_list = ["descriptor", "servers", "dispatcher_params", "fresh_run", "rerun_params",
-                          "retries", "timeout", "mailing_list", "addPoolServers", "version_number"]
-
-    for build in running_builds:
-        parameters = parameters_for_job(build['name'], build['number'])
-        for param in ignore_params_list:
-            try:
-                parameters.pop(param)
-            except KeyError:
-                pass
-        builds_with_params.append({
-            "name": build['name'],
-            "number": build['number'],
-            "parameters": parameters
-        })
+    running_builds = get_running_builds(server)
 
     for row in rows:
 
-        if options.components and not re.search(options.components, row['component'].lower()):
-            continue
-
-        job_name = row['url'].replace(
-            "{}/job/".format(options.build_url_to_check), "").strip("/")
-
-        print("{}{} {} failures".format(
-            row['url'], row['build_id'], row['failCount']))
+        job_name = job_name_from_url(options.build_url_to_check, row['url'])
 
         try:
 
-            parameters = parameters_for_job(job_name, row['build_id'])
+            parameters = parameters_for_job(job_name, row['build_id'], row['build'])
+
+            if options.components:
+                if "component" not in parameters:
+                    continue
+
+                if parameters['component'] not in options.components:
+                    continue
+
+            if options.subcomponents:
+                if "subcomponent" not in parameters:
+                    continue
+
+                if parameters['subcomponent'] not in options.subcomponents:
+                    continue
+
+            logger.info("{}{} {} failures".format(row['url'], row['build_id'], row['failCount']))
 
             if 'dispatcher_params' not in parameters:
 
+                # only run dispatcher jobs
                 if options.dispatcher_jobs:
                     continue
 
-                if job_name == "test_suite_executor-dynvm":
-                    pass
-                    # TODO: set rerun parameters
+                parameters['version_number'] = options.build
+
+                build_url = server.build_job_url(job_name, parameters=parameters)
+
+                logger.info("Build URL: {}\n".format(build_url))
 
             else:
                 dispatcher_params = json.loads(
                     parameters['dispatcher_params'][11:])
 
-                duplicates = []
-
-                for running_build in builds_with_params:
-                    if running_build['name'] != job_name:
-                        continue
-
-                    diffs = DeepDiff(running_build['parameters'], parameters, ignore_order=True,
-                                     ignore_string_type_changes=True)
-                    if not diffs:
-                        duplicates.append(running_build)
+                duplicates = get_duplicate_jobs(running_builds, job_name, parameters)
 
                 if len(duplicates) > 0:
                     if options.stop:
                         for build in duplicates:
-                            print(
+                            logger.info(
                                 "stopping {}/{}".format(build['name'], build['number']))
                             # server.stop_build(build['name'], build['number'])
                     else:
                         continue
 
+                # This is not needed because the executor is defined at the test level in QE-Test-Suites using the framwork key
                 # e.g. -jython, -TAF
-                if job_name != "test_suite_executor":
-                    executor_suffix = job_name.replace(
-                        "test_suite_executor-", "")
+                # if job_name != "test_suite_executor":
+                #     executor_suffix = job_name.replace("test_suite_executor-", "")
+                #     dispatcher_params['executor_suffix'] = executor_suffix
 
-                if executor_suffix:
-                    dispatcher_params['executor_suffix'] = executor_suffix
+                # if a subcomponent was set then set it for the new dispatcher job
+                # TODO: Collate all of the dispatcher jobs that have the same parameters except subcomponent and put them in one dispatcher job
+                if parameters["component"] != "None" and parameters["subcomponent"] != "None":
+                    dispatcher_params["subcomponent"] = parameters["subcomponent"]
 
                 # this is a rerun
                 dispatcher_params['fresh_run'] = False
+
                 # use the new build version
                 dispatcher_params['version_number'] = options.build
-                dispatcher_params.pop("dispatcher_url")  # invalid parameter
+                
+                # test_suite_dispatcher or test_suite_dispatcher_dynvm
+                dispatcher_name = job_name_from_url(options.build_url_to_check, dispatcher_params['dispatcher_url'])
 
-                build_url = server.build_job_url(
-                    "test_suite_dispatcher", parameters=dispatcher_params)
+                # invalid parameter
+                dispatcher_params.pop("dispatcher_url")
 
-                print("Build URL: {}\n".format(build_url))
+                # check for duplicate dispatcher job
+                dispatcher_duplicates = get_duplicate_jobs(running_builds, dispatcher_name, dispatcher_params)
 
-                # if not options.noop:
-                #     server.build_job("test_suite_dispatcher", parameters=dispatcher_params)
+                if len(dispatcher_duplicates) > 0:
+                    if options.stop:
+                        for build in dispatcher_duplicates:
+                            logger.info(
+                                "stopping {}/{}".format(build['name'], build['number']))
+                            server.stop_build(build['name'], build['number'])
+                    else:
+                        continue
+
+                build_url = server.build_job_url(dispatcher_name, parameters=dispatcher_params)
+
+                logger.info("Build URL: {}\n".format(build_url))
+
+                if not options.noop:
+                    logger.info("dispatching")
+                    time.sleep(10)
+                    server.build_job("test_suite_dispatcher", parameters=dispatcher_params)
 
         except Exception as e:
             traceback.print_exc()
