@@ -65,6 +65,7 @@ def parse_arguments():
                       help="List of components to include")
     parser.add_option("--subcomponents", dest="subcomponents",
                       help="List of subcomponents to include")
+    parser.add_option("--override-executor", dest="override_executor", help="Force passing of -j option to test dispatcher", action="store_true")
 
     options, _ = parser.parse_args()
 
@@ -252,9 +253,10 @@ if __name__ == "__main__":
 
                 # This is not needed because the executor is defined at the test level in QE-Test-Suites using the framwork key
                 # e.g. -jython, -TAF
-                # if job_name != "test_suite_executor":
-                #     executor_suffix = job_name.replace("test_suite_executor-", "")
-                #     dispatcher_params['executor_suffix'] = executor_suffix
+
+                if options.override_executor and job_name != "test_suite_executor":
+                    executor_suffix = job_name.replace("test_suite_executor-", "")
+                    dispatcher_params['executor_suffix'] = executor_suffix
 
                 # if a subcomponent was set then set it for the new dispatcher job
                 # TODO: Collate all of the dispatcher jobs that have the same parameters except subcomponent and put them in one dispatcher job
