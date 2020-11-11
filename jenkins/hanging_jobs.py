@@ -18,6 +18,20 @@ formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messag
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
+def parameters_for_job(server, name, number):
+    info = server.get_build_info(name, number)
+    parameters = {}
+    for a in info["actions"]:
+        try:
+            if a["_class"] == "hudson.model.ParametersAction":
+                for param in a["parameters"]:
+                    if "name" in param and "value" in param:
+                        parameters[param['name']] = param['value']
+        except KeyError:
+            pass
+    return parameters
+
+
 def get_hanging_jobs(server, options):
     running_builds = server.get_running_builds()
 
@@ -76,6 +90,13 @@ def get_hanging_jobs(server, options):
 
                 if difference >= options.timeout:
                     logger.info("{} is hanging (last console output: {} ({:2.2f} minutes ago)".format(build['url'], latest_timestamp, difference))
+
+                    parameters = parameters_for_job(server, build['name'], build['number'])
+
+                    build['version_number'] = parameters['version_number'] if "version_number" in parameters else ""
+                    build['component'] = parameters['component'] if "component" in parameters else ""
+                    build['subcomponent'] = parameters['subcomponent'] if "subcomponent" in parameters else ""
+
                     build['last_console_output'] = difference
                     hanging_jobs.append(build)
 
@@ -96,9 +117,9 @@ def write_to_csv(jobs, options):
         output_path = "hung_jobs.csv"
     with open(output_path, 'w') as csvfile:
         csv_writer = csv.writer(csvfile)
-        csv_rows = [['name', 'number', 'url', 'last_console_output_minutes']]
+        csv_rows = [['version_number', 'component', 'subcomponent', 'job', 'last_console_output_minutes']]
         for job in jobs:
-            csv_rows.append([job['name'], job['number'], job['url'], job['last_console_output']])
+            csv_rows.append([job['version_number'], job['component'], job['subcomponent'], job['url'], job['last_console_output']])
         csv_writer.writerows(csv_rows)
 
 def parse_arguments():
