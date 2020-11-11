@@ -35,13 +35,13 @@ def parse_arguments():
                       help="Just print hanging jobs, don't stop them", action="store_true")
 
     parser.add_option("-a", "--aborted", dest="aborted",
-                      help="Aborted jobs", action="store_true")
+                      help="Include aborted jobs even with no failed tests", action="store_true")
 
     parser.add_option("-s", "--stop", dest="stop",
                       help="Stop a running job before starting this one", action="store_true")
 
     parser.add_option("-f", "--failed", dest="failed",
-                      help="Jobs with failed tests", action="store_true", default=True)
+                      help="Include jobs with failed tests", action="store_true", default=True)
 
     parser.add_option("-p", "--previous-builds", dest="previous_builds",
                       help="Which previous builds to check for failed jobs")
@@ -56,10 +56,10 @@ def parse_arguments():
     parser.add_option("--password", dest="password",
                       help="Couchbase server password", default="password")
 
-    parser.add_option("-d", "--dispatcher-jobs", dest="dispatcher_jobs",
+    parser.add_option("--dispatcher-jobs", dest="dispatcher_jobs",
                       help="only rerun jobs managed by a dispatcher", action="store_true")
 
-    parser.add_option("-o", "--os", dest="os",
+    parser.add_option("--os", dest="os",
                       help="List of operating systems: win, magma, centos, ubuntu, mac, debian, suse, oel")
     parser.add_option("--components", dest="components",
                       help="List of components to include")
@@ -178,14 +178,16 @@ if __name__ == "__main__":
 
     server = connect_to_jenkins(options.build_url_to_check)
 
-    query = "select component, subcomponent, failCount, url, build_id, `build` from server where `build` in {} and url like '{}/job/%'".format(
+    query = "select result, component, subcomponent, failCount, url, build_id, `build` from server where `build` in {} and url like '{}/job/%'".format(
         options.previous_builds, options.build_url_to_check)
 
-    if options.aborted:
-        query += " and result = 'ABORTED'"
-
-    if options.failed:
-        query += " and failCount > 0"
+    if options.aborted and options.failed:
+        query += " and (result = 'ABORTED' or failCount > 0)"
+    else:
+        if options.failed:
+            query += " and failCount > 0"
+        elif options.aborted:
+            query += " and result = 'ABORTED'"
 
     if options.os:
         query += " and lower(os) in {}".format(options.os)
@@ -259,8 +261,10 @@ if __name__ == "__main__":
                 if parameters["component"] != "None" and parameters["subcomponent"] != "None":
                     dispatcher_params["subcomponent"] = parameters["subcomponent"]
 
-                # this is a rerun
-                dispatcher_params['fresh_run'] = False
+                # can only be a rerun if the job ran to completion
+                if row['result'] != "ABORTED":
+                    # this is a rerun
+                    dispatcher_params['fresh_run'] = False
 
                 # use the new build version
                 dispatcher_params['version_number'] = options.build
