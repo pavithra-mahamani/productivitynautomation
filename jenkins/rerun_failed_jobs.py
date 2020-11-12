@@ -65,7 +65,8 @@ def parse_arguments():
                       help="List of components to include")
     parser.add_option("--subcomponents", dest="subcomponents",
                       help="List of subcomponents to include")
-    parser.add_option("--override-executor", dest="override_executor", help="Force passing of -j option to test dispatcher", action="store_true")
+    parser.add_option("--s3-logs-url", dest="s3_logs_url", help="Amazon S3 bucket url that stores historical jenkins logs",
+                      default="http://cb-logs-qe.s3-website-us-west-2.amazonaws.com")
 
     options, _ = parser.parse_args()
 
@@ -92,19 +93,23 @@ def parse_arguments():
     if options.previous_builds:
         options.previous_builds = options.previous_builds.split(",")
 
+    options.s3_logs_url.strip("/")
+
     logger.info("Given build url={}".format(options.build_url_to_check))
 
     return options
 
 
-def parameters_for_job(name, number, version_number=None):
+def parameters_for_job(name, number, version_number=None, s3_logs_url=None):
     try:
         info = server.get_build_info(name, number)
     except jenkins.JenkinsException:
-        if version_number:
-            info = requests.get("http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/{}/jenkins_logs/{}/{}/jobinfo.json".format(version_number, name, number)).json()
+        if version_number and s3_logs_url:
+            info = requests.get("{}/{}/jenkins_logs/{}/{}/jobinfo.json".format(
+                s3_logs_url, version_number, name, number)).json()
         else:
-            raise ValueError("no version number for build missing from jenkins")
+            raise ValueError(
+                "no version number for build missing from jenkins")
     parameters = {}
     for a in info["actions"]:
         try:
@@ -206,14 +211,8 @@ if __name__ == "__main__":
 
         try:
 
-            parameters = parameters_for_job(job_name, row['build_id'], row['build'])
-
-            if options.components:
-                if "component" not in parameters:
-                    continue
-
-                if parameters['component'] not in options.components:
-                    continue
+            parameters = parameters_for_job(
+                job_name, row['build_id'], row['build'], options.s3_logs_url)
 
             if options.subcomponents:
                 if "subcomponent" not in parameters:
