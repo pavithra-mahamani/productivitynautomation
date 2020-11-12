@@ -97,7 +97,7 @@ def get_hanging_jobs(server, options):
                     build['component'] = parameters['component'] if "component" in parameters else ""
                     build['subcomponent'] = parameters['subcomponent'] if "subcomponent" in parameters else ""
 
-                    build['last_console_output'] = difference
+                    build['last_console_output'] = round(difference)
                     hanging_jobs.append(build)
 
             else:
