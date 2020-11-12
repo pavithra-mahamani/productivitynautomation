@@ -38,20 +38,21 @@ optional arguments:
                         extract specific language
   -csl CSLANGUAGE, --cslanguage CSLANGUAGE
                         extract specific case sensitive language
-  -p USEPATHFILE, --usepathfile USEPATHFILE
-                        use path as file name
+  -p USEPATHFILE, --isusepathfile USEPATHFILE
+                        is use path as file name
   
 '''
 class CouchbaseDocCodeSpider(scrapy.Spider):
     name = 'cb_doc_spider'
 
-    def __init__(self, urldict, options):
-        self.urldict = urldict
+    def __init__(self, options):
         self.url = options.url
         self.exclude = options.exclude
         self.language = options.language
         self.cslanguage = options.cslanguage
-        self.usepathfile = options.usepathfile
+        self.isusepathfile = options.isusepathfile
+        self.isperpagedir = options.isperpagedir
+        self.iscrawl = options.iscrawl
 
     def start_requests(self):
         urls = [self.url]
@@ -95,11 +96,19 @@ class CouchbaseDocCodeSpider(scrapy.Spider):
         LANG_SELECTOR = '//*[@data-lang]'
         if self.cslanguage:
             LANG_SELECTOR = '//*[@data-lang="{}"]'.format(self.cslanguage)
-        for coderef in response.css('code'):
-            #logging.info("title:{} code...{}".format(title,coderef))
-            for langref in coderef.xpath(LANG_SELECTOR):
+        #for coderef in response.css('code'):
+        #logging.info("title:{} code...{}".format(title,response))
+        lang_dict = []
+        for langref in response.xpath(LANG_SELECTOR):
+                #logging.info("code snippet...{}".format(langref))
                 codelang = langref.attrib['data-lang']
                 codelang_lower = codelang.lower()
+
+                if not codelang_lower in lang_dict:
+                    lang_dict.append(codelang_lower)
+                else:
+                    continue
+
                 comment_text = "Automated code extraction on {} from URL: {}".format(
                     datetime.datetime.now(), response.url)
                 comment_symbol = "// "
@@ -132,16 +141,23 @@ class CouchbaseDocCodeSpider(scrapy.Spider):
                 next_visit = response.url
 
                 def write_code():
-                    if not os.path.exists(file_extn):
-                        os.makedirs(file_extn)
-                    if self.usepathfile:
+                    if self.isusepathfile:
                         file_urlpath = re.sub('\W', '',
                                               urlparse(response.url).path.split("htm")[0])
                     else:
                         file_urlpath = ''
 
-                    out = open("{}/{}_{}Code.{}".format(file_extn, file_title, file_urlpath,
-                                                       file_extn), "a")
+                    if self.isperpagedir:
+                        out_dir = "{}/{}".format(file_title, file_urlpath, file_extn)
+                        out_file = "{}/{}Code.{}".format(out_dir, file_urlpath, file_extn)
+                    else:
+                        out_dir = file_extn
+                        out_file = "{}/{}_{}Code.{}".format(out_dir, file_title, file_urlpath,
+                                                        file_extn)
+                    if not os.path.exists(out_dir):
+                        os.makedirs(out_dir)
+
+                    out = open(out_file, "a")
                     out.write(comment_line + "\n\n")
                     snippet_comment = '\n\n{}Next snippet \n'.format(comment_symbol)
                     out.write(snippet_comment.join(
@@ -150,25 +166,43 @@ class CouchbaseDocCodeSpider(scrapy.Spider):
                     out.flush()
                     out.close()
 
-                if not next_visit in self.urldict:
-                    self.urldict.append(next_visit)
-                    if self.language:
-                        if re.search(self.language, codelang_lower):
-                            write_code()
-                    else:
+                if self.language:
+                    if re.search(self.language, codelang_lower):
                         write_code()
+                else:
+                    write_code()
 
-        for href in response.css('a::attr(href)'):
-            url_referer = str(response.request.headers.get('Referer', self.urldomain))
-            if not self.exclude:
-                if self.urldomain in url_referer and (( 'data=\'' +
-                        self.urlscheme + '://' +
-                     self.urldomain + '\'' in str(href)) and ('data=\'http' in str(
-                    href) and self.urldomain in str(href)) or (not 'data=\'http' in str(
-                    href) and not 'data=\'ftp' in str(
-                    href) and not 'data=\'#' in str(href))):
-                    #logging.info("Matched url in data:{}, {}".format(
-                    #    response.request.headers.get('Referer', None), href.get()))
+        if self.iscrawl:
+            for href in response.css('a::attr(href)'):
+                url_referer = str(response.request.headers.get('Referer', self.urldomain))
+                if not self.exclude:
+                    if self.urldomain in url_referer and (( 'data=\'' +
+                            self.urlscheme + '://' +
+                         self.urldomain + '\'' in str(href)) and ('data=\'http' in str(
+                        href) and self.urldomain in str(href)) or (not 'data=\'http' in str(
+                        href) and not 'data=\'ftp' in str(
+                        href) and not 'data=\'#' in str(href))):
+                        #logging.info("Matched url in data:{}, {}".format(
+                        #    response.request.headers.get('Referer', None), href.get()))
+                        try:
+                            #if not ".htm" in href.get() and not href.get().endswith(
+                            #        "/") and not href.get().endswith(self.urldomain):
+                            if href.get().endswith(".zip"):
+                                logging.info("--> zip file...{}".format(href.get()))
+                                yield response.follow(href, callback=self.save_nontext)
+                            else:
+                                yield response.follow(href, callback=self.parse)
+                        except Exception as e:
+                            pass
+                    else:
+                        #logging.info("Not matched url in data:{}".format(href))
+                        pass
+                elif self.urldomain in url_referer and ( not re.search(self.exclude,str(href))) and (\
+                        ('data=\'' +
+                            self.urlscheme + '://' +
+                         self.urldomain + '\'' in str(href)) and ('data=\'http' in str(
+                        href) and self.urldomain in str(href)) or (not 'data=\'http' in str(
+                        href) and not 'data=\'#' in str(href))):
                     try:
                         #if not ".htm" in href.get() and not href.get().endswith(
                         #        "/") and not href.get().endswith(self.urldomain):
@@ -179,47 +213,42 @@ class CouchbaseDocCodeSpider(scrapy.Spider):
                             yield response.follow(href, callback=self.parse)
                     except Exception as e:
                         pass
-                else:
-                    #logging.info("Not matched url in data:{}".format(href))
-                    pass
-            elif self.urldomain in url_referer and ( not re.search(self.exclude,str(href))) and (\
-                    ('data=\'' +
-                        self.urlscheme + '://' +
-                     self.urldomain + '\'' in str(href)) and ('data=\'http' in str(
-                    href) and self.urldomain in str(href)) or (not 'data=\'http' in str(
-                    href) and not 'data=\'#' in str(href))):
-                try:
-                    #if not ".htm" in href.get() and not href.get().endswith(
-                    #        "/") and not href.get().endswith(self.urldomain):
-                    if href.get().endswith(".zip"):
-                        logging.info("--> zip file...{}".format(href.get()))
-                        yield response.follow(href, callback=self.save_nontext)
-                    else:
-                        yield response.follow(href, callback=self.parse)
-                except Exception as e:
-                    pass
+        else:
+            logging.warning("--> No crawl!")
+
+def str2bool(v):
+    if isinstance(v, bool):
+       return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("-u", "--url", dest="url", default="https://docs.couchbase.com",
-                        help="starting url")
+                        help="[https://docs.couchbase.com] starting url")
     parser.add_argument("-e", "--exclude", dest="exclude",
-                        help="excluded regular expression string in url")
+                        help="excluded regular expression string in url. Ex: -e '2.0|2.5|2.6'")
     parser.add_argument("-l", "--language", dest="language", help="extract specific language(s) "
-                                                                  "regular expression")
+                                             "regular expression. Ex: -l 'java|python|go|^c$' ")
     parser.add_argument("-csl", "--cslanguage", dest="cslanguage", help="extract specific "
-                                                                        "case sensitive language")
-    parser.add_argument("-p", "--usepathfile", default=True, dest="usepathfile",
-                        help="use path as file name")
+                                                        "case sensitive language. Ex: -csl Java")
+    parser.add_argument("-p", "--isusepathfile", default=True, dest="isusepathfile", type=str2bool, nargs='?',
+                        const=True, help="[True] is use path as file name")
+    parser.add_argument("-g", "--isperpagedir", default=True, dest="isperpagedir", type=str2bool, nargs='?',
+                        const=True, help="[True] is per page output directory required")
+    parser.add_argument("-c", "--iscrawl", default=True, dest="iscrawl", type=str2bool, nargs='?',
+                        const=True, help="[True] is crawl")
     options = parser.parse_args()
     return options
 
 def main():
     options = parse_arguments()
-    urldict = []
-
     process = CrawlerProcess(get_project_settings())
-    process.crawl(CouchbaseDocCodeSpider, urldict, options)
+    process.crawl(CouchbaseDocCodeSpider, options)
     process.start()
 
 if __name__ == "__main__":
