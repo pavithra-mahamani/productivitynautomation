@@ -38,16 +38,16 @@ def parse_arguments():
                       help="Include aborted jobs even with no failed tests", action="store_true")
 
     parser.add_option("-s", "--stop", dest="stop",
-                      help="Stop a running job before starting this one", action="store_true")
+                      help="Stop a duplicate running job before starting the rerun", action="store_true")
 
     parser.add_option("-f", "--failed", dest="failed",
-                      help="Include jobs with failed tests", action="store_true", default=True)
+                      help="Include jobs with failed tests", action="store_true")
 
-    parser.add_option("-p", "--previous-builds", dest="previous_builds",
-                      help="Which previous builds to check for failed jobs")
+    parser.add_option("-p", "--previous-build", dest="previous_build",
+                      help="Previous build to compare for regressions or common failures")
 
     parser.add_option("-b", "--build", dest="build",
-                      help="Build version e.g. 7.0.0-3594")
+                      help="Build version to rerun e.g. 7.0.0-3594")
 
     parser.add_option("--server", dest="server",
                       help="Couchbase server host", default="172.23.121.84")
@@ -60,22 +60,22 @@ def parse_arguments():
                       help="only rerun jobs managed by a dispatcher", action="store_true")
 
     parser.add_option("--os", dest="os",
-                      help="List of operating systems: win, magma, centos, ubuntu, mac, debian, suse, oel")
+                      help="List of operating systems: e.g. win, magma, centos, ubuntu, mac, debian, suse, oel")
     parser.add_option("--components", dest="components",
                       help="List of components to include")
     parser.add_option("--subcomponents", dest="subcomponents",
                       help="List of subcomponents to include")
+    parser.add_option("--override-executor", dest="override_executor",
+                      help="Force passing of -j option to test dispatcher", action="store_true")
     parser.add_option("--s3-logs-url", dest="s3_logs_url", help="Amazon S3 bucket url that stores historical jenkins logs",
                       default="http://cb-logs-qe.s3-website-us-west-2.amazonaws.com")
+    parser.add_option("--strategy", dest="strategy",
+                      help="Which strategy should be used to find jobs to rerun", choices=("common", "regression"))
 
     options, _ = parser.parse_args()
 
     if not options.build:
         logger.error("No --build given")
-        sys.exit(1)
-
-    if not options.previous_builds:
-        logger.error("No --previous-builds given")
         sys.exit(1)
 
     if options.os:
@@ -89,9 +89,6 @@ def parse_arguments():
             logger.error("Can't supply multiple components with subcomponents")
             sys.exit(1)
         options.subcomponents = options.subcomponents.split(",")
-
-    if options.previous_builds:
-        options.previous_builds = options.previous_builds.split(",")
 
     options.s3_logs_url.strip("/")
 
@@ -121,10 +118,9 @@ def parameters_for_job(name, number, version_number=None, s3_logs_url=None):
             pass
     return parameters
 
-
  # these parameters could be different even for duplicate jobs
 ignore_params_list = ["descriptor", "servers", "dispatcher_params", "fresh_run", "rerun_params",
-                          "retries", "timeout", "mailing_list", "addPoolServers", "version_number"]
+                      "retries", "timeout", "mailing_list", "addPoolServers", "version_number"]
 
 
 def get_running_builds(server):
@@ -154,6 +150,7 @@ def get_running_builds(server):
 
     return builds_with_params
 
+
 def get_duplicate_jobs(running_builds, job_name, parameters):
     parameters = parameters.copy()
     duplicates = []
@@ -167,61 +164,116 @@ def get_duplicate_jobs(running_builds, job_name, parameters):
             continue
 
         diffs = DeepDiff(parameters, running_build['parameters'], ignore_order=True,
-                            ignore_string_type_changes=True)
-        
+                         ignore_string_type_changes=True)
+
         if not diffs:
             duplicates.append(running_build)
     return duplicates
 
+
 def job_name_from_url(jenkins_server, url):
     return url.replace("{}/job/".format(jenkins_server), "").strip("/")
+
+
+def jobs_to_rerun(options):
+    cluster = Cluster('couchbase://{}'.format(options.server), ClusterOptions(
+        PasswordAuthenticator(options.username, options.password)), lockmode=LockMode.WAIT)
+
+    if options.strategy and (options.strategy == "regression" or options.strategy == "common"):
+
+        if not options.previous_build:
+            logger.error(
+                "Need previous build for this strategy")
+            sys.exit(1)
+
+        query = "select s2.result, s2.component, s2.failCount, s2.url, s2.build_id, s2.`build` from server s1 inner join server s2 on s1.name = s2.name where s1.`build` = '{0}' and s2.`build` = '{1}' and s1.url like '{2}/job/%' and s2.url like '{2}/job/%'".format(
+            options.previous_build, options.build, options.build_url_to_check)
+
+        if options.strategy == "regression":
+
+            if options.aborted and options.failed:
+                query += " and ((s2.result = 'ABORTED' and s1.result != 'ABORTED') or s2.failCount > s1.failCount)"
+            else:
+                if options.failed:
+                    query += " and s2.failCount > s1.failCount"
+
+                if options.aborted:
+                    query += " and s2.result = 'ABORTED' and s1.result != 'ABORTED'"
+
+        elif options.strategy == "common":
+
+            if options.aborted and options.failed:
+                query += " and (s2.result = 'ABORTED' or s2.failCount > 0) and (s1.result = 'ABORTED' or s1.failCount > 0)"
+            else:
+                if options.failed:
+                    query += " and s2.failCount > 0 and s1.failCount > 0"
+
+                if options.aborted:
+                    query += " and s2.result = 'ABORTED' and s1.result = 'ABORTED'"
+
+        if options.os:
+            query += " and lower(s1.os) in {0} and lower(s2.os) in {0}".format(
+                options.os)
+
+        if options.components:
+            query += " and lower(s1.component) in {0} and lower(s2.component) in {0}".format(
+                options.components)
+
+    else:
+
+        query = "select result, component, failCount, url, build_id, `build` from server where `build` = '{}' and url like '{}/job/%'".format(
+            options.build, options.build_url_to_check)
+
+        if options.aborted and options.failed:
+            query += " and (result = 'ABORTED' or failCount > 0)"
+        else:
+            if options.failed:
+                query += " and failCount > 0"
+
+            if options.aborted:
+                query += " and result = 'ABORTED'"
+
+        if options.os:
+            query += " and lower(os) in {}".format(options.os)
+
+        if options.components:
+            query += " and lower(component) in {}".format(options.components)
+
+    logger.info(query)
+
+    rows = cluster.query(query).rows()
+
+    return rows
+
 
 if __name__ == "__main__":
     options = parse_arguments()
 
-    cluster = Cluster('couchbase://{}'.format(options.server), ClusterOptions(
-        PasswordAuthenticator(options.username, options.password)), lockmode=LockMode.WAIT)
+    to_rerun = jobs_to_rerun(options)
 
     server = connect_to_jenkins(options.build_url_to_check)
 
-    query = "select result, component, subcomponent, failCount, url, build_id, `build` from server where `build` in {} and url like '{}/job/%'".format(
-        options.previous_builds, options.build_url_to_check)
-
-    if options.aborted and options.failed:
-        query += " and (result = 'ABORTED' or failCount > 0)"
-    else:
-        if options.failed:
-            query += " and failCount > 0"
-        elif options.aborted:
-            query += " and result = 'ABORTED'"
-
-    if options.os:
-        query += " and lower(os) in {}".format(options.os)
-
-    logger.info(query)
-
-    # get all jobs that match the options (e.g. with failed tests)
-    rows = cluster.query(query).rows()
-
     running_builds = get_running_builds(server)
 
-    for row in rows:
+    already_dispatching = {}
 
-        job_name = job_name_from_url(options.build_url_to_check, row['url'])
+    for job in to_rerun:
+
+        job_name = job_name_from_url(options.build_url_to_check, job['url'])
 
         try:
 
             parameters = parameters_for_job(
-                job_name, row['build_id'], row['build'], options.s3_logs_url)
+                job_name, job['build_id'], job['build'], options.s3_logs_url)
 
-            if options.subcomponents:
-                if "subcomponent" not in parameters:
-                    continue
+            if options.components and ("component" not in parameters or parameters['component'] not in options.components):
+                continue
 
-                if parameters['subcomponent'] not in options.subcomponents:
-                    continue
+            if options.subcomponents and ("subcomponent" not in parameters or parameters['subcomponent'] not in options.subcomponents):
+                continue
 
-            logger.info("{}{} {} failures".format(row['url'], row['build_id'], row['failCount']))
+            logger.info("{}{} {} failures".format(
+                job['url'], job['build_id'], job['failCount']))
 
             if 'dispatcher_params' not in parameters:
 
@@ -231,7 +283,8 @@ if __name__ == "__main__":
 
                 parameters['version_number'] = options.build
 
-                build_url = server.build_job_url(job_name, parameters=parameters)
+                build_url = server.build_job_url(
+                    job_name, parameters=parameters)
 
                 logger.info("Build URL: {}\n".format(build_url))
 
@@ -239,13 +292,20 @@ if __name__ == "__main__":
                 dispatcher_params = json.loads(
                     parameters['dispatcher_params'][11:])
 
-                duplicates = get_duplicate_jobs(running_builds, job_name, parameters)
+                if "component" not in parameters or parameters['component'] == "None":
+                    continue
+
+                if "subcomponent" not in parameters or parameters['subcomponent'] == "None":
+                    continue
+
+                duplicates = get_duplicate_jobs(
+                    running_builds, job_name, parameters)
 
                 if len(duplicates) > 0:
                     if options.stop:
                         for build in duplicates:
                             logger.info(
-                                "stopping {}/{}".format(build['name'], build['number']))
+                                "aborting {}/{}".format(build['name'], build['number']))
                             # server.stop_build(build['name'], build['number'])
                     else:
                         continue
@@ -254,49 +314,79 @@ if __name__ == "__main__":
                 # e.g. -jython, -TAF
 
                 if options.override_executor and job_name != "test_suite_executor":
-                    executor_suffix = job_name.replace("test_suite_executor-", "")
+                    executor_suffix = job_name.replace(
+                        "test_suite_executor-", "")
                     dispatcher_params['executor_suffix'] = executor_suffix
 
-                # if a subcomponent was set then set it for the new dispatcher job
-                # TODO: Collate all of the dispatcher jobs that have the same parameters except subcomponent and put them in one dispatcher job
-                if parameters["component"] != "None" and parameters["subcomponent"] != "None":
-                    dispatcher_params["subcomponent"] = parameters["subcomponent"]
-
                 # can only be a rerun if the job ran to completion
-                if row['result'] != "ABORTED":
+                if job['result'] != "ABORTED":
                     # this is a rerun
                     dispatcher_params['fresh_run'] = False
 
                 # use the new build version
                 dispatcher_params['version_number'] = options.build
-                
+
                 # test_suite_dispatcher or test_suite_dispatcher_dynvm
-                dispatcher_name = job_name_from_url(options.build_url_to_check, dispatcher_params['dispatcher_url'])
+                dispatcher_name = job_name_from_url(
+                    options.build_url_to_check, dispatcher_params['dispatcher_url'])
 
                 # invalid parameter
                 dispatcher_params.pop("dispatcher_url")
 
                 # check for duplicate dispatcher job
-                dispatcher_duplicates = get_duplicate_jobs(running_builds, dispatcher_name, dispatcher_params)
+                dispatcher_duplicates = get_duplicate_jobs(
+                    running_builds, dispatcher_name, dispatcher_params)
 
                 if len(dispatcher_duplicates) > 0:
                     if options.stop:
                         for build in dispatcher_duplicates:
                             logger.info(
-                                "stopping {}/{}".format(build['name'], build['number']))
+                                "aborting {}/{}".format(build['name'], build['number']))
                             server.stop_build(build['name'], build['number'])
                     else:
                         continue
 
-                build_url = server.build_job_url(dispatcher_name, parameters=dispatcher_params)
+                # we determine component and subcomponent by the params of the job not dispatcher job
+                # e.g. only 1 subcomponent might need to be rerun
+                dispatcher_params["component"] = "None"
+                dispatcher_params["subcomponent"] = "None"
 
-                logger.info("Build URL: {}\n".format(build_url))
+                if job_name not in already_dispatching:
+                    already_dispatching[job_name] = {}
+                already_dispatching_job = already_dispatching[job_name]
 
-                if not options.noop:
-                    logger.info("dispatching")
-                    time.sleep(10)
-                    server.build_job("test_suite_dispatcher", parameters=dispatcher_params)
+                if parameters['component'] not in already_dispatching_job:
+                    already_dispatching_job[parameters['component']] = []
+                already_dispatching_component = already_dispatching_job[parameters['component']]
+
+                found = False
+                for subcomponents in already_dispatching_component:
+                    if subcomponents['params'] == dispatcher_params:
+                        found = True
+                        if parameters['subcomponent'] not in subcomponents['subcomponents']:
+                            subcomponents['subcomponents'].append(
+                                parameters['subcomponent'])
+
+                if not found:
+                    already_dispatching_component.append({
+                        "params": dispatcher_params,
+                        "subcomponents": [parameters['subcomponent']]
+                    })
 
         except Exception as e:
             traceback.print_exc()
             continue
+
+    for [dispatcher_name, components] in already_dispatching.items():
+        for [component_name, component] in components.items():
+            for job in component:
+
+                dispatcher_params = job['params']
+                dispatcher_params['component'] = component_name
+                dispatcher_params['subcomponent'] = ",".join(
+                    job['subcomponents'])
+
+                build_url = server.build_job_url(
+                    dispatcher_name, parameters=dispatcher_params)
+
+                logger.info("Build URL: {}\n".format(build_url))
