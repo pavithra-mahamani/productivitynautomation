@@ -118,6 +118,7 @@ def parameters_for_job(name, number, version_number=None, s3_logs_url=None):
             pass
     return parameters
 
+
  # these parameters could be different even for duplicate jobs
 ignore_params_list = ["descriptor", "servers", "dispatcher_params", "fresh_run", "rerun_params",
                       "retries", "timeout", "mailing_list", "addPoolServers", "version_number"]
@@ -179,6 +180,24 @@ def jobs_to_rerun(options):
     cluster = Cluster('couchbase://{}'.format(options.server), ClusterOptions(
         PasswordAuthenticator(options.username, options.password)), lockmode=LockMode.WAIT)
 
+    def filter_single_build(query):
+        if options.aborted and options.failed:
+            query += " and (result = 'ABORTED' or failCount > 0)"
+        else:
+            if options.failed:
+                query += " and failCount > 0"
+
+            if options.aborted:
+                query += " and result = 'ABORTED'"
+
+        if options.os:
+            query += " and lower(os) in {}".format(options.os)
+
+        if options.components:
+            query += " and lower(component) in {}".format(options.components)
+
+        return query
+
     if options.strategy and (options.strategy == "regression" or options.strategy == "common"):
 
         if not options.previous_build:
@@ -224,24 +243,20 @@ def jobs_to_rerun(options):
         query = "select result, component, failCount, url, build_id, `build` from server where `build` = '{}' and url like '{}/job/%'".format(
             options.build, options.build_url_to_check)
 
-        if options.aborted and options.failed:
-            query += " and (result = 'ABORTED' or failCount > 0)"
-        else:
-            if options.failed:
-                query += " and failCount > 0"
-
-            if options.aborted:
-                query += " and result = 'ABORTED'"
-
-        if options.os:
-            query += " and lower(os) in {}".format(options.os)
-
-        if options.components:
-            query += " and lower(component) in {}".format(options.components)
+        query = filter_single_build(query)
 
     logger.info(query)
+    rows = list(cluster.query(query).rows())
 
-    rows = cluster.query(query).rows()
+    # also add new failing jobs that weren't present in the last run
+    # TODO: can this be done in a better way
+    # only applicable when previous build is being compared
+    if options.previous_build:
+        query = "SELECT result, component, failCount, url, build_id, `build` FROM server WHERE name NOT IN (SELECT RAW name FROM server s WHERE `build` = '{0}' and url like '{1}/job/%' GROUP BY name) AND `build` = '{2}' and url like '{1}/job/%'".format(
+            options.previous_build, options.build_url_to_check, options.build)
+        query = filter_single_build(query)
+        logger.info(query)
+        rows.extend(list(cluster.query(query).rows()))
 
     return rows
 
