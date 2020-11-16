@@ -71,11 +71,17 @@ def parse_arguments():
                       default="http://cb-logs-qe.s3-website-us-west-2.amazonaws.com")
     parser.add_option("--strategy", dest="strategy",
                       help="Which strategy should be used to find jobs to rerun", choices=("common", "regression"))
+    parser.add_option("--dispatch-threshold", dest="dispatch_threshold",
+                      help="Percent of servers that must be available before a job should be dispatched", type="int", default=50)
 
     options, _ = parser.parse_args()
 
     if not options.build:
         logger.error("No --build given")
+        sys.exit(1)
+
+    if options.previous_build and not options.strategy:
+        logger.error("no strategy specified with previous build")
         sys.exit(1)
 
     if options.os:
@@ -89,8 +95,6 @@ def parse_arguments():
             logger.error("Can't supply multiple components with subcomponents")
             sys.exit(1)
         options.subcomponents = options.subcomponents.split(",")
-
-    options.s3_logs_url.strip("/")
 
     logger.info("Given build url={}".format(options.build_url_to_check))
 
@@ -176,10 +180,7 @@ def job_name_from_url(jenkins_server, url):
     return url.replace("{}/job/".format(jenkins_server), "").strip("/")
 
 
-def jobs_to_rerun(options):
-    cluster = Cluster('couchbase://{}'.format(options.server), ClusterOptions(
-        PasswordAuthenticator(options.username, options.password)), lockmode=LockMode.WAIT)
-
+def jobs_to_rerun(cluster, options):
     def filter_single_build(query):
         if options.aborted and options.failed:
             query += " and (result = 'ABORTED' or failCount > 0)"
@@ -261,14 +262,45 @@ def jobs_to_rerun(options):
     return rows
 
 
+def ready_to_dispatch(cluster, options, params):
+    # we can't wait to build if we don't know what servers are needed
+    if "serverPoolId" not in params:
+        return True
+
+    query = "select count(*) as count from `QE-server-pool` where state = '{0}' and (poolId = '{1}' or '{1}' in poolId)"
+
+    pools_to_check = [params['serverPoolId']]
+    if "addPoolId" in params:
+        pools_to_check.append(params['addPoolId'])
+
+    for pool in pools_to_check:
+        available = list(cluster.query(query.format(
+            "available", pool)).rows())[0]['count']
+
+        booked = list(cluster.query(query.format(
+            "booked", pool)).rows())[0]['count']
+
+        total = available + booked
+
+        if (available/total) * 100 < options.dispatch_threshold:
+            return False
+
+    return True
+
+
 if __name__ == "__main__":
     options = parse_arguments()
 
-    to_rerun = jobs_to_rerun(options)
+    cluster = Cluster('couchbase://{}'.format(options.server), ClusterOptions(
+        PasswordAuthenticator(options.username, options.password)), lockmode=LockMode.WAIT)
+
+    to_rerun = jobs_to_rerun(cluster, options)
 
     server = connect_to_jenkins(options.build_url_to_check)
 
     running_builds = get_running_builds(server)
+
+    jobs_to_build = []
 
     already_dispatching = {}
 
@@ -298,10 +330,8 @@ if __name__ == "__main__":
 
                 parameters['version_number'] = options.build
 
-                build_url = server.build_job_url(
-                    job_name, parameters=parameters)
-
-                logger.info("Build URL: {}\n".format(build_url))
+                jobs_to_build.append(
+                    {"name": job_name, "parameters": parameters})
 
             else:
                 dispatcher_params = json.loads(
@@ -401,7 +431,24 @@ if __name__ == "__main__":
                 dispatcher_params['subcomponent'] = ",".join(
                     job['subcomponents'])
 
+                jobs_to_build.append(
+                    {"name": dispatcher_name, "parameters": dispatcher_params})
+
+    while len(jobs_to_build) > 0:
+        queue = jobs_to_build.copy()
+        jobs_to_build.clear()
+
+        for job in queue:
+            if ready_to_dispatch(
+                    cluster, options, job['parameters']):
                 build_url = server.build_job_url(
-                    dispatcher_name, parameters=dispatcher_params)
+                    job_name, parameters=parameters)
 
                 logger.info("Build URL: {}\n".format(build_url))
+            else:
+                jobs_to_build.append(job)
+
+        if len(jobs_to_build) == 0:
+            break
+
+        time.sleep(60 * 5)
