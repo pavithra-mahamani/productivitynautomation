@@ -13,6 +13,8 @@ from couchbase.cluster import Cluster
 from couchbase.cluster import PasswordAuthenticator
 import XenAPI
 from flask import Flask, request
+from paramiko import SSHClient, AutoAddPolicy, RSAKey
+from paramiko.auth_handler import AuthenticationException, SSHException
 
 """
   --------------------------------------
@@ -32,6 +34,7 @@ from flask import Flask, request
         format=<short|detailed> → short (default): gives the response as a json array with IPs
          in similar current serverpool manager or detailed means the response is a json object
          with VM names.
+    To check that an SSH connection can be made with each VM, add the checkvms=true parameter
 
    Termination of VMs:
        Single VM: http://127.0.0.1:5000/releaseservers/<vmname>?os=centos
@@ -83,8 +86,30 @@ def getavailable_count_service(os='centos'):
                                                  reserved_count))
     return str(count)
 
+def check_vms(os_name, hosts):
+    if os_name == "windows":
+        username = "Administrator"
+        password = "Membase123"
+    else:
+        username = "root"
+        password = "couchbase"
+    for host in hosts:
+        try:
+            client = SSHClient()
+            client.set_missing_host_key_policy(AutoAddPolicy())
+            client.connect(
+                host,
+                username=username,
+                password=password,
+                timeout=5000
+            )
+        except Exception as e:
+            print(e)
+            return False
+    return True
 
-# /getservers/username?count=number&os=centos&ver=6&expiresin=30
+
+# /getservers/username?count=number&os=centos&ver=6&expiresin=30&checkvms=true
 @app.route('/getservers/<string:username>')
 def getservers_service(username):
     global reserved_count
@@ -113,6 +138,11 @@ def getservers_service(username):
     else:
         output_format = "servermanager"
 
+    if request.args.get('checkvms'):
+        checkvms = request.args.get('checkvms').lower() == "true"
+    else:
+        checkvms = False
+
     xhostref = None
     if request.args.get('xhostref'):
         xhostref = request.args.get('xhostref')
@@ -122,6 +152,11 @@ def getservers_service(username):
         vms_ips_list = perform_service(xhostref, 'createvm', os_name, username, vm_count,
                                        cpus=cpus_count, maxmemory=mem, expiry_minutes=exp,
                                        output_format=output_format)
+        if checkvms:
+            vms_ok = check_vms(os_name, vms_ips_list)
+            log.info("VM check: " + str(vms_ok))
+            if not vms_ok:
+                return "Error: VM check failed"
         return json.dumps(vms_ips_list)
 
     # TBD consider cpus/mem later
@@ -140,6 +175,11 @@ def getservers_service(username):
         vms_ips_list = perform_service(free_xenhost_ref, 'createvm', os_name, username, vm_count,
                                        cpus=cpus_count, maxmemory=mem, expiry_minutes=exp,
                                        output_format=output_format)
+        if checkvms:
+            vms_ok = check_vms(os_name, vms_ips_list)
+            log.info("VM check: " + str(vms_ok))
+            if not vms_ok:
+                return "Error: VM check failed"
         return json.dumps(vms_ips_list)
     else:  # Distribute among multiple xen hosts
         log.info("--> Distributing VMs among multiple xen hosts")
@@ -173,6 +213,13 @@ def getservers_service(username):
                 log.info(per_xen_host_res)
                 vm_name_suffix_index = int(vm_name_suffix_index) + int(per_xen_host_vms)
                 need_vms = need_vms - per_xen_host_vms
+
+        if checkvms:
+            vms_ok = check_vms(os_name, merged_vms_list)
+            log.info("VM check: " + str(vms_ok))
+            if not vms_ok:
+                return "Error: VM check failed"
+
         if output_format == 'detailed':
             return json.dumps(merged_vms_list, indent=2, sort_keys=True)
         else:
