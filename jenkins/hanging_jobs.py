@@ -44,6 +44,12 @@ def get_hanging_jobs(server, options):
         if options.exclude and re.search(options.exclude, build['name']):
             continue
 
+        parameters = parameters_for_job(server, build['name'], build['number'])
+
+        if options.components:
+            if "component" not in parameters or parameters['component'] not in options.components:
+                continue
+
         try:
             latest_timestamp = None
             console = list(requests.get(
@@ -91,13 +97,11 @@ def get_hanging_jobs(server, options):
                 if difference >= options.timeout:
                     logger.info("{} is hanging (last console output: {} ({:2.2f} minutes ago)".format(build['url'], latest_timestamp, difference))
 
-                    parameters = parameters_for_job(server, build['name'], build['number'])
-
                     build['version_number'] = parameters['version_number'] if "version_number" in parameters else ""
                     build['component'] = parameters['component'] if "component" in parameters else ""
                     build['subcomponent'] = parameters['subcomponent'] if "subcomponent" in parameters else ""
 
-                    build['last_console_output'] = difference
+                    build['last_console_output'] = round(difference)
                     hanging_jobs.append(build)
 
             else:
@@ -133,12 +137,16 @@ def parse_arguments():
     parser.add_option("-i", "--include", dest="include", help="Regular expression of job names to include")
     parser.add_option("-n", "--noop", dest="print", help="Just print hanging jobs, don't stop them", action="store_true")
     parser.add_option("-o", "--output", dest="output", help="Directory to output the CSV to")
+    parser.add_option("--components", dest="components", help="List of components to include")
 
     options, args = parser.parse_args()
 
 
     if options.build_url_to_check:
         build_url_to_check = options.build_url_to_check
+
+    if options.components:
+        options.components = options.components.split(",")
 
     if len(args)==1:
         build_url_to_check = args[0]
