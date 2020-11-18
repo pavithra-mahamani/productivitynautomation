@@ -1,0 +1,4 @@
+1) Copy xdcr_fuzz.py to a host/VM with CB installed (it depends on /opt/couchbase/bin/couchbase-cli) 
+2) Change hosts to IPs of CB instances you want to test
+3) python xdcr_fuzz.py
+4) Script will create buckets, replications and load docs while updating/deleting replications    
