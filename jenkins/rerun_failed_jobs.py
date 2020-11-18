@@ -209,9 +209,6 @@ def jobs_to_rerun(cluster, options):
         if options.os:
             query += " and lower(os) in {}".format(options.os)
 
-        if options.components:
-            query += " and lower(component) in {}".format(options.components)
-
         return query
 
     if options.strategy and options.strategy in ["regression", "common"]:
@@ -249,10 +246,6 @@ def jobs_to_rerun(cluster, options):
         if options.os:
             query += " and lower(s1.os) in {0} and lower(s2.os) in {0}".format(
                 options.os)
-
-        if options.components:
-            query += " and lower(s1.component) in {0} and lower(s2.component) in {0}".format(
-                options.components)
 
     else:
 
