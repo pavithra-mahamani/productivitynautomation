@@ -6,9 +6,7 @@ from couchbase.n1ql import N1QLQuery
 import sys
 from optparse import OptionParser
 from jenkinshelper import connect_to_jenkins
-import xml.sax
 import logging
-import re
 import traceback
 from deepdiff import DeepDiff
 import requests
@@ -304,7 +302,10 @@ def wait_for_main_run(options):
             # we could't check so try again
             server_pools_available = False
 
-        time.sleep(5)
+        if server_pools_available:
+            break
+
+        time.sleep(5 * 60)
 
 
 def run_test_dispatcher(cmd, testrunner_dir):
