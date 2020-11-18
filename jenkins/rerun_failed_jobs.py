@@ -1,8 +1,8 @@
 import couchbase
 import json
-from couchbase.cluster import Cluster, ClusterOptions
-from couchbase.auth import PasswordAuthenticator
-from couchbase.options import LockMode
+from couchbase.cluster import Cluster
+from couchbase.cluster import PasswordAuthenticator
+from couchbase.n1ql import N1QLQuery
 import sys
 from optparse import OptionParser
 from jenkinshelper import connect_to_jenkins
@@ -14,6 +14,8 @@ from deepdiff import DeepDiff
 import requests
 import jenkins
 import time
+import subprocess
+import threading
 
 logger = logging.getLogger("rerun_failed_jobs")
 logger.setLevel(logging.DEBUG)
@@ -23,6 +25,17 @@ formatter = logging.Formatter(
     "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 ch.setFormatter(formatter)
 logger.addHandler(ch)
+
+# Differences to the existing rerun script
+
+# Runs are completely dependent on the couchbase bucket containing the runs rather than being hard coded. This means that additional components can be added without modifying this script
+# Only a single pass is made whereas the existing script runs forever.
+# Filtering is available for components, subcomponents, os
+# Strategies such as common failures and failures with a higher failed test count can be used when a comparison build is specified.
+# A single jenkins job is used rather than building 100+ test_suite_dispatcher jobs
+# Dispatcher and non dispatcher jobs can be rerun (jobs without support for reruns are run with failed and successful tests)
+# Dispatcher jobs are run with the same parameters as the fresh run e.g. extra testrunner parameters, gerrit cherrypick
+# Won't dispatch if similar job already running with option to stop similar job before dispatching
 
 
 def parse_arguments():
@@ -73,6 +86,8 @@ def parse_arguments():
                       help="Which strategy should be used to find jobs to rerun", choices=("common", "regression"))
     parser.add_option("--dispatch-threshold", dest="dispatch_threshold",
                       help="Percent of servers that must be available before a job should be dispatched", type="int", default=50)
+    parser.add_option("--testrunner_dir", dest="testrunner_dir",
+                      help="path to testrunner directory for inline job dispatching", default="../../testrunner")
 
     options, _ = parser.parse_args()
 
@@ -199,7 +214,7 @@ def jobs_to_rerun(cluster, options):
 
         return query
 
-    if options.strategy and (options.strategy == "regression" or options.strategy == "common"):
+    if options.strategy and options.strategy in ["regression", "common"]:
 
         if not options.previous_build:
             logger.error(
@@ -247,7 +262,8 @@ def jobs_to_rerun(cluster, options):
         query = filter_single_build(query)
 
     logger.info(query)
-    rows = list(cluster.query(query).rows())
+
+    rows = list(cluster.n1ql_query(N1QLQuery(query)))
 
     # also add new failing jobs that weren't present in the last run
     # TODO: can this be done in a better way
@@ -257,50 +273,66 @@ def jobs_to_rerun(cluster, options):
             options.previous_build, options.build_url_to_check, options.build)
         query = filter_single_build(query)
         logger.info(query)
-        rows.extend(list(cluster.query(query).rows()))
+        rows.extend(list(cluster.n1ql_query(N1QLQuery(query))))
 
     return rows
 
 
-def ready_to_dispatch(cluster, options, params):
-    # we can't wait to build if we don't know what servers are needed
-    if "serverPoolId" not in params:
-        return True
-
+def wait_for_main_run(options):
+    cluster = Cluster('couchbase://{}'.format(options.server))
+    authenticator = PasswordAuthenticator(options.username, options.password)
+    cluster.authenticate(authenticator)
+    bucket = cluster.open_bucket('QE-server-pool')
     query = "select count(*) as count from `QE-server-pool` where state = '{0}' and (poolId = '{1}' or '{1}' in poolId)"
 
-    pools_to_check = [params['serverPoolId']]
-    if "addPoolId" in params:
-        pools_to_check.append(params['addPoolId'])
+    server_pools_available = False
 
-    for pool in pools_to_check:
-        available = list(cluster.query(query.format(
-            "available", pool)).rows())[0]['count']
+    while not server_pools_available:
+        server_pools_available = True
 
-        booked = list(cluster.query(query.format(
-            "booked", pool)).rows())[0]['count']
+        try:
+            # if regression, reg12hrreg, magmareg and os_certification are > threshold percent available then main run finishing
+            for pool in ["magmareg", "regression", "12hrreg", "os_certification"]:
+                available = list(cluster.n1ql_query(N1QLQuery(query.format(
+                    "available", pool))))[0]['count']
 
-        total = available + booked
+                booked = list(cluster.n1ql_query(N1QLQuery(query.format(
+                    "booked", pool))))[0]['count']
 
-        if (available/total) * 100 < options.dispatch_threshold:
-            return False
+                total = available + booked
+                capacity = (available/total) * 100
 
-    return True
+                logger.info(
+                    "{} pool at {:.2f}% capacity".format(pool, capacity))
+
+                if capacity < options.dispatch_threshold:
+                    server_pools_available = False
+        except Exception:
+            # we could't check so try again
+            server_pools_available = False
+
+        time.sleep(5)
+
+
+def run_test_dispatcher(cmd, testrunner_dir):
+    subprocess.call(cmd, shell=True, cwd=options.testrunner_dir)
 
 
 if __name__ == "__main__":
     options = parse_arguments()
 
-    cluster = Cluster('couchbase://{}'.format(options.server), ClusterOptions(
-        PasswordAuthenticator(options.username, options.password)), lockmode=LockMode.WAIT)
+    wait_for_main_run(options)
+
+    cluster = Cluster('couchbase://{}'.format(options.server))
+    authenticator = PasswordAuthenticator(options.username, options.password)
+    cluster.authenticate(authenticator)
+    cluster = cluster.open_bucket('server')
 
     to_rerun = jobs_to_rerun(cluster, options)
 
     server = connect_to_jenkins(options.build_url_to_check)
 
     running_builds = get_running_builds(server)
-
-    jobs_to_build = []
 
     already_dispatching = {}
 
@@ -330,8 +362,8 @@ if __name__ == "__main__":
 
                 parameters['version_number'] = options.build
 
-                jobs_to_build.append(
-                    {"name": job_name, "parameters": parameters})
+                build_url = server.build_job_url(job_name, parameters)
+                logger.info("Build URL: {}\n".format(build_url))
 
             else:
                 dispatcher_params = json.loads(
@@ -422,6 +454,8 @@ if __name__ == "__main__":
             traceback.print_exc()
             continue
 
+    dispatching_threads = []
+
     for [dispatcher_name, components] in already_dispatching.items():
         for [component_name, component] in components.items():
             for job in component:
@@ -431,24 +465,88 @@ if __name__ == "__main__":
                 dispatcher_params['subcomponent'] = ",".join(
                     job['subcomponents'])
 
-                jobs_to_build.append(
-                    {"name": dispatcher_name, "parameters": dispatcher_params})
+                params = []
 
-    while len(jobs_to_build) > 0:
-        queue = jobs_to_build.copy()
-        jobs_to_build.clear()
+                # no launch
+                params.append("-n")
+                params.append(
+                    "--dispatcher_params='{}'".format(json.dumps(dispatcher_params)))
 
-        for job in queue:
-            if ready_to_dispatch(
-                    cluster, options, job['parameters']):
-                build_url = server.build_job_url(
-                    job_name, parameters=parameters)
+                for [name, value] in dispatcher_params.items():
+                    if name == "Test" and value:
+                        params.append("-t")
 
-                logger.info("Build URL: {}\n".format(build_url))
-            else:
-                jobs_to_build.append(job)
+                    if name == "fresh_run" and not value:
+                        params.append("-q")
 
-        if len(jobs_to_build) == 0:
-            break
+                    if name == "rerun_params" and value != "":
+                        params.append("-m '{}'".format(value))
 
-        time.sleep(60 * 5)
+                    if name == "executor_suffix" and value != "":
+                        params.append("-j {}".format(value))
+
+                    if name == "check_vm" and value:
+                        params.append("--check_vm True")
+
+                    if name == "executor_job_parameters" and value != "":
+                        params.append("--job_params {}".format(value))
+
+                    if name == "suite":
+                        params.append("-r {}".format(value))
+
+                    if name == "component":
+                        params.append("-c {}".format(value))
+
+                    if name == "subcomponent":
+                        params.append("-s {}".format(value))
+
+                    if name == "version_number":
+                        params.append("-v {}".format(value))
+
+                    if name == "OS":
+                        params.append("-o {}".format(value))
+
+                    if name == "serverPoolId":
+                        params.append("-p {}".format(value))
+
+                    if name == "addPoolId":
+                        params.append("-a {}".format(value))
+
+                    if name == "url" and value != "":
+                        params.append("-u {}".format(value))
+
+                    if name == "branch":
+                        params.append("-b {}".format(value))
+
+                    if name == "cherrypick" and value != "":
+                        params.append("-g '{}'".format(value))
+
+                    if name == "extraParameters" and value != "":
+                        params.append("-e {}".format(value))
+
+                    if name == "retries":
+                        params.append("-i {}".format(value))
+
+                    # test_suite_dispatcher_dynvm
+
+                    if name == "SERVER_MANAGER_TYPE" and value == "dynamic":
+                        params.append(
+                            "-j dynvm -x 172.23.104.180:5000 -z 2000")
+
+                        if "CHECK_SSH" in dispatcher_params:
+                            params.append(
+                                "-w {}".format(dispatcher_params['CHECK_SSH']))
+
+                cmd = "python scripts/testDispatcher.py {}".format(
+                    " ".join(params))
+
+                print(cmd)
+
+                thread = threading.Thread(
+                    target=run_test_dispatcher, args=(cmd, options.testrunner_dir))
+                thread.start()
+
+                dispatching_threads.append(thread)
+
+    for thread in dispatching_threads:
+        thread.join()
