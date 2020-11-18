@@ -1,0 +1,33 @@
+Author: Blair Watt
+
+The script will now accept --version in the format x.x.x-yyyy e.g `./cluster_spin.sh up --version 6.6.0-7909`. It pulls packages from http://latestbuilds.build.couchbase.com - note, if you're running it on your local system you'll need to connect to the VPN when bringing clusters up with a specific version so the packages can be downloaded.
+
+The containers will be running ubuntu:18.04 by default, but you can provide an optional --base-image image:tag pair specifying what base image to build the container on to change this (the package name will be derived from the image name:tag) It has been tested with:
+    amazonlinux:2
+    centos:7
+    centos:8
+    debian:9
+    debian:10
+    opensuse/leap:15
+    oraclelinux:7
+    oraclelinux:8
+    ubuntu:16.04
+  * ubuntu:18.04 (default)
+    ubuntu:20.04
+
+So, an invocation like `./cluster_spin.sh up --version 6.6.0-7909 --base-image oraclelinux:8` will get you to a cluster running on a set of containers based on oraclelinux:8, with the oel8 couchbase-server 6.6.0-7909 package installed.
+
+A little more is happening behind the scenes now (I'd say we outgrew the 'single bash script' idea some time ago, try not to look directly at it), but in a nutshell:
+
+1) If it exists, the existing container image ${prefix}_${clustername} (default: sandbox_cluster) is removed (to avoid situations where some step fails silently in the middle but we think everything's OK because a cluster still manages to come up on the previous image)
+2) If --version was specified:
+    - A Dockerfile is created in ${workdir} (workdir default = /tmp/cluster-setup-files, or if you'd prefer to keep packages somewhere permanent, use --workdir /foo to set a path)
+    - The relevant package for --base-image and --version is downloaded to the workdir
+    - The base image is built
+3) A docker-compose.yml is created in ${workdir}
+4) Containers are brought up
+5) Cluster is bootstrapped
+
+Note, my previous disclaimer still applies - although it should do what you need, this script isn't very polished and is potentially quite buggy.
+
+
