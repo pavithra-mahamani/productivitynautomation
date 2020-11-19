@@ -87,12 +87,13 @@ def getavailable_count_service(os='centos'):
     return str(count)
 
 def check_vms(os_name, hosts):
+    config = read_config()
     if os_name == "windows":
-        username = "Administrator"
-        password = "Membase123"
+        username = config.get("common", "vm.windows.username")
+        password = config.get("common", "vm.windows.password")
     else:
-        username = "root"
-        password = "couchbase"
+        username = config.get("common", "vm.linux.username")
+        password = config.get("common", "vm.linux.password")
     for host in hosts:
         try:
             client = SSHClient()
