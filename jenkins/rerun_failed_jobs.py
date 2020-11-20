@@ -1,10 +1,9 @@
-import couchbase
 import json
-from couchbase.cluster import Cluster
-from couchbase.cluster import PasswordAuthenticator
-from couchbase.n1ql import N1QLQuery
+from couchbase.cluster import Cluster, ClusterOptions
+from couchbase.auth import PasswordAuthenticator
 import sys
 from optparse import OptionParser
+from jenkins import Jenkins
 from jenkinshelper import connect_to_jenkins
 import logging
 import traceback
@@ -13,7 +12,8 @@ import requests
 import jenkins
 import time
 import subprocess
-import threading
+import os
+import csv
 
 logger = logging.getLogger("rerun_failed_jobs")
 logger.setLevel(logging.DEBUG)
@@ -54,8 +54,8 @@ def parse_arguments():
     parser.add_option("-f", "--failed", dest="failed",
                       help="Include jobs with failed tests", action="store_true")
 
-    parser.add_option("-p", "--previous-build", dest="previous_build",
-                      help="Previous build to compare for regressions or common failures")
+    parser.add_option("-p", "--previous-builds", dest="previous_builds",
+                      help="Previous builds to compare for regressions or common failures")
 
     parser.add_option("-b", "--build", dest="build",
                       help="Build version to rerun e.g. 7.0.0-3594")
@@ -82,18 +82,34 @@ def parse_arguments():
                       default="http://cb-logs-qe.s3-website-us-west-2.amazonaws.com")
     parser.add_option("--strategy", dest="strategy",
                       help="Which strategy should be used to find jobs to rerun", choices=("common", "regression"))
-    parser.add_option("--dispatch-threshold", dest="dispatch_threshold",
-                      help="Percent of servers that must be available before a job should be dispatched", type="int", default=50)
+
+    parser.add_option("--pools-threshold", dest="pools_threshold",
+                      help="Percent of machines that must be available in each pool before reruns should begin", type="int", default=50)
+    parser.add_option("--jobs-threshold", dest="jobs_threshold",
+                      help="Percent of jobs that must be complete before reruns should begin", type="int", default=90)
+
+    parser.add_option("--include-pools", dest="include_pools", help="Pools to include in pools-threshold e.g. 12hrreg,magma,regression,os_certification")
+    parser.add_option("--exclude-pools", dest="exclude_pools", help="Pools to exclude in pools-threshold e.g. elastic-xdcr")
+
     parser.add_option("--testrunner_dir", dest="testrunner_dir",
                       help="path to testrunner directory for inline job dispatching", default="../../testrunner")
+
+    parser.add_option("--output", dest="output")
 
     options, _ = parser.parse_args()
 
     if not options.build:
-        logger.error("No --build given")
+        logger.error("No build given")
         sys.exit(1)
 
-    if options.previous_build and not options.strategy:
+    if options.previous_builds:
+        options.previous_builds = options.previous_builds.split(",")
+
+    if options.strategy and options.strategy == "regression" and (not options.previous_builds or len(options.previous_builds) != 1):
+        logger.error("regression strategy must specify 1 previous build for comparison")
+        sys.exit(1)
+
+    if options.previous_builds and not options.strategy:
         logger.error("no strategy specified with previous build")
         sys.exit(1)
 
@@ -102,6 +118,12 @@ def parse_arguments():
 
     if options.components:
         options.components = options.components.split(",")
+
+    if options.include_pools:
+        options.include_pools = options.include_pools.split(",")
+
+    if options.exclude_pools:
+        options.exclude_pools = options.exclude_pools.split(",")
 
     if options.subcomponents:
         if len(options.components) > 1:
@@ -114,7 +136,7 @@ def parse_arguments():
     return options
 
 
-def parameters_for_job(name, number, version_number=None, s3_logs_url=None):
+def parameters_for_job(server: Jenkins, name, number, version_number=None, s3_logs_url=None):
     try:
         info = server.get_build_info(name, number)
     except jenkins.JenkinsException:
@@ -156,7 +178,7 @@ def get_running_builds(server):
     builds_with_params = []
 
     for build in running_builds:
-        parameters = parameters_for_job(build['name'], build['number'])
+        parameters = parameters_for_job(server, build['name'], build['number'])
         for param in ignore_params_list:
             if param in parameters:
                 parameters.pop(param)
@@ -192,194 +214,226 @@ def get_duplicate_jobs(running_builds, job_name, parameters):
 def job_name_from_url(jenkins_server, url):
     return url.replace("{}/job/".format(jenkins_server), "").strip("/")
 
+def get_jobs_still_to_run(cluster: Cluster, options):
+    query = "SELECT raw name FROM server WHERE `build`= '{}'"
+    previous_jobs = set(cluster.query(query.format(options.previous_builds[0])))
+    current_jobs = set(cluster.query(query.format(options.build)))
+    still_to_run = previous_jobs.difference(current_jobs)
 
-def jobs_to_rerun(cluster, options):
-    def filter_single_build(query):
-        if options.aborted and options.failed:
-            query += " and (result = 'ABORTED' or failCount > 0)"
-        else:
-            if options.failed:
-                query += " and failCount > 0"
+    return previous_jobs, still_to_run
 
-            if options.aborted:
-                query += " and result = 'ABORTED'"
 
-        if options.os:
-            query += " and lower(os) in {}".format(options.os)
+def wait_for_main_run(options, cluster: Cluster):
+    WAITING_PATH = "waiting_for_main.csv"
 
-        return query
-
-    if options.strategy and options.strategy in ["regression", "common"]:
-
-        if not options.previous_build:
-            logger.error(
-                "Need previous build for this strategy")
-            sys.exit(1)
-
-        query = "select s2.result, s2.component, s2.failCount, s2.url, s2.build_id, s2.`build` from server s1 inner join server s2 on s1.name = s2.name where s1.`build` = '{0}' and s2.`build` = '{1}' and s1.url like '{2}/job/%' and s2.url like '{2}/job/%'".format(
-            options.previous_build, options.build, options.build_url_to_check)
-
-        if options.strategy == "regression":
-
-            if options.aborted and options.failed:
-                query += " and ((s2.result = 'ABORTED' and s1.result != 'ABORTED') or s2.failCount > s1.failCount)"
-            else:
-                if options.failed:
-                    query += " and s2.failCount > s1.failCount"
-
-                if options.aborted:
-                    query += " and s2.result = 'ABORTED' and s1.result != 'ABORTED'"
-
-        elif options.strategy == "common":
-
-            if options.aborted and options.failed:
-                query += " and (s2.result = 'ABORTED' or s2.failCount > 0) and (s1.result = 'ABORTED' or s1.failCount > 0)"
-            else:
-                if options.failed:
-                    query += " and s2.failCount > 0 and s1.failCount > 0"
-
-                if options.aborted:
-                    query += " and s2.result = 'ABORTED' and s1.result = 'ABORTED'"
-
-        if options.os:
-            query += " and lower(s1.os) in {0} and lower(s2.os) in {0}".format(
-                options.os)
-
+    if options.output:
+        waiting_path = os.path.join(options.output, WAITING_PATH)
     else:
+        waiting_path = WAITING_PATH
 
-        query = "select result, component, failCount, url, build_id, `build` from server where `build` = '{}' and url like '{}/job/%'".format(
-            options.build, options.build_url_to_check)
+    with open(waiting_path, 'w') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_writer.writerow(["completed_jobs", "total_jobs", "unavailable_pools"])
 
-        query = filter_single_build(query)
+    ready_for_reruns = False
 
-    logger.info(query)
+    while not ready_for_reruns:
 
-    rows = list(cluster.n1ql_query(N1QLQuery(query)))
-
-    # also add new failing jobs that weren't present in the last run
-    # TODO: can this be done in a better way
-    # only applicable when previous build is being compared
-    if options.previous_build:
-        query = "SELECT result, component, failCount, url, build_id, `build` FROM server WHERE name NOT IN (SELECT RAW name FROM server s WHERE `build` = '{0}' and url like '{1}/job/%' GROUP BY name) AND `build` = '{2}' and url like '{1}/job/%'".format(
-            options.previous_build, options.build_url_to_check, options.build)
-        query = filter_single_build(query)
-        logger.info(query)
-        rows.extend(list(cluster.n1ql_query(N1QLQuery(query))))
-
-    return rows
-
-
-def wait_for_main_run(options):
-    cluster = Cluster('couchbase://{}'.format(options.server))
-    authenticator = PasswordAuthenticator(options.username, options.password)
-    cluster.authenticate(authenticator)
-    bucket = cluster.open_bucket('QE-server-pool')
-    query = "select count(*) as count from `QE-server-pool` where state = '{0}' and (poolId = '{1}' or '{1}' in poolId)"
-
-    server_pools_available = False
-
-    while not server_pools_available:
-        server_pools_available = True
+        ready_for_reruns = True
 
         try:
-            # if regression, reg12hrreg, magmareg and os_certification are > threshold percent available then main run finishing
-            for pool in ["magmareg", "regression", "12hrreg", "os_certification"]:
-                available = list(cluster.n1ql_query(N1QLQuery(query.format(
-                    "available", pool))))[0]['count']
+            previous_jobs, still_to_run = get_jobs_still_to_run(cluster, options)
 
-                booked = list(cluster.n1ql_query(N1QLQuery(query.format(
-                    "booked", pool))))[0]['count']
+            if len(previous_jobs) > 0:
+                percent_jobs_complete = ((len(previous_jobs) - len(still_to_run)) / len(previous_jobs)) * 100
+            else:
+                percent_jobs_complete = 100
+
+            if percent_jobs_complete < options.jobs_threshold:
+                ready_for_reruns = False
+
+            if options.include_pools:
+                all_pools = options.include_pools
+            else:
+                pools = cluster.query("select raw poolId from `QE-server-pool` where poolId is not missing and poolId is not null group by poolId")
+                all_pools = set()
+
+                for pool in pools:
+                    if isinstance(pool, list):
+                        for p in pool:
+                            all_pools.add(p)
+                    else:
+                        all_pools.add(pool)
+
+                if options.exclude_pools:
+                    for pool in options.exclude_pools:
+                        if pool in all_pools:
+                            all_pools.remove(pool)
+
+            query = "select count(*) as count from `QE-server-pool` where state = '{0}' and (poolId = '{1}' or '{1}' in poolId)"
+
+            unavailable_pools = []
+
+            # if pools > threshold percent available then main run finishing
+            for pool in all_pools:
+                available = list(cluster.query(query.format(
+                    "available", pool)))[0]['count']
+
+                booked = list(cluster.query(query.format(
+                    "booked", pool)))[0]['count']
 
                 total = available + booked
-                capacity = (available/total) * 100
+
+                if total == 0:
+                    continue
+
+                percent_available = (available/total) * 100
 
                 logger.info(
-                    "{} pool at {:.2f}% capacity".format(pool, capacity))
+                    "{} {:.2f}% available".format(pool, percent_available))
 
-                if capacity < options.dispatch_threshold:
-                    server_pools_available = False
+                if percent_available < options.pools_threshold:
+                    ready_for_reruns = False
+                    unavailable_pools.append(pool)
+
+            if ready_for_reruns:
+                break
+            else:
+                logger.info("Waiting for main run to near completion: {} out of {} jobs ({:.2f}%) complete, {} pool{} unavailable {}".format(len(previous_jobs) - len(still_to_run), len(previous_jobs), percent_jobs_complete, len(unavailable_pools), "" if len(unavailable_pools) == 1 else "s", unavailable_pools))
+                with open(waiting_path, 'a') as csvfile:
+                    csv_writer = csv.writer(csvfile)
+                    csv_writer.writerow([len(previous_jobs) - len(still_to_run), len(previous_jobs), ",".join(unavailable_pools)])
+
         except Exception:
-            # we could't check so try again
-            server_pools_available = False
+            traceback.print_exc()
+            ready_for_reruns = False
 
-        if server_pools_available:
-            break
-
-        time.sleep(5 * 60)
+        time.sleep(5)
 
 
 def run_test_dispatcher(cmd, testrunner_dir):
-    subprocess.call(cmd, shell=True, cwd=options.testrunner_dir)
+    subprocess.call(cmd, shell=True, cwd=testrunner_dir)
 
+def filter_query(query: str, options):
+    # options.failed -> failures or no tests passed
+    # options.aborted -> result is aborted
 
-if __name__ == "__main__":
-    options = parse_arguments()
+    filter = None
 
-    wait_for_main_run(options)
+    if options.failed and options.aborted:
+        filter = "(failCount > 0 OR failCount = totalCount OR result = 'ABORTED')"
+    elif options.failed:
+        filter = "(failCount > 0 OR failCount = totalCount)"
+    elif options.aborted:
+        filter = "result = 'ABORTED'"
 
-    cluster = Cluster('couchbase://{}'.format(options.server))
-    authenticator = PasswordAuthenticator(options.username, options.password)
-    cluster.authenticate(authenticator)
-    cluster = cluster.open_bucket('server')
+    if filter:
+        query += " AND {}".format(filter)
 
-    to_rerun = jobs_to_rerun(cluster, options)
+    if options.os:
+        query += " AND LOWER(os) in {}".format(options.os)
 
-    server = connect_to_jenkins(options.build_url_to_check)
+    return query
 
+def all_failed_jobs(cluster: Cluster, options):
+    query = "SELECT `build`, build_id, component, failCount, name, os, result, totalCount, url FROM server WHERE `build` = '{}' AND url LIKE '{}/job/%'".format(options.build, options.build_url_to_check)
+    query = filter_query(query, options)
+
+    logger.info("running query {}".format(query))
+
+    jobs = list(cluster.query(query))
+
+    return jobs
+
+def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun):
     running_builds = get_running_builds(server)
-
-    already_dispatching = {}
-
-    for job in to_rerun:
-
-        job_name = job_name_from_url(options.build_url_to_check, job['url'])
+    filtered_jobs = []
+    for job in jobs:
+        if job['name'] in already_rerun:
+            continue
 
         try:
+            job_name = job_name_from_url(options.build_url_to_check, job['url'])
 
-            parameters = parameters_for_job(
+            parameters = parameters_for_job(server,
                 job_name, job['build_id'], job['build'], options.s3_logs_url)
 
-            if options.components and ("component" not in parameters or parameters['component'] not in options.components):
+            # only run dispatcher jobs
+            if "dispatcher_params" not in parameters and options.dispatcher_jobs:
                 continue
+
+            duplicates = get_duplicate_jobs(
+                    running_builds, job_name, parameters)
+
+            if len(duplicates) > 0:
+                if options.stop:
+                    for build in duplicates:
+                        logger.info(
+                            "aborting {}/{}".format(build['name'], build['number']))
+                        if not options.noop:
+                            server.stop_build(build['name'], build['number'])
+                else:
+                    continue
+
+            if options.components:
+                if "component" in parameters and parameters['component'] not in options.components:
+                    continue
+
+                if job['component'].lower() not in options.components:
+                    continue
 
             if options.subcomponents and ("subcomponent" not in parameters or parameters['subcomponent'] not in options.subcomponents):
                 continue
 
-            logger.info("{}{} {} failures".format(
-                job['url'], job['build_id'], job['failCount']))
+            if options.strategy:
+
+                if options.strategy == "common":
+                    query = "select raw count(*) from server where name = '{}' and `build` in {}".format(job['name'], options.previous_builds)
+                    query = filter_query(query, options)
+                    common_count = list(cluster.query(query))[0]
+                    
+                    # job wasn't common across all previous builds
+                    if common_count != len(options.previous_builds):
+                        continue
+
+                elif options.strategy == "regression":
+                    # regression (if name in previous build and failCount or totalCount was different)
+
+                    query = "select failCount, totalCount from server where `build` = '{}' and name = '{}'".format(options.previous_builds[0], job['name'])
+                    previous_job = list(cluster.query(query))
+                    # if no previous job then this is either a new job or 
+                    # that job wasn't run last time so don't filter
+                    if len(previous_job) == 1 and int(previous_job[0]['failCount']) == int(job['failCount']) and int(previous_job[0]['totalCount']) == int(job['failCount']):
+                        continue
+
+            filtered_jobs.append(job)
+
+        except Exception:
+            traceback.print_exc()
+            continue
+
+    return filtered_jobs
+
+def rerun_jobs(jobs, server: Jenkins, options):
+    already_dispatching = {}
+
+    for job in jobs:
+        job_name = job_name_from_url(options.build_url_to_check, job['url'])
+
+        try:
+
+            parameters = parameters_for_job(server,
+                job_name, job['build_id'], job['build'], options.s3_logs_url)
 
             if 'dispatcher_params' not in parameters:
 
-                # only run dispatcher jobs
-                if options.dispatcher_jobs:
-                    continue
-
-                parameters['version_number'] = options.build
-
-                build_url = server.build_job_url(job_name, parameters)
-                logger.info("Build URL: {}\n".format(build_url))
+                if not options.noop:
+                    server.build_job(job_name, parameters)
 
             else:
+
                 dispatcher_params = json.loads(
                     parameters['dispatcher_params'][11:])
-
-                if "component" not in parameters or parameters['component'] == "None":
-                    continue
-
-                if "subcomponent" not in parameters or parameters['subcomponent'] == "None":
-                    continue
-
-                duplicates = get_duplicate_jobs(
-                    running_builds, job_name, parameters)
-
-                if len(duplicates) > 0:
-                    if options.stop:
-                        for build in duplicates:
-                            logger.info(
-                                "aborting {}/{}".format(build['name'], build['number']))
-                            # server.stop_build(build['name'], build['number'])
-                    else:
-                        continue
 
                 # This is not needed because the executor is defined at the test level in QE-Test-Suites using the framwork key
                 # e.g. -jython, -TAF
@@ -394,37 +448,19 @@ if __name__ == "__main__":
                     # this is a rerun
                     dispatcher_params['fresh_run'] = False
 
-                # use the new build version
-                dispatcher_params['version_number'] = options.build
-
-                # test_suite_dispatcher or test_suite_dispatcher_dynvm
-                dispatcher_name = job_name_from_url(
-                    options.build_url_to_check, dispatcher_params['dispatcher_url'])
+                dispatcher_name = job_name_from_url(options.build_url_to_check, dispatcher_params['dispatcher_url'])
 
                 # invalid parameter
                 dispatcher_params.pop("dispatcher_url")
-
-                # check for duplicate dispatcher job
-                dispatcher_duplicates = get_duplicate_jobs(
-                    running_builds, dispatcher_name, dispatcher_params)
-
-                if len(dispatcher_duplicates) > 0:
-                    if options.stop:
-                        for build in dispatcher_duplicates:
-                            logger.info(
-                                "aborting {}/{}".format(build['name'], build['number']))
-                            server.stop_build(build['name'], build['number'])
-                    else:
-                        continue
 
                 # we determine component and subcomponent by the params of the job not dispatcher job
                 # e.g. only 1 subcomponent might need to be rerun
                 dispatcher_params["component"] = "None"
                 dispatcher_params["subcomponent"] = "None"
 
-                if job_name not in already_dispatching:
-                    already_dispatching[job_name] = {}
-                already_dispatching_job = already_dispatching[job_name]
+                if dispatcher_name not in already_dispatching:
+                    already_dispatching[dispatcher_name] = {}
+                already_dispatching_job = already_dispatching[dispatcher_name]
 
                 if parameters['component'] not in already_dispatching_job:
                     already_dispatching_job[parameters['component']] = []
@@ -443,104 +479,75 @@ if __name__ == "__main__":
                         "params": dispatcher_params,
                         "subcomponents": [parameters['subcomponent']]
                     })
-
-        except Exception as e:
+        
+        except Exception:
             traceback.print_exc()
             continue
-
-    dispatching_threads = []
 
     for [dispatcher_name, components] in already_dispatching.items():
         for [component_name, component] in components.items():
             for job in component:
+                try:
+                    dispatcher_params = job['params']
+                    dispatcher_params['component'] = component_name
+                    dispatcher_params['subcomponent'] = ",".join(
+                        job['subcomponents'])
 
-                dispatcher_params = job['params']
-                dispatcher_params['component'] = component_name
-                dispatcher_params['subcomponent'] = ",".join(
-                    job['subcomponents'])
+                    if not options.noop:
+                        server.build_job(dispatcher_name, dispatcher_params)
+                except:
+                    traceback.print_exc()
+                    continue
 
-                params = []
 
-                # no launch
-                params.append("-n")
-                params.append(
-                    "--dispatcher_params='{}'".format(json.dumps(dispatcher_params)))
 
-                for [name, value] in dispatcher_params.items():
-                    if name == "Test" and value:
-                        params.append("-t")
+if __name__ == "__main__":
+    options = parse_arguments()
 
-                    if name == "fresh_run" and not value:
-                        params.append("-q")
+    cluster = Cluster('couchbase://{}'.format(options.server), ClusterOptions(PasswordAuthenticator(options.username, options.password)))
 
-                    if name == "rerun_params" and value != "":
-                        params.append("-m '{}'".format(value))
+    if options.previous_builds:
+        wait_for_main_run(options, cluster)
 
-                    if name == "executor_suffix" and value != "":
-                        params.append("-j {}".format(value))
+    server = connect_to_jenkins(options.build_url_to_check)
 
-                    if name == "check_vm" and value:
-                        params.append("--check_vm True")
+    already_rerun = []
 
-                    if name == "executor_job_parameters" and value != "":
-                        params.append("--job_params {}".format(value))
+    # timeout after 20 hours
+    timeout = time.time() + (20 * 60 * 60)
 
-                    if name == "suite":
-                        params.append("-r {}".format(value))
+    RERUNS_PATH = "reruns.csv"
 
-                    if name == "component":
-                        params.append("-c {}".format(value))
+    if options.output:
+        reruns_path = os.path.join(options.output, RERUNS_PATH)
+    else:
+        reruns_path = RERUNS_PATH
 
-                    if name == "subcomponent":
-                        params.append("-s {}".format(value))
+    with open(reruns_path, 'w') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_writer.writerow(["name"])
 
-                    if name == "version_number":
-                        params.append("-v {}".format(value))
+    while True:
 
-                    if name == "OS":
-                        params.append("-o {}".format(value))
+        jobs = all_failed_jobs(cluster, options)
+        jobs = filter_jobs(jobs, cluster, server, options, already_rerun)
 
-                    if name == "serverPoolId":
-                        params.append("-p {}".format(value))
+        if len(jobs) > 0:
+            rerun_jobs(jobs, server, options)
 
-                    if name == "addPoolId":
-                        params.append("-a {}".format(value))
+        with open(reruns_path, 'a') as csvfile:
+            csv_writer = csv.writer(csvfile)
+            csv_rows = []
+            for job in jobs:
+                csv_rows.append([job['name']])
+            csv_writer.writerows(csv_rows)
 
-                    if name == "url" and value != "":
-                        params.append("-u {}".format(value))
+        if options.previous_builds:
+            already_rerun.extend([job['name'] for job in jobs])
+            _, still_to_run = get_jobs_still_to_run(cluster, options)
+            if time.time() > timeout or len(still_to_run) == 0:
+                break
+        else:
+            break
 
-                    if name == "branch":
-                        params.append("-b {}".format(value))
-
-                    if name == "cherrypick" and value != "":
-                        params.append("-g '{}'".format(value))
-
-                    if name == "extraParameters" and value != "":
-                        params.append("-e {}".format(value))
-
-                    if name == "retries":
-                        params.append("-i {}".format(value))
-
-                    # test_suite_dispatcher_dynvm
-
-                    if name == "SERVER_MANAGER_TYPE" and value == "dynamic":
-                        params.append(
-                            "-j dynvm -x 172.23.104.180:5000 -z 2000")
-
-                        if "CHECK_SSH" in dispatcher_params:
-                            params.append(
-                                "-w {}".format(dispatcher_params['CHECK_SSH']))
-
-                cmd = "python scripts/testDispatcher.py {}".format(
-                    " ".join(params))
-
-                print(cmd)
-
-                thread = threading.Thread(
-                    target=run_test_dispatcher, args=(cmd, options.testrunner_dir))
-                thread.start()
-
-                dispatching_threads.append(thread)
-
-    for thread in dispatching_threads:
-        thread.join()
+        time.sleep(5)
