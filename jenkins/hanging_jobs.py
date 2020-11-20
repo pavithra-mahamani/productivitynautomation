@@ -1,7 +1,6 @@
 import jenkinshelper
 import traceback
 from datetime import datetime
-import pytz
 from pytz import timezone
 import requests
 from optparse import OptionParser
@@ -141,21 +140,13 @@ def parse_arguments():
 
     options, args = parser.parse_args()
 
-
-    if options.build_url_to_check:
-        build_url_to_check = options.build_url_to_check
+    if len(args) == 1:
+        options.build_url_to_check = args[0]
 
     if options.components:
         options.components = options.components.split(",")
 
-    if len(args)==1:
-        build_url_to_check = args[0]
-
-    if not build_url_to_check:
-        logger.error("No jenkins build url given!")
-        sys.exit(1)
-
-    logger.info("Given build url={}".format(build_url_to_check))
+    logger.info("Given build url={}".format(options.build_url_to_check))
 
     return options
 
