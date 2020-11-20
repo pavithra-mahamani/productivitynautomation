@@ -28,7 +28,8 @@ def parameters_for_job(server, name, number):
                         parameters[param['name']] = param['value']
         except KeyError:
             pass
-    return parameters
+    start_time = datetime.fromtimestamp(int(info['timestamp']) / 1000)
+    return parameters, start_time
 
 
 def get_hanging_jobs(server, options):
@@ -43,7 +44,7 @@ def get_hanging_jobs(server, options):
         if options.exclude and re.search(options.exclude, build['name']):
             continue
 
-        parameters = parameters_for_job(server, build['name'], build['number'])
+        parameters, start_time = parameters_for_job(server, build['name'], build['number'])
 
         if options.components:
             if "component" not in parameters or parameters['component'] not in options.components:
@@ -88,9 +89,14 @@ def get_hanging_jobs(server, options):
                 except Exception:
                     pass
 
-            if latest_timestamp:
+            # test_suite_executor can hang before any logs with a timestamp
+            if latest_timestamp or build['name'] == "test_suite_executor":
                 
                 now = datetime.now().astimezone()
+
+                if not latest_timestamp:
+                    latest_timestamp = start_time
+
                 difference = (now - latest_timestamp).total_seconds() / 60
 
                 if difference >= options.timeout:
@@ -107,7 +113,7 @@ def get_hanging_jobs(server, options):
 
                 logger.warning("timestamp not found for {}".format(build['url']))
             
-        except Exception as e:
+        except Exception:
             traceback.print_exc()
             pass
 
