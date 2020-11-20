@@ -169,6 +169,7 @@ if __name__ == "__main__":
     options = parse_arguments()
     server = jenkinshelper.connect_to_jenkins(options.build_url_to_check)
     hanging_jobs = get_hanging_jobs(server, options)
-    write_to_csv(hanging_jobs, options)
-    if not options.print:
-        stop_hanging_jobs(server, hanging_jobs)
+    if len(hanging_jobs) > 0:
+        write_to_csv(hanging_jobs, options)
+        if not options.print:
+            stop_hanging_jobs(server, hanging_jobs)
