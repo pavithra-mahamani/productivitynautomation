@@ -403,8 +403,15 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun)
                     previous_job = list(cluster.query(query))
                     # if no previous job then this is either a new job or 
                     # that job wasn't run last time so don't filter
-                    if len(previous_job) == 1 and int(previous_job[0]['failCount']) == int(job['failCount']) and int(previous_job[0]['totalCount']) == int(job['failCount']):
-                        continue
+
+                    if len(previous_job) == 1:
+                        prev_fail_count = int(previous_job[0]['failCount'])
+                        prev_total_count = int(previous_job[0]['totalCount'])
+                        curr_fail_count = int(job['failCount'])
+                        curr_total_count = int(job['totalCount'])
+
+                        if prev_fail_count == curr_fail_count and prev_total_count == curr_total_count:
+                            continue
 
             filtered_jobs.append(job)
 
