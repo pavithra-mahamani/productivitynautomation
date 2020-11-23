@@ -89,8 +89,7 @@ def get_hanging_jobs(server, options):
                 except Exception:
                     pass
 
-            # test_suite_executor can hang before any logs with a timestamp
-            if latest_timestamp or build['name'] == "test_suite_executor":
+            if latest_timestamp or (options.force and re.search(options.force, build['name'])):
                 
                 now = datetime.now().astimezone()
 
@@ -143,6 +142,7 @@ def parse_arguments():
     parser.add_option("-n", "--noop", dest="print", help="Just print hanging jobs, don't stop them", action="store_true")
     parser.add_option("-o", "--output", dest="output", help="Directory to output the CSV to")
     parser.add_option("--components", dest="components", help="List of components to include")
+    parser.add_option("-f", "--force", dest="force", help="Regular expression of job names to abort if no timestamp found and running time > timeout")
 
     options, args = parser.parse_args()
 
