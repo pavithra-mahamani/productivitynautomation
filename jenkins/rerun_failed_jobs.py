@@ -214,16 +214,37 @@ def get_duplicate_jobs(running_builds, job_name, parameters):
 def job_name_from_url(jenkins_server, url):
     return url.replace("{}/job/".format(jenkins_server), "").strip("/")
 
-def get_jobs_still_to_run(cluster: Cluster, options):
+def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
+    query = "SELECT name, component, url, build_id, `build` FROM server WHERE `build`= '{}'".format(options.previous_builds[0])
+    
+    jobs = list(cluster.query(query))
+    previous_jobs = set()
+
+    # filter out components not in options.components
+    if options.components:
+        for job in jobs:
+            try:
+                job_name = job_name_from_url(options.build_url_to_check, job['url'])
+
+                parameters = parameters_for_job(server,
+                    job_name, job['build_id'], job['build'], options.s3_logs_url)
+
+                if ("component" in parameters and parameters["component"] in options.components) or job['component'].lower() in options.components:
+                    previous_jobs.add(job["name"])
+
+            except Exception:
+                pass
+    else:
+        previous_jobs = set([job["name"] for job in jobs])
+
     query = "SELECT raw name FROM server WHERE `build`= '{}'"
-    previous_jobs = set(cluster.query(query.format(options.previous_builds[0])))
     current_jobs = set(cluster.query(query.format(options.build)))
     still_to_run = previous_jobs.difference(current_jobs)
 
     return previous_jobs, still_to_run
 
 
-def wait_for_main_run(options, cluster: Cluster):
+def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
     WAITING_PATH = "waiting_for_main.csv"
 
     if options.output:
@@ -242,7 +263,7 @@ def wait_for_main_run(options, cluster: Cluster):
         ready_for_reruns = True
 
         try:
-            previous_jobs, still_to_run = get_jobs_still_to_run(cluster, options)
+            previous_jobs, still_to_run = get_jobs_still_to_run(options, cluster, server)
 
             if len(previous_jobs) > 0:
                 percent_jobs_complete = ((len(previous_jobs) - len(still_to_run)) / len(previous_jobs)) * 100
@@ -510,13 +531,13 @@ def rerun_jobs(jobs, server: Jenkins, options):
 
 if __name__ == "__main__":
     options = parse_arguments()
+    logger.debug(options)
 
     cluster = Cluster('couchbase://{}'.format(options.server), ClusterOptions(PasswordAuthenticator(options.username, options.password)))
+    server = connect_to_jenkins(options.build_url_to_check)
 
     if options.previous_builds:
-        wait_for_main_run(options, cluster)
-
-    server = connect_to_jenkins(options.build_url_to_check)
+        wait_for_main_run(options, cluster, server)
 
     already_rerun = []
 
@@ -551,7 +572,7 @@ if __name__ == "__main__":
 
         if options.previous_builds:
             already_rerun.extend([job['name'] for job in jobs])
-            _, still_to_run = get_jobs_still_to_run(cluster, options)
+            _, still_to_run = get_jobs_still_to_run(options, cluster, server)
             if time.time() > timeout or len(still_to_run) == 0:
                 break
         else:
