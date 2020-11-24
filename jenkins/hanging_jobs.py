@@ -28,7 +28,7 @@ def parameters_for_job(server, name, number):
                         parameters[param['name']] = param['value']
         except KeyError:
             pass
-    start_time = datetime.fromtimestamp(int(info['timestamp']) / 1000)
+    start_time = datetime.fromtimestamp(int(info['timestamp']) / 1000, tz=timezone("US/Pacific"))
     return parameters, start_time
 
 
