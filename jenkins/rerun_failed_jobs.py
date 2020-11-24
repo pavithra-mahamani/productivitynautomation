@@ -1,4 +1,5 @@
 import json
+from os.path import join
 from couchbase.cluster import Cluster, ClusterOptions
 from couchbase.auth import PasswordAuthenticator
 import sys
@@ -553,7 +554,7 @@ if __name__ == "__main__":
 
     with open(reruns_path, 'w') as csvfile:
         csv_writer = csv.writer(csvfile)
-        csv_writer.writerow(["name"])
+        csv_writer.writerow(["name", "fail_count", "total_count", "previous_builds", "current_build"])
 
     while True:
 
@@ -567,7 +568,7 @@ if __name__ == "__main__":
             csv_writer = csv.writer(csvfile)
             csv_rows = []
             for job in jobs:
-                csv_rows.append([job['name']])
+                csv_rows.append([job['name'], job["failCount"], job["totalCount"], " ".join(options.previous_builds), options.build])
             csv_writer.writerows(csv_rows)
 
         if options.previous_builds:
