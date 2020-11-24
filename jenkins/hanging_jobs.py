@@ -1,7 +1,6 @@
 import jenkinshelper
 import traceback
 from datetime import datetime
-import pytz
 from pytz import timezone
 import requests
 from optparse import OptionParser
@@ -29,7 +28,8 @@ def parameters_for_job(server, name, number):
                         parameters[param['name']] = param['value']
         except KeyError:
             pass
-    return parameters
+    start_time = datetime.fromtimestamp(int(info['timestamp']) / 1000)
+    return parameters, start_time
 
 
 def get_hanging_jobs(server, options):
@@ -44,7 +44,7 @@ def get_hanging_jobs(server, options):
         if options.exclude and re.search(options.exclude, build['name']):
             continue
 
-        parameters = parameters_for_job(server, build['name'], build['number'])
+        parameters, start_time = parameters_for_job(server, build['name'], build['number'])
 
         if options.components:
             if "component" not in parameters or parameters['component'] not in options.components:
@@ -89,9 +89,13 @@ def get_hanging_jobs(server, options):
                 except Exception:
                     pass
 
-            if latest_timestamp:
+            if latest_timestamp or (options.force and re.search(options.force, build['name'])):
                 
                 now = datetime.now().astimezone()
+
+                if not latest_timestamp:
+                    latest_timestamp = start_time
+
                 difference = (now - latest_timestamp).total_seconds() / 60
 
                 if difference >= options.timeout:
@@ -108,7 +112,7 @@ def get_hanging_jobs(server, options):
 
                 logger.warning("timestamp not found for {}".format(build['url']))
             
-        except Exception as e:
+        except Exception:
             traceback.print_exc()
             pass
 
@@ -138,24 +142,17 @@ def parse_arguments():
     parser.add_option("-n", "--noop", dest="print", help="Just print hanging jobs, don't stop them", action="store_true")
     parser.add_option("-o", "--output", dest="output", help="Directory to output the CSV to")
     parser.add_option("--components", dest="components", help="List of components to include")
+    parser.add_option("-f", "--force", dest="force", help="Regular expression of job names to abort if no timestamp found and running time > timeout")
 
     options, args = parser.parse_args()
 
-
-    if options.build_url_to_check:
-        build_url_to_check = options.build_url_to_check
+    if len(args) == 1:
+        options.build_url_to_check = args[0]
 
     if options.components:
         options.components = options.components.split(",")
 
-    if len(args)==1:
-        build_url_to_check = args[0]
-
-    if not build_url_to_check:
-        logger.error("No jenkins build url given!")
-        sys.exit(1)
-
-    logger.info("Given build url={}".format(build_url_to_check))
+    logger.info("Given build url={}".format(options.build_url_to_check))
 
     return options
 
@@ -169,6 +166,7 @@ if __name__ == "__main__":
     options = parse_arguments()
     server = jenkinshelper.connect_to_jenkins(options.build_url_to_check)
     hanging_jobs = get_hanging_jobs(server, options)
-    write_to_csv(hanging_jobs, options)
-    if not options.print:
-        stop_hanging_jobs(server, hanging_jobs)
+    if len(hanging_jobs) > 0:
+        write_to_csv(hanging_jobs, options)
+        if not options.print:
+            stop_hanging_jobs(server, hanging_jobs)
