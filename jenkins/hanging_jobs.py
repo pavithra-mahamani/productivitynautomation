@@ -92,9 +92,11 @@ def get_hanging_jobs(server, options):
             if latest_timestamp or (options.force and re.search(options.force, build['name'])):
                 
                 now = datetime.now().astimezone()
+                forced = False
 
                 if not latest_timestamp:
                     latest_timestamp = start_time
+                    forced = True
 
                 difference = (now - latest_timestamp).total_seconds() / 60
 
@@ -106,6 +108,7 @@ def get_hanging_jobs(server, options):
                     build['subcomponent'] = parameters['subcomponent'] if "subcomponent" in parameters else ""
 
                     build['last_console_output'] = round(difference)
+                    build['forced'] = forced
                     hanging_jobs.append(build)
 
             else:
@@ -125,9 +128,9 @@ def write_to_csv(jobs, options):
         output_path = "hung_jobs.csv"
     with open(output_path, 'w') as csvfile:
         csv_writer = csv.writer(csvfile)
-        csv_rows = [['version_number', 'component', 'subcomponent', 'job', 'last_console_output_minutes']]
+        csv_rows = [['version_number', 'component', 'subcomponent', 'job', 'last_console_output_minutes', 'forced']]
         for job in jobs:
-            csv_rows.append([job['version_number'], job['component'], job['subcomponent'], job['url'], job['last_console_output']])
+            csv_rows.append([job['version_number'], job['component'], job['subcomponent'], job['url'], job['last_console_output'], job['forced']])
         csv_writer.writerows(csv_rows)
 
 def parse_arguments():
