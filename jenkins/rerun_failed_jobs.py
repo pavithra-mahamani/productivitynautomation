@@ -400,10 +400,7 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun)
                     continue
 
             if options.components:
-                if "component" in parameters and parameters['component'] not in options.components:
-                    continue
-
-                if job['component'].lower() not in options.components:
+                if ("component" in parameters and parameters['component'] not in options.components) and job['component'].lower() not in options.components:
                     continue
 
             if options.subcomponents and ("subcomponent" not in parameters or parameters['subcomponent'] not in options.subcomponents):
