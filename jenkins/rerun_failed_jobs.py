@@ -25,6 +25,8 @@ formatter = logging.Formatter(
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
+WAITING_PATH = "waiting_for_main.csv"
+
 # Differences to the existing rerun script
 
 # Runs are completely dependent on the couchbase bucket containing the runs rather than being hard coded. This means that additional components can be added without modifying this script
@@ -246,8 +248,6 @@ def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
 
 
 def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
-    WAITING_PATH = "waiting_for_main.csv"
-
     if options.output:
         waiting_path = os.path.join(options.output, WAITING_PATH)
     else:
@@ -255,7 +255,7 @@ def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
 
     with open(waiting_path, 'w') as csvfile:
         csv_writer = csv.writer(csvfile)
-        csv_writer.writerow(["completed_jobs", "total_jobs", "unavailable_pools"])
+        csv_writer.writerow(["timestamp", "completed_jobs", "total_jobs", "unavailable_pools"])
 
     ready_for_reruns = False
 
@@ -318,13 +318,15 @@ def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
                     ready_for_reruns = False
                     unavailable_pools.append(pool)
 
+            # always log current runs state
+            with open(waiting_path, 'a') as csvfile:
+                    csv_writer = csv.writer(csvfile)
+                    csv_writer.writerow([time.time(), len(previous_jobs) - len(still_to_run), len(previous_jobs), ",".join(unavailable_pools)])
+
             if ready_for_reruns:
                 break
             else:
                 logger.info("Waiting for main run to near completion: {} out of {} jobs ({:.2f}%) complete, {} pool{} unavailable {}".format(len(previous_jobs) - len(still_to_run), len(previous_jobs), percent_jobs_complete, len(unavailable_pools), "" if len(unavailable_pools) == 1 else "s", unavailable_pools))
-                with open(waiting_path, 'a') as csvfile:
-                    csv_writer = csv.writer(csvfile)
-                    csv_writer.writerow([len(previous_jobs) - len(still_to_run), len(previous_jobs), ",".join(unavailable_pools)])
 
         except Exception:
             traceback.print_exc()
@@ -459,6 +461,8 @@ def rerun_jobs(jobs, server: Jenkins, options):
                 if not options.noop:
                     server.build_job(job_name, parameters)
 
+                logger.info("Triggered {} with parameters {}".format(job_name, parameters))
+
             else:
 
                 dispatcher_params = json.loads(
@@ -524,6 +528,8 @@ def rerun_jobs(jobs, server: Jenkins, options):
 
                     if not options.noop:
                         server.build_job(dispatcher_name, dispatcher_params)
+
+                    logger.info("Triggered {} with parameters {}".format(dispatcher_name, dispatcher_params))
                 except:
                     traceback.print_exc()
                     continue
@@ -573,7 +579,16 @@ if __name__ == "__main__":
 
         if options.previous_builds:
             already_rerun.extend([job['name'] for job in jobs])
-            _, still_to_run = get_jobs_still_to_run(options, cluster, server)
+            previous_jobs, still_to_run = get_jobs_still_to_run(options, cluster, server)
+            if len(still_to_run) > 0:
+                logger.info("{} more jobs from the main run to finish".format(len(still_to_run)))
+                if options.output:
+                    waiting_path = os.path.join(options.output, WAITING_PATH)
+                else:
+                    waiting_path = WAITING_PATH
+                with open(waiting_path, 'a') as csvfile:
+                        csv_writer = csv.writer(csvfile)
+                        csv_writer.writerow([time.time(), len(previous_jobs) - len(still_to_run), len(previous_jobs), ""])
             if time.time() > timeout or len(still_to_run) == 0:
                 break
         else:
