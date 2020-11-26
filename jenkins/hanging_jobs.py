@@ -46,8 +46,12 @@ def get_hanging_jobs(server, options):
 
         parameters, start_time = parameters_for_job(server, build['name'], build['number'])
 
-        if options.components:
-            if "component" not in parameters or parameters['component'] not in options.components:
+        if options.include_components:
+            if "component" in parameters and parameters['component'] not in options.include_components:
+                continue
+
+        if options.exclude_components:
+            if "component" in parameters and parameters["component"] in options.exclude_components:
                 continue
 
         try:
@@ -144,7 +148,8 @@ def parse_arguments():
     parser.add_option("-i", "--include", dest="include", help="Regular expression of job names to include")
     parser.add_option("-n", "--noop", dest="print", help="Just print hanging jobs, don't stop them", action="store_true")
     parser.add_option("-o", "--output", dest="output", help="Directory to output the CSV to")
-    parser.add_option("--components", dest="components", help="List of components to include")
+    parser.add_option("--include_components", dest="include_components", help="List of components to include")
+    parser.add_option("--exclude_components", dest="exclude_components", help="List of components to exclude")
     parser.add_option("-f", "--force", dest="force", help="Regular expression of job names to abort if no timestamp found and running time > timeout")
 
     options, args = parser.parse_args()
@@ -152,8 +157,11 @@ def parse_arguments():
     if len(args) == 1:
         options.build_url_to_check = args[0]
 
-    if options.components:
-        options.components = options.components.split(",")
+    if options.include_components:
+        options.include_components = options.include_components.split(",")
+
+    if options.exclude_components:
+        options.exclude_components = options.exclude_components.split(",")
 
     logger.info("Given build url={}".format(options.build_url_to_check))
 
