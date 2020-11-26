@@ -255,7 +255,7 @@ def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
 
     with open(waiting_path, 'w') as csvfile:
         csv_writer = csv.writer(csvfile)
-        csv_writer.writerow(["timestamp", "completed_jobs", "total_jobs", "unavailable_pools"])
+        csv_writer.writerow(["timestamp", "completed_jobs", "total_jobs", "rerun_threshold", "unavailable_pools"])
 
     ready_for_reruns = False
 
@@ -321,7 +321,7 @@ def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
             # always log current runs state
             with open(waiting_path, 'a') as csvfile:
                     csv_writer = csv.writer(csvfile)
-                    csv_writer.writerow([time.time(), len(previous_jobs) - len(still_to_run), len(previous_jobs), ",".join(unavailable_pools)])
+                    csv_writer.writerow([time.time(), len(previous_jobs) - len(still_to_run), len(previous_jobs), (options.jobs_threshold / 100) * len(previous_jobs), ",".join(unavailable_pools)])
 
             if ready_for_reruns:
                 break
@@ -585,7 +585,7 @@ if __name__ == "__main__":
                     waiting_path = WAITING_PATH
                 with open(waiting_path, 'a') as csvfile:
                         csv_writer = csv.writer(csvfile)
-                        csv_writer.writerow([time.time(), len(previous_jobs) - len(still_to_run), len(previous_jobs), ""])
+                        csv_writer.writerow([time.time(), len(previous_jobs) - len(still_to_run), len(previous_jobs), (options.jobs_threshold / 100) * len(previous_jobs), ""])
             if time.time() > timeout or len(still_to_run) == 0:
                 break
         else:
