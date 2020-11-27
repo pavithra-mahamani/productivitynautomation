@@ -266,7 +266,7 @@ def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
 def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
     if options.output:
         waiting_path = os.path.join(options.output, WAITING_PATH)
-        component_progress_path = os.pardir.join(options.output, COMPONENT_PROGRESS_PATH)
+        component_progress_path = os.path.join(options.output, COMPONENT_PROGRESS_PATH)
     else:
         waiting_path = WAITING_PATH
         component_progress_path = COMPONENT_PROGRESS_PATH
@@ -610,7 +610,7 @@ if __name__ == "__main__":
                 logger.info("{} more jobs from the main run to finish".format(len(still_to_run)))
                 if options.output:
                     waiting_path = os.path.join(options.output, WAITING_PATH)
-                    component_progress_path = os.pardir.join(options.output, COMPONENT_PROGRESS_PATH)
+                    component_progress_path = os.path.join(options.output, COMPONENT_PROGRESS_PATH)
                 else:
                     waiting_path = WAITING_PATH
                     component_progress_path = COMPONENT_PROGRESS_PATH
