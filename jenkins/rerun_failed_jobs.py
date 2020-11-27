@@ -26,6 +26,7 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 WAITING_PATH = "waiting_for_main.csv"
+COMPONENT_PROGRESS_PATH = "component_progress.csv"
 
 # Differences to the existing rerun script
 
@@ -244,18 +245,39 @@ def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
     current_jobs = set(cluster.query(query.format(options.build)))
     still_to_run = previous_jobs.difference(current_jobs)
 
-    return previous_jobs, still_to_run
+    components_in_last_run = list(cluster.query("SELECT component, count(*) count from server where `build` = '{}' group by component".format(options.previous_builds[0])))
+    components_in_current_run = list(cluster.query("SELECT component, count(*) count from server where `build` = '{}' group by component".format(options.build)))
+
+    component_map = {}
+
+    for comp in components_in_last_run:
+        component_map[comp['component']] = { "prev": int(comp['count']), "curr": 0 }
+    
+    for comp in components_in_current_run:
+        if comp['component'] in component_map:
+            component_map[comp['component']]['curr'] = int(comp['count'])
+        else:
+            component_map[comp['component']] = { "prev": 0, "curr": int(comp['count']) }
+        
+
+    return previous_jobs, still_to_run, component_map
 
 
 def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
     if options.output:
         waiting_path = os.path.join(options.output, WAITING_PATH)
+        component_progress_path = os.pardir.join(options.output, COMPONENT_PROGRESS_PATH)
     else:
         waiting_path = WAITING_PATH
+        component_progress_path = COMPONENT_PROGRESS_PATH
 
     with open(waiting_path, 'w') as csvfile:
         csv_writer = csv.writer(csvfile)
         csv_writer.writerow(["timestamp", "completed_jobs", "total_jobs", "rerun_threshold", "unavailable_pools"])
+
+    with open(component_progress_path, 'w') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_writer.writerow(["timestamp", "completed_jobs", "total_jobs", "component", "rerun_threshold"])
 
     ready_for_reruns = False
 
@@ -264,7 +286,7 @@ def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
         ready_for_reruns = True
 
         try:
-            previous_jobs, still_to_run = get_jobs_still_to_run(options, cluster, server)
+            previous_jobs, still_to_run, component_map = get_jobs_still_to_run(options, cluster, server)
 
             if len(previous_jobs) > 0:
                 percent_jobs_complete = ((len(previous_jobs) - len(still_to_run)) / len(previous_jobs)) * 100
@@ -318,10 +340,17 @@ def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
                     ready_for_reruns = False
                     unavailable_pools.append(pool)
 
+            now = time.time()
+
             # always log current runs state
             with open(waiting_path, 'a') as csvfile:
                     csv_writer = csv.writer(csvfile)
-                    csv_writer.writerow([time.time(), len(previous_jobs) - len(still_to_run), len(previous_jobs), (options.jobs_threshold / 100) * len(previous_jobs), ",".join(unavailable_pools)])
+                    csv_writer.writerow([now, len(previous_jobs) - len(still_to_run), len(previous_jobs), (options.jobs_threshold / 100) * len(previous_jobs), ",".join(unavailable_pools)])
+
+            with open(component_progress_path, 'a') as csvfile:
+                    csv_writer = csv.writer(csvfile)
+                    for [component, counts] in component_map.items():
+                        csv_writer.writerow([now, counts['curr'], counts['prev'], component, options.jobs_threshold])
 
             if ready_for_reruns:
                 break
@@ -576,16 +605,23 @@ if __name__ == "__main__":
 
         if options.previous_builds:
             already_rerun.extend([job['name'] for job in jobs])
-            previous_jobs, still_to_run = get_jobs_still_to_run(options, cluster, server)
+            previous_jobs, still_to_run, component_map = get_jobs_still_to_run(options, cluster, server)
             if len(still_to_run) > 0:
                 logger.info("{} more jobs from the main run to finish".format(len(still_to_run)))
                 if options.output:
                     waiting_path = os.path.join(options.output, WAITING_PATH)
+                    component_progress_path = os.pardir.join(options.output, COMPONENT_PROGRESS_PATH)
                 else:
                     waiting_path = WAITING_PATH
+                    component_progress_path = COMPONENT_PROGRESS_PATH
+                now = time.time()
                 with open(waiting_path, 'a') as csvfile:
                         csv_writer = csv.writer(csvfile)
-                        csv_writer.writerow([time.time(), len(previous_jobs) - len(still_to_run), len(previous_jobs), (options.jobs_threshold / 100) * len(previous_jobs), ""])
+                        csv_writer.writerow([now, len(previous_jobs) - len(still_to_run), len(previous_jobs), (options.jobs_threshold / 100) * len(previous_jobs), ""])
+                with open(waiting_path, 'a') as csvfile:
+                    csv_writer = csv.writer(csvfile)
+                    for [component, counts] in component_map.items():
+                        csv_writer.writerow([now, counts['curr'], counts['prev'], component])
             if time.time() > timeout or len(still_to_run) == 0:
                 break
         else:
