@@ -290,7 +290,7 @@ def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
                 ready_for_reruns = False
 
             if options.include_pools:
-                all_pools = options.include_pools
+                all_pools = set(options.include_pools)
             else:
                 pools = cluster.query("select raw poolId from `QE-server-pool` where poolId is not missing and poolId is not null group by poolId")
                 all_pools = set()
@@ -573,8 +573,9 @@ def log_progress(options, previous_jobs, still_to_run, component_map, unavailabl
     with open(reruns_path, 'a') as csvfile:
         csv_writer = csv.writer(csvfile)
         csv_rows = []
+        previous_builds = options.previous_builds or []
         for job in jobs:
-            csv_rows.append([now, job['name'], job["failCount"], job["totalCount"], " ".join(options.previous_builds), options.build])
+            csv_rows.append([now, job['name'], job["failCount"], job["totalCount"], " ".join(previous_builds), options.build])
         csv_writer.writerows(csv_rows)
 
 def setup_logs(options):
