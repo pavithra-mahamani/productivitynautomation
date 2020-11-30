@@ -80,6 +80,7 @@ def parse_arguments():
                       help="List of components to include")
     parser.add_option("--subcomponents", dest="subcomponents",
                       help="List of subcomponents to include")
+    parser.add_option("--exclude-components", dest="exclude_components", help="List of components to exclyde e.g. magma")
     parser.add_option("--override-executor", dest="override_executor",
                       help="Force passing of -j option to test dispatcher", action="store_true", default=False)
     parser.add_option("--s3-logs-url", dest="s3_logs_url", help="Amazon S3 bucket url that stores historical jenkins logs",
@@ -125,11 +126,18 @@ def parse_arguments():
         logger.error("wait for main run requires a previous build to determine pending jobs")
         sys.exit(1)
 
+    if options.components and options.exclude_components:
+        logger.error("both include and exclude components specified")
+        sys.exit(1)
+
     if options.os:
         options.os = options.os.split(",")
 
     if options.components:
         options.components = options.components.split(",")
+
+    if options.exclude_components:
+        options.exclude_components = options.exclude_components.split(",")
 
     if options.include_pools:
         options.include_pools = options.include_pools.split(",")
@@ -233,7 +241,7 @@ def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
     previous_jobs = set()
 
     # filter out components not in options.components
-    if options.components:
+    if options.components or options.exclude_components:
         for job in jobs:
             try:
                 job_name = job_name_from_url(options.build_url_to_check, job['url'])
@@ -241,7 +249,7 @@ def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
                 parameters = parameters_for_job(server,
                     job_name, job['build_id'], job['build'], options.s3_logs_url)
 
-                if ("component" in parameters and parameters["component"] in options.components) or job['component'].lower() in options.components:
+                if passes_component_filter(job, parameters, options):
                     previous_jobs.add(job["name"])
 
             except Exception:
@@ -381,6 +389,20 @@ def all_failed_jobs(cluster: Cluster, options):
 
     return jobs
 
+def passes_component_filter(job, parameters, options):
+    if options.components:
+        if ("component" in parameters and parameters["component"] not in options.components) and job['component'].lower() not in options.components:
+            return False
+    
+    if options.subcomponents and ("subcomponent" not in parameters or parameters['subcomponent'] not in options.subcomponents):
+        return False
+    
+    if options.exclude_components:
+        if ("component" in parameters and parameters["component"] in options.exclude_components) or job["component"].lower() in options.exclude_components:
+            return False
+
+    return True
+
 def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun):
     running_builds = get_running_builds(server)
     filtered_jobs = []
@@ -411,11 +433,7 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun)
                 else:
                     continue
 
-            if options.components:
-                if ("component" in parameters and parameters['component'] not in options.components) and job['component'].lower() not in options.components:
-                    continue
-
-            if options.subcomponents and ("subcomponent" not in parameters or parameters['subcomponent'] not in options.subcomponents):
+            if not passes_component_filter(job, parameters, options):
                 continue
 
             if options.strategy:
