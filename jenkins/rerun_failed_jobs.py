@@ -94,6 +94,8 @@ def parse_arguments():
 
     parser.add_option("--include-pools", dest="include_pools", help="Pools to include in pools-threshold e.g. 12hrreg,magma,regression,os_certification")
     parser.add_option("--exclude-pools", dest="exclude_pools", help="Pools to exclude in pools-threshold e.g. elastic-xdcr")
+    parser.add_option("--wait", dest="wait_for_main_run", help="Wait for main run to finish (using pool and job thresholds) before starting reruns")
+    parser.add_option("--timeout", dest="timeout", help="Stop reruns after timeout hours even if all main run jobs haven't completed", type="int", default=24)
 
     parser.add_option("--output", dest="output")
 
@@ -117,6 +119,10 @@ def parse_arguments():
 
     if options.previous_builds and not options.strategy:
         logger.error("no strategy specified with previous build")
+        sys.exit(1)
+
+    if options.wait_for_main_run and (not options.previous_builds or len(options.previous_builds) == 0):
+        logger.error("wait for main run requires a previous build to determine pending jobs")
         sys.exit(1)
 
     if options.os:
@@ -596,13 +602,13 @@ if __name__ == "__main__":
     cluster = Cluster('couchbase://{}'.format(options.server), ClusterOptions(PasswordAuthenticator(options.username, options.password)))
     server = connect_to_jenkins(options.build_url_to_check)
 
-    if options.previous_builds:
+    if options.wait_for_main_run:
         wait_for_main_run(options, cluster, server)
 
     already_rerun = []
 
     # timeout after 20 hours
-    timeout = time.time() + (20 * 60 * 60)
+    timeout = time.time() + (options.timeout * 60 * 60)
 
     while True:
 
@@ -612,7 +618,7 @@ if __name__ == "__main__":
         if len(jobs) > 0:
             rerun_jobs(jobs, server, options)
 
-        if options.previous_builds:
+        if options.wait_for_main_run:
             already_rerun.extend([job['name'] for job in jobs])
             previous_jobs, still_to_run, component_map = get_jobs_still_to_run(options, cluster, server)
             if len(still_to_run) > 0:
