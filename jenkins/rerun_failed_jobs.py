@@ -47,16 +47,16 @@ def parse_arguments():
     parser.add_option("-u", "--url", dest="build_url_to_check",
                       default='http://qa.sc.couchbase.com', help="Build URL to check")
     parser.add_option("-n", "--noop", dest="noop",
-                      help="Just print hanging jobs, don't stop them", action="store_true")
+                      help="Just print hanging jobs, don't stop them", action="store_true", default=False)
 
     parser.add_option("-a", "--aborted", dest="aborted",
-                      help="Include aborted jobs even with no failed tests", action="store_true")
+                      help="Include aborted jobs even with no failed tests", action="store_true", default=False)
 
     parser.add_option("-s", "--stop", dest="stop",
-                      help="Stop a duplicate running job before starting the rerun", action="store_true")
+                      help="Stop a duplicate running job before starting the rerun", action="store_true", default=False)
 
     parser.add_option("-f", "--failed", dest="failed",
-                      help="Include jobs with failed tests", action="store_true")
+                      help="Include jobs with failed tests", action="store_true", default=False)
 
     parser.add_option("-p", "--previous-builds", dest="previous_builds",
                       help="Previous builds to compare for regressions or common failures")
@@ -72,7 +72,7 @@ def parse_arguments():
                       help="Couchbase server password", default="password")
 
     parser.add_option("--dispatcher-jobs", dest="dispatcher_jobs",
-                      help="only rerun jobs managed by a dispatcher", action="store_true")
+                      help="only rerun jobs managed by a dispatcher", action="store_true", default=False)
 
     parser.add_option("--os", dest="os",
                       help="List of operating systems: e.g. win, magma, centos, ubuntu, mac, debian, suse, oel")
@@ -81,7 +81,7 @@ def parse_arguments():
     parser.add_option("--subcomponents", dest="subcomponents",
                       help="List of subcomponents to include")
     parser.add_option("--override-executor", dest="override_executor",
-                      help="Force passing of -j option to test dispatcher", action="store_true")
+                      help="Force passing of -j option to test dispatcher", action="store_true", default=False)
     parser.add_option("--s3-logs-url", dest="s3_logs_url", help="Amazon S3 bucket url that stores historical jenkins logs",
                       default="http://cb-logs-qe.s3-website-us-west-2.amazonaws.com")
     parser.add_option("--strategy", dest="strategy",
@@ -94,9 +94,6 @@ def parse_arguments():
 
     parser.add_option("--include-pools", dest="include_pools", help="Pools to include in pools-threshold e.g. 12hrreg,magma,regression,os_certification")
     parser.add_option("--exclude-pools", dest="exclude_pools", help="Pools to exclude in pools-threshold e.g. elastic-xdcr")
-
-    parser.add_option("--testrunner_dir", dest="testrunner_dir",
-                      help="path to testrunner directory for inline job dispatching", default="../../testrunner")
 
     parser.add_option("--output", dest="output")
 
