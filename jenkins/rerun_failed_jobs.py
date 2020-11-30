@@ -113,6 +113,11 @@ def parse_arguments():
         logger.error("regression strategy must specify 1 previous build for comparison")
         sys.exit(1)
 
+    if options.strategy and options.strategy == "common" and (not options.previous_builds or len(options.previous_builds) == 0):
+        logger.error(
+            "common strategy must specify at least 1 previous build for comparison")
+        sys.exit(1)
+
     if options.previous_builds and not options.strategy:
         logger.error("no strategy specified with previous build")
         sys.exit(1)
