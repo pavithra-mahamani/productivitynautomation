@@ -187,7 +187,10 @@ def getservers_service(username):
     reserved_count += vm_count
     if xhostref:
         log.info("-->  VMs on given xenhost" + xhostref)
-        return json.dumps(create_vms_single_host(all_or_none, checkvms, xhostref, os_name, username, vm_count, cpus_count, mem, exp, output_format))
+        try:
+            return json.dumps(create_vms_single_host(all_or_none, checkvms, xhostref, os_name, username, vm_count, cpus_count, mem, exp, output_format))
+        except Exception as e:
+            return str(e), 499
 
     # TBD consider cpus/mem later
     count, available_counts, xen_hosts_available_refs = get_all_available_count(os_name)
