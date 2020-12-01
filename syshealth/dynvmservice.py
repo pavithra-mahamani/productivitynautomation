@@ -185,6 +185,8 @@ def getservers_service(username):
     if request.args.get('xhostref'):
         xhostref = request.args.get('xhostref')
     reserved_count += vm_count
+
+    # if xhostref is specified we do not move on to another host
     if xhostref:
         log.info("-->  VMs on given xenhost" + xhostref)
         try:
@@ -198,72 +200,64 @@ def getservers_service(username):
     if vm_count > count:
         reserved_count -= vm_count
         return "Error: No capacity is available! " + str(available_counts)
-    free_xenhost_ref = 0
+    
+    log.info("--> Distributing VMs among multiple xen hosts")
+    names_by_xhost = {}
+    need_vms = vm_count
+    merged_vms_list = []
+    vm_name_suffix_index = 0
     for index in range(0, len(available_counts)):
-        if vm_count <= available_counts[index]:
-            free_xenhost_ref = int(xen_hosts_available_refs[index].split(':')[0])
+        if need_vms == 0:
             break
-    if free_xenhost_ref != 0:  # Full set of VMs on one xen host
-        log.info("-->  VMs on single xenhost")
-        return json.dumps(create_vms_single_host(all_or_none, checkvms, free_xenhost_ref, os_name, username, vm_count, cpus_count, mem, exp, output_format))
+        per_xen_host_vms = available_counts[index]
+        if per_xen_host_vms > 0:
+            free_xenhost_ref = int(xen_hosts_available_refs[index].split(':')[0])
+            if need_vms <= per_xen_host_vms:
+                per_xen_host_vms = need_vms
+            log.info(
+                "Creating " + str(per_xen_host_vms) + " out of " + str(need_vms) + " VMs on "
+                                                                                    "xenhost"
+                + str(
+                    free_xenhost_ref))
+            if per_xen_host_vms == 1: # this is to handle the name with suffix count when
+                # single vount is given
+                username1 = username + str(vm_name_suffix_index+1)
+            else:
+                username1 = username
+            try:
+                per_xen_host_res = create_vms_single_host(all_or_none, checkvms, free_xenhost_ref, os_name, username1, per_xen_host_vms, cpus_count, mem, exp, output_format, start_suffix=vm_name_suffix_index)
+            except Exception as e:
+                log.debug(str(e))
+                continue
+            else:
+                for ip in per_xen_host_res:
+                    merged_vms_list.append(ip)
+                log.info(per_xen_host_res)
+                vm_name_suffix_index = int(vm_name_suffix_index) + int(per_xen_host_vms)
+                need_vms = need_vms - per_xen_host_vms
 
-    else:  # Distribute among multiple xen hosts
-        log.info("--> Distributing VMs among multiple xen hosts")
-        names_by_xhost = {}
-        need_vms = vm_count
-        merged_vms_list = []
-        vm_name_suffix_index = 0
-        for index in range(0, len(available_counts)):
-            if need_vms == 0:
-                break
-            per_xen_host_vms = available_counts[index]
-            if per_xen_host_vms > 0:
-                free_xenhost_ref = int(xen_hosts_available_refs[index].split(':')[0])
-                if need_vms <= per_xen_host_vms:
-                    per_xen_host_vms = need_vms
-                log.info(
-                    "Creating " + str(per_xen_host_vms) + " out of " + str(need_vms) + " VMs on "
-                                                                                       "xenhost"
-                    + str(
-                        free_xenhost_ref))
-                if per_xen_host_vms == 1: # this is to handle the name with suffix count when
-                    # single vount is given
-                    username1 = username + str(vm_name_suffix_index+1)
-                else:
-                    username1 = username
-                try:
-                    per_xen_host_res = create_vms_single_host(all_or_none, checkvms, free_xenhost_ref, os_name, username1, per_xen_host_vms, cpus_count, mem, exp, output_format, start_suffix=vm_name_suffix_index)
-                    
-                    for ip in per_xen_host_res:
-                        merged_vms_list.append(ip)
-                    log.info(per_xen_host_res)
-                    vm_name_suffix_index = int(vm_name_suffix_index) + int(per_xen_host_vms)
-                    need_vms = need_vms - per_xen_host_vms
+                names_by_xhost[index] = {
+                    "count": per_xen_host_vms,
+                    "start_suffix": vm_name_suffix_index
+                }
 
-                    names_by_xhost[index] = {
-                        "count": per_xen_host_vms,
-                        "start_suffix": vm_name_suffix_index
-                    }
+    if (len(merged_vms_list) != vm_count) and all_or_none:
+        # delete all created vms
+        log.warning("deleting all created vms due to failure")
+        for [ref, xhost] in names_by_xhost.items():
+            if xhost['count'] == 1:
+                # delete username + xhost['start_suffix'] + 1
+                username1 = username + str(xhost['start_suffix']+1)
+                perform_service(xen_host_ref=ref, service_name='deletevm', vm_prefix_names=username1, number_of_vms=1)
+            else:
+                # delete username with start_suffix of xhost['start_suffix']
+                perform_service(xen_host_ref=ref, service_name='deletevm', vm_prefix_names=username, number_of_vms=xhost['count'], start_suffix=xhost['start_suffix'])
+        return "Error creating vms", 499
 
-                except Exception as e:
-                    if all_or_none:
-                        # delete any created on current xhost
-                        perform_service(xen_host_ref=free_xenhost_ref, service_name='deletevm', vm_prefix_names=username1, number_of_vms=per_xen_host_vms)
-                        # delete any created on previous xhosts
-                        for [ref, xhost] in names_by_xhost.items():
-                            if xhost['count'] == 1:
-                                # delete username + xhost['start_suffix'] + 1
-                                username1 = username + str(xhost['start_suffix']+1)
-                                perform_service(xen_host_ref=ref, service_name='deletevm', vm_prefix_names=username1, number_of_vms=1)
-                            else:
-                                # delete username with start_suffix of xhost['start_suffix']
-                                perform_service(xen_host_ref=ref, service_name='deletevm', vm_prefix_names=username, number_of_vms=xhost['count'], start_suffix=xhost['start_suffix'])
-                    raise e
-
-        if output_format == 'detailed':
-            return json.dumps(merged_vms_list, indent=2, sort_keys=True)
-        else:
-            return json.dumps(merged_vms_list)
+    if output_format == 'detailed':
+        return json.dumps(merged_vms_list, indent=2, sort_keys=True)
+    else:
+        return json.dumps(merged_vms_list)
 
 
 # /releaseservers/{username}
