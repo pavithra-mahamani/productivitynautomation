@@ -1,5 +1,4 @@
 import json
-from os.path import join
 from couchbase.cluster import Cluster, ClusterOptions
 from couchbase.auth import PasswordAuthenticator
 import sys
@@ -26,6 +25,8 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 WAITING_PATH = "waiting_for_main.csv"
+COMPONENT_PROGRESS_PATH = "component_progress.csv"
+RERUNS_PATH = "reruns.csv"
 
 # Differences to the existing rerun script
 
@@ -46,16 +47,16 @@ def parse_arguments():
     parser.add_option("-u", "--url", dest="build_url_to_check",
                       default='http://qa.sc.couchbase.com', help="Build URL to check")
     parser.add_option("-n", "--noop", dest="noop",
-                      help="Just print hanging jobs, don't stop them", action="store_true")
+                      help="Just print hanging jobs, don't stop them", action="store_true", default=False)
 
     parser.add_option("-a", "--aborted", dest="aborted",
-                      help="Include aborted jobs even with no failed tests", action="store_true")
+                      help="Include aborted jobs even with no failed tests", action="store_true", default=False)
 
     parser.add_option("-s", "--stop", dest="stop",
-                      help="Stop a duplicate running job before starting the rerun", action="store_true")
+                      help="Stop a duplicate running job before starting the rerun", action="store_true", default=False)
 
     parser.add_option("-f", "--failed", dest="failed",
-                      help="Include jobs with failed tests", action="store_true")
+                      help="Include jobs with failed tests", action="store_true", default=False)
 
     parser.add_option("-p", "--previous-builds", dest="previous_builds",
                       help="Previous builds to compare for regressions or common failures")
@@ -71,7 +72,7 @@ def parse_arguments():
                       help="Couchbase server password", default="password")
 
     parser.add_option("--dispatcher-jobs", dest="dispatcher_jobs",
-                      help="only rerun jobs managed by a dispatcher", action="store_true")
+                      help="only rerun jobs managed by a dispatcher", action="store_true", default=False)
 
     parser.add_option("--os", dest="os",
                       help="List of operating systems: e.g. win, magma, centos, ubuntu, mac, debian, suse, oel")
@@ -79,8 +80,9 @@ def parse_arguments():
                       help="List of components to include")
     parser.add_option("--subcomponents", dest="subcomponents",
                       help="List of subcomponents to include")
+    parser.add_option("--exclude-components", dest="exclude_components", help="List of components to exclyde e.g. magma")
     parser.add_option("--override-executor", dest="override_executor",
-                      help="Force passing of -j option to test dispatcher", action="store_true")
+                      help="Force passing of -j option to test dispatcher", action="store_true", default=False)
     parser.add_option("--s3-logs-url", dest="s3_logs_url", help="Amazon S3 bucket url that stores historical jenkins logs",
                       default="http://cb-logs-qe.s3-website-us-west-2.amazonaws.com")
     parser.add_option("--strategy", dest="strategy",
@@ -93,9 +95,8 @@ def parse_arguments():
 
     parser.add_option("--include-pools", dest="include_pools", help="Pools to include in pools-threshold e.g. 12hrreg,magma,regression,os_certification")
     parser.add_option("--exclude-pools", dest="exclude_pools", help="Pools to exclude in pools-threshold e.g. elastic-xdcr")
-
-    parser.add_option("--testrunner_dir", dest="testrunner_dir",
-                      help="path to testrunner directory for inline job dispatching", default="../../testrunner")
+    parser.add_option("--wait", dest="wait_for_main_run", help="Wait for main run to finish (using pool and job thresholds) before starting reruns")
+    parser.add_option("--timeout", dest="timeout", help="Stop reruns after timeout hours even if all main run jobs haven't completed", type="int", default=24)
 
     parser.add_option("--output", dest="output")
 
@@ -112,8 +113,21 @@ def parse_arguments():
         logger.error("regression strategy must specify 1 previous build for comparison")
         sys.exit(1)
 
+    if options.strategy and options.strategy == "common" and (not options.previous_builds or len(options.previous_builds) == 0):
+        logger.error(
+            "common strategy must specify at least 1 previous build for comparison")
+        sys.exit(1)
+
     if options.previous_builds and not options.strategy:
         logger.error("no strategy specified with previous build")
+        sys.exit(1)
+
+    if options.wait_for_main_run and (not options.previous_builds or len(options.previous_builds) == 0):
+        logger.error("wait for main run requires a previous build to determine pending jobs")
+        sys.exit(1)
+
+    if options.components and options.exclude_components:
+        logger.error("both include and exclude components specified")
         sys.exit(1)
 
     if options.os:
@@ -121,6 +135,9 @@ def parse_arguments():
 
     if options.components:
         options.components = options.components.split(",")
+
+    if options.exclude_components:
+        options.exclude_components = options.exclude_components.split(",")
 
     if options.include_pools:
         options.include_pools = options.include_pools.split(",")
@@ -224,7 +241,7 @@ def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
     previous_jobs = set()
 
     # filter out components not in options.components
-    if options.components:
+    if options.components or options.exclude_components:
         for job in jobs:
             try:
                 job_name = job_name_from_url(options.build_url_to_check, job['url'])
@@ -232,7 +249,7 @@ def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
                 parameters = parameters_for_job(server,
                     job_name, job['build_id'], job['build'], options.s3_logs_url)
 
-                if ("component" in parameters and parameters["component"] in options.components) or job['component'].lower() in options.components:
+                if passes_component_filter(job, parameters, options):
                     previous_jobs.add(job["name"])
 
             except Exception:
@@ -244,19 +261,25 @@ def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
     current_jobs = set(cluster.query(query.format(options.build)))
     still_to_run = previous_jobs.difference(current_jobs)
 
-    return previous_jobs, still_to_run
+    components_in_last_run = list(cluster.query("SELECT component, count(*) count from server where `build` = '{}' group by component".format(options.previous_builds[0])))
+    components_in_current_run = list(cluster.query("SELECT component, count(*) count from server where `build` = '{}' group by component".format(options.build)))
+
+    component_map = {}
+
+    for comp in components_in_last_run:
+        component_map[comp['component']] = { "prev": int(comp['count']), "curr": 0 }
+    
+    for comp in components_in_current_run:
+        if comp['component'] in component_map:
+            component_map[comp['component']]['curr'] = int(comp['count'])
+        else:
+            component_map[comp['component']] = { "prev": 0, "curr": int(comp['count']) }
+        
+
+    return previous_jobs, still_to_run, component_map
 
 
 def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
-    if options.output:
-        waiting_path = os.path.join(options.output, WAITING_PATH)
-    else:
-        waiting_path = WAITING_PATH
-
-    with open(waiting_path, 'w') as csvfile:
-        csv_writer = csv.writer(csvfile)
-        csv_writer.writerow(["timestamp", "completed_jobs", "total_jobs", "unavailable_pools"])
-
     ready_for_reruns = False
 
     while not ready_for_reruns:
@@ -264,7 +287,7 @@ def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
         ready_for_reruns = True
 
         try:
-            previous_jobs, still_to_run = get_jobs_still_to_run(options, cluster, server)
+            previous_jobs, still_to_run, component_map = get_jobs_still_to_run(options, cluster, server)
 
             if len(previous_jobs) > 0:
                 percent_jobs_complete = ((len(previous_jobs) - len(still_to_run)) / len(previous_jobs)) * 100
@@ -275,7 +298,7 @@ def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
                 ready_for_reruns = False
 
             if options.include_pools:
-                all_pools = options.include_pools
+                all_pools = set(options.include_pools)
             else:
                 pools = cluster.query("select raw poolId from `QE-server-pool` where poolId is not missing and poolId is not null group by poolId")
                 all_pools = set()
@@ -318,10 +341,7 @@ def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
                     ready_for_reruns = False
                     unavailable_pools.append(pool)
 
-            # always log current runs state
-            with open(waiting_path, 'a') as csvfile:
-                    csv_writer = csv.writer(csvfile)
-                    csv_writer.writerow([time.time(), len(previous_jobs) - len(still_to_run), len(previous_jobs), ",".join(unavailable_pools)])
+            log_progress(options, previous_jobs, still_to_run, component_map, unavailable_pools, [])
 
             if ready_for_reruns:
                 break
@@ -332,7 +352,7 @@ def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
             traceback.print_exc()
             ready_for_reruns = False
 
-        time.sleep(5)
+        time.sleep(5 * 60)
 
 
 def run_test_dispatcher(cmd, testrunner_dir):
@@ -369,6 +389,20 @@ def all_failed_jobs(cluster: Cluster, options):
 
     return jobs
 
+def passes_component_filter(job, parameters, options):
+    if options.components:
+        if ("component" in parameters and parameters["component"] not in options.components) and job['component'].lower() not in options.components:
+            return False
+    
+    if options.subcomponents and ("subcomponent" not in parameters or parameters['subcomponent'] not in options.subcomponents):
+        return False
+    
+    if options.exclude_components:
+        if ("component" in parameters and parameters["component"] in options.exclude_components) or job["component"].lower() in options.exclude_components:
+            return False
+
+    return True
+
 def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun):
     running_builds = get_running_builds(server)
     filtered_jobs = []
@@ -399,11 +433,7 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun)
                 else:
                     continue
 
-            if options.components:
-                if ("component" in parameters and parameters['component'] not in options.components) and job['component'].lower() not in options.components:
-                    continue
-
-            if options.subcomponents and ("subcomponent" not in parameters or parameters['subcomponent'] not in options.subcomponents):
+            if not passes_component_filter(job, parameters, options):
                 continue
 
             if options.strategy:
@@ -531,33 +561,73 @@ def rerun_jobs(jobs, server: Jenkins, options):
                     traceback.print_exc()
                     continue
 
+def log_paths(options):
+    if options.output:
+        waiting_path = os.path.join(options.output, WAITING_PATH)
+        component_progress_path = os.path.join(options.output, COMPONENT_PROGRESS_PATH)
+        reruns_path = os.path.join(options.output, RERUNS_PATH)
+    else:
+        waiting_path = WAITING_PATH
+        component_progress_path = COMPONENT_PROGRESS_PATH
+        reruns_path = RERUNS_PATH
+    return waiting_path, component_progress_path, reruns_path
 
+
+def log_progress(options, previous_jobs, still_to_run, component_map, unavailable_pools, jobs):
+    waiting_path, component_progress_path, reruns_path = log_paths(options)
+
+    # TODO: * 1000 for grafana milliseconds
+    now = time.time()
+
+    with open(waiting_path, 'a') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_writer.writerow([now, len(previous_jobs) - len(still_to_run), len(previous_jobs), (options.jobs_threshold / 100) * len(previous_jobs), " ".join(unavailable_pools)])
+
+    with open(component_progress_path, 'a') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        for [component, counts] in component_map.items():
+            csv_writer.writerow([now, counts['curr'], counts['prev'], component])
+
+    with open(reruns_path, 'a') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_rows = []
+        previous_builds = options.previous_builds or []
+        for job in jobs:
+            csv_rows.append([now, job['name'], job["failCount"], job["totalCount"], " ".join(previous_builds), options.build])
+        csv_writer.writerows(csv_rows)
+
+def setup_logs(options):
+    waiting_path, component_progress_path, reruns_path = log_paths(options)
+
+    with open(waiting_path, 'w') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_writer.writerow(["timestamp", "completed_jobs", "total_jobs", "rerun_threshold", "unavailable_pools"])
+
+    with open(component_progress_path, 'w') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_writer.writerow(["timestamp", "completed_jobs", "total_jobs", "component", "rerun_threshold"])
+
+    with open(reruns_path, 'w') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        csv_writer.writerow(["timestamp", "name", "fail_count", "total_count", "previous_builds", "current_build"])
+   
 
 if __name__ == "__main__":
     options = parse_arguments()
     logger.debug(options)
 
+    setup_logs(options)
+
     cluster = Cluster('couchbase://{}'.format(options.server), ClusterOptions(PasswordAuthenticator(options.username, options.password)))
     server = connect_to_jenkins(options.build_url_to_check)
 
-    if options.previous_builds:
+    if options.wait_for_main_run:
         wait_for_main_run(options, cluster, server)
 
     already_rerun = []
 
     # timeout after 20 hours
-    timeout = time.time() + (20 * 60 * 60)
-
-    RERUNS_PATH = "reruns.csv"
-
-    if options.output:
-        reruns_path = os.path.join(options.output, RERUNS_PATH)
-    else:
-        reruns_path = RERUNS_PATH
-
-    with open(reruns_path, 'w') as csvfile:
-        csv_writer = csv.writer(csvfile)
-        csv_writer.writerow(["name", "fail_count", "total_count", "previous_builds", "current_build"])
+    timeout = time.time() + (options.timeout * 60 * 60)
 
     while True:
 
@@ -567,28 +637,17 @@ if __name__ == "__main__":
         if len(jobs) > 0:
             rerun_jobs(jobs, server, options)
 
-        with open(reruns_path, 'a') as csvfile:
-            csv_writer = csv.writer(csvfile)
-            csv_rows = []
-            for job in jobs:
-                csv_rows.append([job['name'], job["failCount"], job["totalCount"], " ".join(options.previous_builds), options.build])
-            csv_writer.writerows(csv_rows)
-
-        if options.previous_builds:
+        if options.wait_for_main_run:
             already_rerun.extend([job['name'] for job in jobs])
-            previous_jobs, still_to_run = get_jobs_still_to_run(options, cluster, server)
+            previous_jobs, still_to_run, component_map = get_jobs_still_to_run(options, cluster, server)
             if len(still_to_run) > 0:
                 logger.info("{} more jobs from the main run to finish".format(len(still_to_run)))
-                if options.output:
-                    waiting_path = os.path.join(options.output, WAITING_PATH)
-                else:
-                    waiting_path = WAITING_PATH
-                with open(waiting_path, 'a') as csvfile:
-                        csv_writer = csv.writer(csvfile)
-                        csv_writer.writerow([time.time(), len(previous_jobs) - len(still_to_run), len(previous_jobs), ""])
+
+            log_progress(options, previous_jobs, still_to_run, component_map, [], jobs)
+                
             if time.time() > timeout or len(still_to_run) == 0:
                 break
         else:
             break
 
-        time.sleep(5)
+        time.sleep(5 * 60)
