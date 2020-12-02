@@ -65,7 +65,7 @@ def parse_arguments():
     parser.add_option("--jobs-threshold", dest="jobs_threshold", help="Percent of jobs that must be complete before reruns should begin", type="int", default=90)
     parser.add_option("--include-pools", dest="include_pools", help="Pools to include in pools-threshold e.g. 12hrreg,magma,regression,os_certification")
     parser.add_option("--exclude-pools", dest="exclude_pools", help="Pools to exclude in pools-threshold e.g. elastic-xdcr")
-    parser.add_option("--wait", dest="wait_for_main_run", help="Wait for main run to finish (using pool and job thresholds) before starting reruns")
+    parser.add_option("--wait", dest="wait_for_main_run", help="Wait for main run to finish (using pool and job thresholds) before starting reruns", action="store_true", default=False)
     parser.add_option("--timeout", dest="timeout", help="Stop reruns after timeout hours even if all main run jobs haven't completed", type="int", default=24)
     parser.add_option("--sleep", dest="sleep", help="Time to sleep between checking for reruns (minutes)", type="int", default=5)
     parser.add_option("--max-reruns", dest="max_reruns", help="Max number of times to rerun a job (only applicable when this script is run more than once)", type="int", default=1)
