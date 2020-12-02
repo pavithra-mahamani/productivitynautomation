@@ -97,6 +97,7 @@ def parse_arguments():
     parser.add_option("--exclude-pools", dest="exclude_pools", help="Pools to exclude in pools-threshold e.g. elastic-xdcr")
     parser.add_option("--wait", dest="wait_for_main_run", help="Wait for main run to finish (using pool and job thresholds) before starting reruns")
     parser.add_option("--timeout", dest="timeout", help="Stop reruns after timeout hours even if all main run jobs haven't completed", type="int", default=24)
+    parser.add_option("--sleep", dest="sleep", help="Time to sleep between checking for reruns (minutes)", type="int", default=5)
 
     parser.add_option("--output", dest="output")
 
@@ -352,7 +353,7 @@ def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
             traceback.print_exc()
             ready_for_reruns = False
 
-        time.sleep(5 * 60)
+        time.sleep(options.sleep)
 
 
 def run_test_dispatcher(cmd, testrunner_dir):
@@ -650,4 +651,4 @@ if __name__ == "__main__":
         else:
             break
 
-        time.sleep(5 * 60)
+        time.sleep(options.sleep)
