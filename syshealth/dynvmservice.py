@@ -219,7 +219,7 @@ def getservers_service(username):
                                                                                     "xenhost"
                 + str(
                     free_xenhost_ref))
-            if per_xen_host_vms == 1: # this is to handle the name with suffix count when
+            if per_xen_host_vms == 1 and vm_count > 1: # this is to handle the name with suffix count when
                 # single vount is given
                 username1 = username + str(vm_name_suffix_index+1)
             else:
@@ -248,10 +248,10 @@ def getservers_service(username):
             if xhost['count'] == 1:
                 # delete username + xhost['start_suffix'] + 1
                 username1 = username + str(xhost['start_suffix']+1)
-                perform_service(xen_host_ref=ref, service_name='deletevm', vm_prefix_names=username1, number_of_vms=1)
+                perform_service(xen_host_ref=ref, service_name='deletevm', vm_prefix_names=username1, number_of_vms=1, os=os_name)
             else:
                 # delete username with start_suffix of xhost['start_suffix']
-                perform_service(xen_host_ref=ref, service_name='deletevm', vm_prefix_names=username, number_of_vms=xhost['count'], start_suffix=xhost['start_suffix'])
+                perform_service(xen_host_ref=ref, service_name='deletevm', vm_prefix_names=username, number_of_vms=xhost['count'], start_suffix=xhost['start_suffix'], os=os_name)
         return "Error creating vms", 499
 
     if output_format == 'detailed':
