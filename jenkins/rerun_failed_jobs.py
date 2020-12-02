@@ -563,14 +563,15 @@ def rerun_jobs(jobs, server: Jenkins, options):
                     continue
 
 def log_paths(options):
+    major_version = options.build[0]
     if options.output:
-        waiting_path = os.path.join(options.output, WAITING_PATH)
-        component_progress_path = os.path.join(options.output, COMPONENT_PROGRESS_PATH)
-        reruns_path = os.path.join(options.output, RERUNS_PATH)
+        waiting_path = os.path.join(options.output, major_version + WAITING_PATH)
+        component_progress_path = os.path.join(options.output, major_version + COMPONENT_PROGRESS_PATH)
+        reruns_path = os.path.join(options.output, major_version + RERUNS_PATH)
     else:
-        waiting_path = WAITING_PATH
-        component_progress_path = COMPONENT_PROGRESS_PATH
-        reruns_path = RERUNS_PATH
+        waiting_path = major_version + WAITING_PATH
+        component_progress_path = major_version + COMPONENT_PROGRESS_PATH
+        reruns_path = major_version + RERUNS_PATH
     return waiting_path, component_progress_path, reruns_path
 
 
