@@ -70,6 +70,7 @@ def parse_arguments():
     parser.add_option("--sleep", dest="sleep", help="Time to sleep between checking for reruns (minutes)", type="int", default=5)
     parser.add_option("--max-reruns", dest="max_reruns", help="Max number of times to rerun a job (only applicable when this script is run more than once)", type="int", default=1)
     parser.add_option("--output", dest="output")
+    parser.add_option("--dispatch-delay", dest="dispatch_delay", help="Time to wait between dispatch calls (seconds)", type="int", default=10)
 
     options, _ = parser.parse_args()
 
@@ -535,6 +536,7 @@ def rerun_jobs(jobs, server: Jenkins, options):
 
                     if not options.noop:
                         server.build_job(dispatcher_name, dispatcher_params)
+                        time.sleep(options.dispatch_delay)
 
                     logger.info("Triggered {} with parameters {}".format(dispatcher_name, dispatcher_params))
                 except:
