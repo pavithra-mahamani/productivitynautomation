@@ -304,7 +304,7 @@ def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
                 percent_available = (available/total) * 100
 
                 logger.info(
-                    "{} {:.2f}% available".format(pool, percent_available))
+                    "{} {}/{} ({:.2f}%) available".format(pool, available, total, percent_available))
 
                 if percent_available < options.pools_threshold:
                     ready_for_reruns = False
