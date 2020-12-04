@@ -123,6 +123,8 @@ def parse_arguments():
             sys.exit(1)
         options.subcomponents = options.subcomponents.split(",")
 
+    options.sleep = options.sleep * 60
+
     return options
 
 
