@@ -188,7 +188,7 @@ def getservers_service(username):
 
     # if xhostref is specified we do not move on to another host
     if xhostref:
-        log.info("-->  VMs on given xenhost" + xhostref)
+        log.info("-->  VMs on given xenh    ost" + xhostref)
         try:
             return json.dumps(create_vms_single_host(all_or_none, checkvms, xhostref, os_name, username, vm_count, cpus_count, mem, exp, output_format))
         except Exception as e:
@@ -252,6 +252,7 @@ def getservers_service(username):
             else:
                 # delete username with start_suffix of xhost['start_suffix']
                 perform_service(xen_host_ref=ref, service_name='deletevm', vm_prefix_names=username, number_of_vms=xhost['count'], start_suffix=xhost['start_suffix'], os=os_name)
+        reserved_count -= (vm_count-len(merged_vms_list))
         return "Error creating vms", 499
 
     if output_format == 'detailed':
@@ -518,6 +519,7 @@ def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="de
                 if error:
                     new_vms_info[vm_name + "_error"] = error
                     list_of_vms.append(error)
+                    reserved_count += 1
                 start_suffix += 1
                 index += 1
         else:
@@ -529,6 +531,7 @@ def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="de
             if error:
                 new_vms_info[vm_names[i] + "_error"] = error
                 list_of_vms.append(error)
+                reserved_count += 1
             index = index + 1
     return new_vms_info, list_of_vms
 
@@ -613,8 +616,8 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
             log.debug("Choosing an SR to instantiate the VM's disks")
             pool = session.xenapi.pool.get_all()[0]
             default_sr = session.xenapi.pool.get_default_SR(pool)
-            default_sr = session.xenapi.SR.get_record(default_sr)
-            log.debug("Choosing SR: {} (uuid {})".format(default_sr['name_label'], default_sr['uuid']))
+            #default_sr = session.xenapi.SR.get_record(default_sr)
+            #log.debug("Choosing SR: {} (uuid {})".format(default_sr['name_label'], default_sr['uuid']))
             log.debug("Asking server to provision storage from the template specification")
             description = new_vm_name + " from " + template + " on " + str(datetime.datetime.utcnow())
             session.xenapi.VM.set_name_description(vm, description)
