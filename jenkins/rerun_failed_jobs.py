@@ -61,7 +61,8 @@ def parse_arguments():
     parser.add_option("--override-executor", dest="override_executor", help="Force passing of -j option to test dispatcher", action="store_true", default=False)
     parser.add_option("--s3-logs-url", dest="s3_logs_url", help="Amazon S3 bucket url that stores historical jenkins logs", default="http://cb-logs-qe.s3-website-us-west-2.amazonaws.com")
     parser.add_option("--strategy", dest="strategy", help="Which strategy should be used to find jobs to rerun", choices=("common", "regression"))
-    parser.add_option("--pools-threshold", dest="pools_threshold", help="Percent of machines that must be available in each pool before reruns should begin", type="int", default=50)
+    parser.add_option("--pools-threshold-percent", dest="pools_threshold_percent", help="Percent of machines that must be available in each pool before reruns should begin", type="int", default=50)
+    parser.add_option("--pools-threshold-num", dest="pools_threshold_num", help="If pool has this many machines available, ignore pools-threshold-percent, reruns can begin", type="int", default=20)
     parser.add_option("--jobs-threshold", dest="jobs_threshold", help="Percent of jobs that must be complete before reruns should begin", type="int", default=90)
     parser.add_option("--include-pools", dest="include_pools", help="Pools to include in pools-threshold e.g. 12hrreg,magma,regression,os_certification")
     parser.add_option("--exclude-pools", dest="exclude_pools", help="Pools to exclude in pools-threshold e.g. elastic-xdcr")
@@ -373,7 +374,7 @@ def passes_pool_threshold(cluster: Cluster, parameters, options, pool_thresholds
 
         percent_available = (available/total) * 100
 
-        if percent_available >= options.pools_threshold:
+        if percent_available >= options.pools_threshold_percent or available >= options.pools_threshold_num:
             found = True
             if pool not in pool_thresholds_hit:
                 pool_thresholds_hit.append(pool)
