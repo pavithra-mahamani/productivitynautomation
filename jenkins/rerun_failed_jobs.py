@@ -61,7 +61,8 @@ def parse_arguments():
     parser.add_option("--override-executor", dest="override_executor", help="Force passing of -j option to test dispatcher", action="store_true", default=False)
     parser.add_option("--s3-logs-url", dest="s3_logs_url", help="Amazon S3 bucket url that stores historical jenkins logs", default="http://cb-logs-qe.s3-website-us-west-2.amazonaws.com")
     parser.add_option("--strategy", dest="strategy", help="Which strategy should be used to find jobs to rerun", choices=("common", "regression"))
-    parser.add_option("--pools-threshold", dest="pools_threshold", help="Percent of machines that must be available in each pool before reruns should begin", type="int", default=50)
+    parser.add_option("--pools-threshold-percent", dest="pools_threshold_percent", help="Percent of machines that must be available in each pool before reruns should begin", type="int", default=50)
+    parser.add_option("--pools-threshold-num", dest="pools_threshold_num", help="If pool has this many machines available, ignore pools-threshold-percent, reruns can begin", type="int", default=20)
     parser.add_option("--jobs-threshold", dest="jobs_threshold", help="Percent of jobs that must be complete before reruns should begin", type="int", default=90)
     parser.add_option("--include-pools", dest="include_pools", help="Pools to include in pools-threshold e.g. 12hrreg,magma,regression,os_certification")
     parser.add_option("--exclude-pools", dest="exclude_pools", help="Pools to exclude in pools-threshold e.g. elastic-xdcr")
@@ -71,6 +72,8 @@ def parse_arguments():
     parser.add_option("--max-reruns", dest="max_reruns", help="Max number of times to rerun a job (only applicable when this script is run more than once)", type="int", default=1)
     parser.add_option("--output", dest="output")
     parser.add_option("--dispatch-delay", dest="dispatch_delay", help="Time to wait between dispatch calls (seconds)", type="int", default=10)
+    parser.add_option("--merge-pools", dest="merge_pools", help="List of pools that can be used interchangeably")
+    parser.add_option("--maintain-threshold", dest="maintain_threshold", help="Check pool availability every time before dispatching", action="store_true", default=False)
 
     options, _ = parser.parse_args()
 
@@ -116,6 +119,9 @@ def parse_arguments():
 
     if options.exclude_pools:
         options.exclude_pools = options.exclude_pools.split(",")
+
+    if options.merge_pools:
+        options.merge_pools = options.merge_pools.split(",")
 
     if options.subcomponents:
         if len(options.components) > 1:
@@ -266,56 +272,12 @@ def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
             if percent_jobs_complete < options.jobs_threshold:
                 ready_for_reruns = False
 
-            if options.include_pools:
-                all_pools = set(options.include_pools)
-            else:
-                pools = cluster.query("select raw poolId from `QE-server-pool` where poolId is not missing and poolId is not null group by poolId")
-                all_pools = set()
-
-                for pool in pools:
-                    if isinstance(pool, list):
-                        for p in pool:
-                            all_pools.add(p)
-                    else:
-                        all_pools.add(pool)
-
-                if options.exclude_pools:
-                    for pool in options.exclude_pools:
-                        if pool in all_pools:
-                            all_pools.remove(pool)
-
-            query = "select count(*) as count from `QE-server-pool` where state = '{0}' and (poolId = '{1}' or '{1}' in poolId)"
-
-            unavailable_pools = []
-
-            # if pools > threshold percent available then main run finishing
-            for pool in all_pools:
-                available = list(cluster.query(query.format(
-                    "available", pool)))[0]['count']
-
-                booked = list(cluster.query(query.format(
-                    "booked", pool)))[0]['count']
-
-                total = available + booked
-
-                if total == 0:
-                    continue
-
-                percent_available = (available/total) * 100
-
-                logger.info(
-                    "{} {}/{} ({:.2f}%) available".format(pool, available, total, percent_available))
-
-                if percent_available < options.pools_threshold:
-                    ready_for_reruns = False
-                    unavailable_pools.append(pool)
-
-            log_progress(options, previous_jobs, still_to_run, component_map, unavailable_pools)
+            log_progress(options, previous_jobs, still_to_run, component_map)
 
             if ready_for_reruns:
                 break
             else:
-                logger.info("Waiting for main run to near completion: {} out of {} jobs ({:.2f}%) complete, {} pool{} unavailable {}".format(len(previous_jobs) - len(still_to_run), len(previous_jobs), percent_jobs_complete, len(unavailable_pools), "" if len(unavailable_pools) == 1 else "s", unavailable_pools))
+                logger.info("Waiting for main run to near completion: {} out of {} jobs ({:.2f}%) complete".format(len(previous_jobs) - len(still_to_run), len(previous_jobs), percent_jobs_complete))
 
         except Exception:
             traceback.print_exc()
@@ -380,8 +342,49 @@ def passes_max_rerun_filter(cluster: Cluster, job, options):
 
     return reruns < options.max_reruns
 
+def passes_pool_threshold(cluster: Cluster, parameters, options, pool_thresholds_hit):
+    # if any pool ids in serverPoolId are in options.merge_pools 
+    # then add the other pools in options.merge_pools to serverPoolId
+    # e.g. serverPoolId = os_certification,regression options.merge_pools=regression,12hrreg
+    # serverPoolId becomes os_certification,regression,12hrreg
+    pools = set(parameters["dispatcher_params"]["serverPoolId"].split(","))
 
-def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun):
+    for pool in pools:
+        if pool in options.merge_pools:
+            for pool in options.merge_pools:
+                pools.add(pool)
+
+    # if none of the pools are available, skip if options.maintain_threshold is true
+
+    found = False
+    query = "select count(*) as count from `QE-server-pool` where state = '{0}' and (poolId = '{1}' or '{1}' in poolId)"
+
+    for pool in pools:
+
+        if not options.maintain_threshold and pool in pool_thresholds_hit:
+            found = True
+            continue
+
+        available = list(cluster.query(query.format("available", pool)))[0]['count']
+        booked = list(cluster.query(query.format("booked", pool)))[0]['count']
+        total = available + booked
+
+        if total == 0:
+            continue
+
+        percent_available = (available/total) * 100
+
+        if percent_available >= options.pools_threshold_percent or available >= options.pools_threshold_num:
+            found = True
+            if pool not in pool_thresholds_hit:
+                pool_thresholds_hit.append(pool)
+    
+    parameters["dispatcher_params"]["serverPoolId"] = ",".join(pools)
+
+    return found
+
+
+def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun, pool_thresholds_hit):
     running_builds = get_running_builds(server)
     filtered_jobs = []
     for job in jobs:
@@ -397,6 +400,13 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun)
 
             parameters = parameters_for_job(server,
                 job_name, job['build_id'], job['build'], options.s3_logs_url)
+
+            if "dispatcher_params" in parameters:
+                dispatcher_params = json.loads(parameters['dispatcher_params'][11:])
+                parameters["dispatcher_params"] = dispatcher_params
+
+                if not passes_pool_threshold(cluster, parameters, options, pool_thresholds_hit):
+                    continue
 
             # only run dispatcher jobs
             if "dispatcher_params" not in parameters and options.dispatcher_jobs:
@@ -475,8 +485,7 @@ def rerun_jobs(jobs, server: Jenkins, options):
 
             else:
 
-                dispatcher_params = json.loads(
-                    parameters['dispatcher_params'][11:])
+                dispatcher_params = parameters['dispatcher_params']
 
                 # This is not needed because the executor is defined at the test level in QE-Test-Suites using the framwork key
                 # e.g. -jython, -TAF
@@ -558,7 +567,7 @@ def log_paths(options):
     return waiting_path, component_progress_path, reruns_path
 
 
-def log_progress(options, previous_jobs, still_to_run, component_map, unavailable_pools):
+def log_progress(options, previous_jobs, still_to_run, component_map):
     waiting_path, component_progress_path, _ = log_paths(options)
 
     # TODO: * 1000 for grafana milliseconds
@@ -566,7 +575,7 @@ def log_progress(options, previous_jobs, still_to_run, component_map, unavailabl
 
     with open(waiting_path, 'a') as csvfile:
         csv_writer = csv.writer(csvfile)
-        csv_writer.writerow([now, len(previous_jobs) - len(still_to_run), len(previous_jobs), (options.jobs_threshold / 100) * len(previous_jobs), " ".join(unavailable_pools)])
+        csv_writer.writerow([now, len(previous_jobs) - len(still_to_run), len(previous_jobs), (options.jobs_threshold / 100) * len(previous_jobs)])
 
     with open(component_progress_path, 'a') as csvfile:
         csv_writer = csv.writer(csvfile)
@@ -578,7 +587,7 @@ def setup_logs(options):
 
     with open(waiting_path, 'w') as csvfile:
         csv_writer = csv.writer(csvfile)
-        csv_writer.writerow(["timestamp", "completed_jobs", "total_jobs", "rerun_threshold", "unavailable_pools"])
+        csv_writer.writerow(["timestamp", "completed_jobs", "total_jobs", "rerun_threshold"])
 
     with open(component_progress_path, 'w') as csvfile:
         csv_writer = csv.writer(csvfile)
@@ -614,6 +623,7 @@ if __name__ == "__main__":
         wait_for_main_run(options, cluster, server)
 
     already_rerun = []
+    pool_thresholds_hit = []
 
     # timeout after 20 hours
     timeout = time.time() + (options.timeout * 60 * 60)
@@ -621,7 +631,7 @@ if __name__ == "__main__":
     while True:
 
         jobs = all_failed_jobs(cluster, options)
-        jobs = filter_jobs(jobs, cluster, server, options, already_rerun)
+        jobs = filter_jobs(jobs, cluster, server, options, already_rerun, pool_thresholds_hit)
 
         if len(jobs) > 0:
             rerun_jobs(jobs, server, options)
@@ -632,7 +642,7 @@ if __name__ == "__main__":
             if len(still_to_run) > 0:
                 logger.info("{} more jobs from the main run to finish".format(len(still_to_run)))
 
-            log_progress(options, previous_jobs, still_to_run, component_map, [])
+            log_progress(options, previous_jobs, still_to_run, component_map)
                 
             if time.time() > timeout or len(still_to_run) == 0:
                 break
