@@ -55,6 +55,8 @@ for version in versions:
             cas = doc.cas
             greenboard = doc.content_as[dict]
 
+            updated = False
+
             for row in server_bucket.query("select build_id, os, component, name, duration, totalCount, failCount, result from server where `build` = '{}'".format(version)):
                 try:
                     all_runs = greenboard["os"][row["os"]][row["component"]][row["name"]]
@@ -67,17 +69,37 @@ for version in versions:
                                 if key in row and key in run and row[key] != run[key]:
                                     logger.info("corrected {} from {} to {} for {} in {}".format(key, run[key], row[key], row["name"], version))
                                     run[key] = row[key]
+                                    updated = True
 
                 except Exception:
                     continue
 
-            try:
-                greenboard_collection.replace(doc_id, greenboard, ReplaceOptions(cas=cas))
+            if updated:
+                total_count = 0
+                fail_count = 0
+
+                for os in greenboard["os"]:
+                    for component in greenboard["os"][os]:
+                        for job in greenboard["os"][os][component]:
+                            if len(greenboard["os"][os][component][job]) > 0:
+                                older_build = greenboard['os'][os][component][job][0]
+                                total_count += older_build['totalCount']
+                                fail_count += older_build['failCount']
+
+
+                greenboard["totalCount"] = total_count
+                greenboard["failCount"] = fail_count
+
+                try:
+                    greenboard_collection.replace(doc_id, greenboard, ReplaceOptions(cas=cas))
+                    break
+                except (CASMismatchException, DocumentExistsException):
+                    continue
+                except Exception:
+                    traceback.print_exc()
+
+            else:
                 break
-            except (CASMismatchException, DocumentExistsException):
-                continue
-            except Exception:
-                traceback.print_exc()
 
     except Exception:
         traceback.print_exc()
