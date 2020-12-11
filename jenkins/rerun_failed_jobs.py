@@ -70,6 +70,7 @@ def parse_arguments():
     parser.add_option("--timeout", dest="timeout", help="Stop reruns after timeout hours even if all main run jobs haven't completed", type="int", default=24)
     parser.add_option("--sleep", dest="sleep", help="Time to sleep between checking for reruns (minutes)", type="int", default=5)
     parser.add_option("--max-reruns", dest="max_reruns", help="Max number of times to rerun a job (only applicable when this script is run more than once)", type="int", default=1)
+    parser.add_option("--max-failed-reruns", dest="max_failed_reruns", help="Max number of times to rerun a job if the rerun was worse than the fresh run", type="int", default=1)
     parser.add_option("--output", dest="output")
     parser.add_option("--dispatch-delay", dest="dispatch_delay", help="Time to wait between dispatch calls (seconds)", type="int", default=10)
     parser.add_option("--merge-pools", dest="merge_pools", help="List of pools that can be used interchangeably")
@@ -424,15 +425,14 @@ def rerun_worse(cluster: Cluster, job, options):
 
     all_runs = list(cluster.query(query))[0]
 
-    # we will only rerun if it has been rerun once exactly already
-    # this prevents an endless cycle of reruns
-    if len(all_runs) != 2:
+    # we will only try a worse rerun again if there was a rerun and the number of worse reruns is less than `max_failed_reruns`
+    if len(all_runs) < 2 or len(all_runs) > (options.max_failed_reruns + 1):
         return False
 
-    rerun = all_runs[0]
-    fresh_run = all_runs[1]
+    latest_rerun = all_runs[0]
+    fresh_run = all_runs[len(all_runs) - 1]
 
-    return rerun["failCount"] > fresh_run["failCount"] or rerun["totalCount"] < fresh_run["totalCount"]
+    return latest_rerun["failCount"] > fresh_run["failCount"] or latest_rerun["totalCount"] < fresh_run["totalCount"]
 
 
 def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun, pool_thresholds_hit):
