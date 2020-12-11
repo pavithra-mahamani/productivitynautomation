@@ -381,10 +381,11 @@ def passes_pool_threshold(cluster: Cluster, parameters, options, pool_thresholds
     # then add the other pools in options.merge_pools to serverPoolId
     # e.g. serverPoolId = os_certification,regression options.merge_pools=regression,12hrreg
     # serverPoolId becomes os_certification,regression,12hrreg
-    pools = set(parameters["dispatcher_params"]["serverPoolId"].split(","))
+    pool_ids = set(parameters["dispatcher_params"]["serverPoolId"].split(","))
+    pools = pool_ids.copy()
 
     if options.merge_pools:
-        for pool in pools:
+        for pool in pool_ids:
             if pool in options.merge_pools:
                 for pool in options.merge_pools:
                     pools.add(pool)
