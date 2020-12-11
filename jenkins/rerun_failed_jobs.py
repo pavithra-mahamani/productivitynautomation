@@ -349,10 +349,11 @@ def passes_pool_threshold(cluster: Cluster, parameters, options, pool_thresholds
     # serverPoolId becomes os_certification,regression,12hrreg
     pools = set(parameters["dispatcher_params"]["serverPoolId"].split(","))
 
-    for pool in pools:
-        if pool in options.merge_pools:
-            for pool in options.merge_pools:
-                pools.add(pool)
+    if options.merge_pools:
+        for pool in pools:
+            if pool in options.merge_pools:
+                for pool in options.merge_pools:
+                    pools.add(pool)
 
     # if none of the pools are available, skip if options.maintain_threshold is true
 
