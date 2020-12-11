@@ -70,6 +70,7 @@ def parse_arguments():
     parser.add_option("--timeout", dest="timeout", help="Stop reruns after timeout hours even if all main run jobs haven't completed", type="int", default=24)
     parser.add_option("--sleep", dest="sleep", help="Time to sleep between checking for reruns (minutes)", type="int", default=5)
     parser.add_option("--max-reruns", dest="max_reruns", help="Max number of times to rerun a job (only applicable when this script is run more than once)", type="int", default=1)
+    parser.add_option("--max-failed-reruns", dest="max_failed_reruns", help="Max number of times to rerun a job if the rerun was worse than the fresh run", type="int", default=1)
     parser.add_option("--output", dest="output")
     parser.add_option("--dispatch-delay", dest="dispatch_delay", help="Time to wait between dispatch calls (seconds)", type="int", default=10)
     parser.add_option("--merge-pools", dest="merge_pools", help="List of pools that can be used interchangeably")
@@ -188,29 +189,63 @@ def get_running_builds(server):
 
     return builds_with_params
 
-
-def get_duplicate_jobs(running_builds, job_name, parameters):
-    parameters = parameters.copy()
-    duplicates = []
-
-    for param in ignore_params_list:
-        if param in parameters:
-            parameters.pop(param)
-
-    for running_build in running_builds:
-        if running_build['name'] != job_name:
-            continue
-
-        diffs = DeepDiff(parameters, running_build['parameters'], ignore_order=True,
-                         ignore_string_type_changes=True)
-
-        if not diffs:
-            duplicates.append(running_build)
-    return duplicates
-
-
 def job_name_from_url(jenkins_server, url):
     return url.replace("{}/job/".format(jenkins_server), "").strip("/")
+
+def get_duplicate_jobs(running_builds, job_name, parameters, options):
+    duplicates = []
+
+    for running_build in running_builds:
+
+        if "dispatcher_params" in parameters:
+
+            # check if duplicate executor job
+            if running_build["name"] == job_name:
+
+                # executor job with different component
+                if running_build["parameters"]["component"] != parameters["component"]:
+                    continue
+
+                # executor job with different subcomponent
+                if running_build["parameters"]["subcomponent"] != parameters["subcomponent"]:
+                    continue
+
+                # executor job with different version_number
+                if running_build["parameters"]["version_number"] != parameters["version_number"]:
+                    continue
+
+            # check if duplicate dispatcher job
+            else:
+                dispatcher_name = job_name_from_url(options.jenkins_url, parameters["dispatcher_params"]['dispatcher_url'])
+
+                if running_build["name"] != dispatcher_name:
+                    continue
+
+                if running_build["parameters"]["component"] != parameters["component"]:
+                    continue
+
+                if running_build["parameters"]["version_number"] != parameters["version_number"]:
+                    continue
+
+                # if dispatcher subcomponent is not None or "" then list of subcomponents must not contain parameters["subcomponent"]
+                if running_build["parameters"]["subcomponent"] not in ["None", ""] and parameters["subcomponent"] not in running_build["parameters"]["subcomponent"].split(","):
+                    continue
+
+        else:
+            # standalone job with different name
+            if running_build["name"] != job_name:
+                continue
+
+            # has version_number field and is not the same
+            if "version_number" in running_build["parameters"] and running_build["parameters"]["version_number"] != parameters["version_number"]:
+                continue
+
+            # otherwise job name equal and can't differentiate by version_number so duplicate
+
+        duplicates.append(running_build)
+
+    return duplicates
+
 
 def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
     jobs = list(cluster.query("SELECT name, component, url, build_id, `build` FROM server WHERE `build`= '{}' AND url LIKE '{}/job/%'".format(options.previous_builds[0], options.jenkins_url)))
@@ -347,12 +382,14 @@ def passes_pool_threshold(cluster: Cluster, parameters, options, pool_thresholds
     # then add the other pools in options.merge_pools to serverPoolId
     # e.g. serverPoolId = os_certification,regression options.merge_pools=regression,12hrreg
     # serverPoolId becomes os_certification,regression,12hrreg
-    pools = set(parameters["dispatcher_params"]["serverPoolId"].split(","))
+    pool_ids = set(parameters["dispatcher_params"]["serverPoolId"].split(","))
+    pools = pool_ids.copy()
 
-    for pool in pools:
-        if pool in options.merge_pools:
-            for pool in options.merge_pools:
-                pools.add(pool)
+    if options.merge_pools:
+        for pool in pool_ids:
+            if pool in options.merge_pools:
+                for pool in options.merge_pools:
+                    pools.add(pool)
 
     # if none of the pools are available, skip if options.maintain_threshold is true
 
@@ -383,18 +420,37 @@ def passes_pool_threshold(cluster: Cluster, parameters, options, pool_thresholds
 
     return found
 
+def rerun_worse(cluster: Cluster, job, options):
+    query = "select raw os.`{}`.`{}`.`{}` from greenboard where `build` = '{}' and type = 'server'".format(job["os"], job["component"], job["name"], options.build)
+
+    all_runs = list(cluster.query(query))[0]
+
+    # we will only try a worse rerun again if there was a rerun and the number of worse reruns is less than `max_failed_reruns`
+    if len(all_runs) < 2 or len(all_runs) > (options.max_failed_reruns + 1):
+        return False
+
+    latest_rerun = all_runs[0]
+    fresh_run = all_runs[len(all_runs) - 1]
+
+    return latest_rerun["failCount"] > fresh_run["failCount"] or latest_rerun["totalCount"] < fresh_run["totalCount"]
+
 
 def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun, pool_thresholds_hit):
     running_builds = get_running_builds(server)
     filtered_jobs = []
     for job in jobs:
-        if job['name'] in already_rerun:
-            continue
-
         try:
 
-            if not passes_max_rerun_filter(cluster, job, options):
-                continue
+            rerun_was_worse = rerun_worse(cluster, job, options)
+
+            # if rerun was worse we skip these checks
+            if not rerun_was_worse:
+
+                if not passes_max_rerun_filter(cluster, job, options):
+                    continue
+
+                if job['name'] in already_rerun:
+                    continue
 
             job_name = job_name_from_url(options.jenkins_url, job['url'])
 
@@ -412,8 +468,7 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun,
             if "dispatcher_params" not in parameters and options.dispatcher_jobs:
                 continue
 
-            duplicates = get_duplicate_jobs(
-                    running_builds, job_name, parameters)
+            duplicates = get_duplicate_jobs(running_builds, job_name, parameters, options)
 
             if len(duplicates) > 0:
                 if options.stop:
