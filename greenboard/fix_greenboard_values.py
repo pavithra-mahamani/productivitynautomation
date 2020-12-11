@@ -16,8 +16,8 @@ from couchbase.auth import PasswordAuthenticator
 import traceback
 from couchbase.collection import ReplaceOptions
 from couchbase.exceptions import CASMismatchException, DocumentExistsException
-import sys
 import logging
+import argparse
 
 logger = logging.getLogger("fix_greenboard_values")
 logger.setLevel(logging.DEBUG)
@@ -27,18 +27,22 @@ formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messag
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
-cluster = Cluster("couchbase://172.23.121.84", ClusterOptions(
-    PasswordAuthenticator("Administrator", "password")))
+ap = argparse.ArgumentParser()
+
+ap.add_argument("--cb_server", default="172.23.121.84")
+ap.add_argument("--cb_username", default="Administrator")
+ap.add_argument("--cb_password", default="password")
+ap.add_argument("versions")
+
+args = vars(ap.parse_args())
+
+cluster = Cluster("couchbase://" + args["cb_server"], ClusterOptions(PasswordAuthenticator(args["cb_username"], args["cb_password"])))
 
 server_bucket = cluster.bucket("server")
 greenboard_bucket = cluster.bucket("greenboard")
 greenboard_collection = greenboard_bucket.default_collection()
 
-args = sys.argv
-if len(args) < 2:
-    logger.error("please supply versions to fix")
-    sys.exit(1)
-supplied_versions = args[1].split(",")
+supplied_versions = args["versions"].split(",")
 versions = set()
 
 for v in supplied_versions:
