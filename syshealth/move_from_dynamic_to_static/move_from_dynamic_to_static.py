@@ -21,6 +21,8 @@ ap.add_argument("-c", "--count", type=int, default=1, help="Number of VMs")
 ap.add_argument("-p", "--pools", required=True, help="List of static pools, only 1 if removing")
 ap.add_argument("--cb_dynamic", default="172.23.104.180", help="CB server for dynamic pool")
 ap.add_argument("--cb_static", default="172.23.121.84", help="CB server for static pool")
+ap.add_argument("--cb_username", default="Administrator")
+ap.add_argument("--cb_password", default="password")
 ap.add_argument("--dynvmservice", default="172.23.104.180:5000", help="Dynamic VM service url")
 ap.add_argument("-a", "--action", choices=("add", "remove"), default="add")
 
@@ -34,8 +36,8 @@ if args["count"] <= 0:
 
 logger.info(args)
 
-cb_dynamic = Cluster('couchbase://' + args["cb_dynamic"], ClusterOptions(PasswordAuthenticator("Administrator", "password")))
-cb_static = Cluster('couchbase://' + args["cb_static"], ClusterOptions(PasswordAuthenticator("Administrator", "password")))
+cb_dynamic = Cluster('couchbase://' + args["cb_dynamic"], ClusterOptions(PasswordAuthenticator(args["cb_username"], args["cb_password"])))
+cb_static = Cluster('couchbase://' + args["cb_static"], ClusterOptions(PasswordAuthenticator(args["cb_username"], args["cb_password"])))
 
 if args["action"] == "add":
 
