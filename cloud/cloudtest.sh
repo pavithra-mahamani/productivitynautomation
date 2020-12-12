@@ -293,9 +293,11 @@ run()
      ADDL_PARAMS="${ADDL_PARAMS},${8}"
   fi
   echo "ADDL_PARAMS=${ADDL_PARAMS}"
-  echo time python3 testrunner.py -i ${INI_FILE} -c py-1node-sanity-cloud.conf ${6} ${7} -p skip_host_login=True,skip_init_check_cbserver=True,get-cbcollect-info=False,http_protocol=${HTTP_PROTOCOL},bucket_size=100,default_bucket_name=${BUCKET},use_sdk_client=True,skip_bucket_setup=True,skip_buckets_handle=True,is_secure=${IS_SECURE},skip_setup_cleanup=True,skip_stats_verify=True,servers_map=${SERVERS_MAP}${ADDL_PARAMS}
+  export is_secure=${IS_SECURE}
+  echo "is_secure=${is_secure}"
+  echo time python3 testrunner.py -i ${INI_FILE} -c py-1node-sanity-cloud.conf ${6} ${7} -p skip_host_login=True,skip_init_check_cbserver=True,get-cbcollect-info=False,bucket_size=100,default_bucket_name=${BUCKET},use_sdk_client=True,skip_bucket_setup=True,skip_buckets_handle=True,skip_setup_cleanup=True,skip_stats_verify=True,servers_map=${SERVERS_MAP}${ADDL_PARAMS}
   #read n
-  time python3 testrunner.py -i ${INI_FILE} -c py-1node-sanity-cloud.conf ${6} ${7} -p skip_host_login=True,skip_init_check_cbserver=True,get-cbcollect-info=False,http_protocol=${HTTP_PROTOCOL},bucket_size=100,default_bucket_name=${BUCKET},use_sdk_client=True,skip_bucket_setup=True,skip_buckets_handle=True,is_secure=${IS_SECURE},skip_setup_cleanup=True,skip_stats_verify=True,servers_map=${SERVERS_MAP}${ADDL_PARAMS}  |tee ${CURDIR}/run_${DATE_TIME}.txt
+  time python3 testrunner.py -i ${INI_FILE} -c py-1node-sanity-cloud.conf ${6} ${7} -p skip_host_login=True,skip_init_check_cbserver=True,get-cbcollect-info=False,bucket_size=100,default_bucket_name=${BUCKET},use_sdk_client=True,skip_bucket_setup=True,skip_buckets_handle=True,skip_setup_cleanup=True,skip_stats_verify=True,servers_map=${SERVERS_MAP}${ADDL_PARAMS}  |tee ${CURDIR}/run_${DATE_TIME}.txt
   cd ${CURDIR}
 }
 
