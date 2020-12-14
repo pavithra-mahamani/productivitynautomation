@@ -74,6 +74,7 @@ def parse_arguments():
     parser.add_option("--dispatch-delay", dest="dispatch_delay", help="Time to wait between dispatch calls (seconds)", type="int", default=10)
     parser.add_option("--merge-pools", dest="merge_pools", help="List of pools that can be used interchangeably")
     parser.add_option("--maintain-threshold", dest="maintain_threshold", help="Check pool availability every time before dispatching", action="store_true", default=False)
+    parser.add_option("--override-dispatcher", dest="override_dispatcher", default="test_suite_dispatcher_multiple_pools")
 
     options, _ = parser.parse_args()
 
@@ -356,7 +357,9 @@ def passes_pool_threshold(cluster: Cluster, parameters, options, pool_thresholds
     pool_ids = set(parameters["dispatcher_params"]["serverPoolId"].split(","))
     pools = pool_ids.copy()
 
-    if options.merge_pools:
+    # only test_suite_dispatcher supports multiple pools for now
+    dispatcher_name = job_name_from_url(options.jenkins_url, parameters["dispatcher_params"]['dispatcher_url'])
+    if dispatcher_name == "test_suite_dispatcher" and options.merge_pools:
         for pool in pool_ids:
             if pool in options.merge_pools:
                 for pool in options.merge_pools:
@@ -527,6 +530,9 @@ def rerun_jobs(jobs, server: Jenkins, options):
                     dispatcher_params['fresh_run'] = False
 
                 dispatcher_name = job_name_from_url(options.jenkins_url, dispatcher_params['dispatcher_url'])
+
+                if dispatcher_name == "test_suite_dispatcher" and options.override_dispatcher:
+                    dispatcher_name = options.override_dispatcher
 
                 # invalid parameter
                 dispatcher_params.pop("dispatcher_url")
