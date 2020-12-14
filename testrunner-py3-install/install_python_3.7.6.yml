@@ -1,0 +1,91 @@
+---
+- hosts: all
+  become: yes
+
+  tasks:
+    - name: Add repository
+      yum_repository:
+        name: epel
+        description: EPEL YUM repo
+        baseurl: https://download.fedoraproject.org/pub/epel/$releasever/$basearch/
+
+    - name: Install packages needed for installing Python
+      yum:
+        name:
+          - gcc
+          - bzip2
+          - zlib-devel
+          - bzip2-devel
+          - openssl-devel
+          - ncurses-devel
+          - sqlite-devel
+          - readline-devel
+          - tk-devel
+          - gdbm-devel
+          - db4-devel
+          - libpcap-devel
+          - xz-devel
+          - readline-devel
+          - sqlite
+          - sqlite-devel
+          - libffi-devel
+          - gcc-c++
+          - python-devel
+          - python-pip
+        state: latest
+      tags: packages, python
+
+    - name: Extract python 3.7.6 into /tmp
+      unarchive:
+        src: https://www.python.org/ftp/python/3.7.6/Python-3.7.6.tgz
+        dest: /root
+        remote_src: yes
+      tags: packages, python
+
+    - name: Configure python 3.7.6
+      shell: ./configure --enable-optimizations chdir=/root/Python-3.7.6
+      tags: packages, python
+
+    - name: Make clean
+      shell: make clean chdir=/root/Python-3.7.6
+      tags: packages, python
+
+    - name: Install Python 3.7.6
+      shell: make altinstall chdir=/root/Python-3.7.6
+      tags: packages, python
+
+    - name: add alias python3 to python3.7
+      shell: alternatives --install /usr/local/bin/python3 python3 /usr/local/bin/python3.7 1
+      tags: create_alias, python
+
+    - name: add alias pip3 to pip3.7
+      shell: alternatives --install /usr/local/bin/pip3 pip3 /usr/local/bin/pip3.7 1
+      tags: create_alias, python
+
+    - name: Remove tmp files used for Python 3.7.6 installation
+      file: path={{ item }} state=absent
+      with_items:
+        - /root/Python.tar.xz
+        - /root/Python-3.7.6
+      tags: packages, python
+
+    - name: Install packages couchbase c client
+      yum:
+        name: http://packages.couchbase.com/releases/couchbase-release/couchbase-release-1.0-6-x86_64.rpm
+        state: present
+      tags: testrunner_dep
+
+    - name: Install packages needed for installing Couchbase SDK
+      yum:
+        name:
+          - libcouchbase-devel
+          - libcouchbase2-bin
+          - gcc
+          - gcc-c++
+          - libcouchbase2-libevent
+          - libcouchbase2-libev
+      tags: testrunner_dep
+
+    - name: Install python libs required for testrunner
+      shell: /usr/local/bin/pip3 install couchbase sgmllib3k paramiko httplib2 pyyaml beautifulsoup4 Geohash python-geohash deepdiff pyes pytz requests jsonpickle docker decorator
+      tags: testrunner_dep
