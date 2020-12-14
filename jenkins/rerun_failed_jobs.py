@@ -7,7 +7,6 @@ from jenkins import Jenkins
 from jenkinshelper import connect_to_jenkins
 import logging
 import traceback
-from deepdiff import DeepDiff
 import requests
 import jenkins
 import time
@@ -75,36 +74,12 @@ def parse_arguments():
     parser.add_option("--dispatch-delay", dest="dispatch_delay", help="Time to wait between dispatch calls (seconds)", type="int", default=10)
     parser.add_option("--merge-pools", dest="merge_pools", help="List of pools that can be used interchangeably")
     parser.add_option("--maintain-threshold", dest="maintain_threshold", help="Check pool availability every time before dispatching", action="store_true", default=False)
+    parser.add_option("--override-dispatcher", dest="override_dispatcher", default="test_suite_dispatcher_multiple_pools")
 
     options, _ = parser.parse_args()
 
-    if not options.build:
-        logger.error("No build given")
-        sys.exit(1)
-
     if options.previous_builds:
         options.previous_builds = options.previous_builds.split(",")
-
-    if options.strategy and options.strategy == "regression" and (not options.previous_builds or len(options.previous_builds) != 1):
-        logger.error("regression strategy must specify 1 previous build for comparison")
-        sys.exit(1)
-
-    if options.strategy and options.strategy == "common" and (not options.previous_builds or len(options.previous_builds) == 0):
-        logger.error(
-            "common strategy must specify at least 1 previous build for comparison")
-        sys.exit(1)
-
-    if options.previous_builds and not options.strategy:
-        logger.error("no strategy specified with previous build")
-        sys.exit(1)
-
-    if options.wait_for_main_run and (not options.previous_builds or len(options.previous_builds) == 0):
-        logger.error("wait for main run requires a previous build to determine pending jobs")
-        sys.exit(1)
-
-    if options.components and options.exclude_components:
-        logger.error("both include and exclude components specified")
-        sys.exit(1)
 
     if options.os:
         options.os = options.os.split(",")
@@ -125,9 +100,6 @@ def parse_arguments():
         options.merge_pools = options.merge_pools.split(",")
 
     if options.subcomponents:
-        if len(options.components) > 1:
-            logger.error("Can't supply multiple components with subcomponents")
-            sys.exit(1)
         options.subcomponents = options.subcomponents.split(",")
 
     options.sleep = options.sleep * 60
@@ -385,7 +357,9 @@ def passes_pool_threshold(cluster: Cluster, parameters, options, pool_thresholds
     pool_ids = set(parameters["dispatcher_params"]["serverPoolId"].split(","))
     pools = pool_ids.copy()
 
-    if options.merge_pools:
+    # only test_suite_dispatcher supports multiple pools for now
+    dispatcher_name = job_name_from_url(options.jenkins_url, parameters["dispatcher_params"]['dispatcher_url'])
+    if dispatcher_name == "test_suite_dispatcher" and options.merge_pools:
         for pool in pool_ids:
             if pool in options.merge_pools:
                 for pool in options.merge_pools:
@@ -557,6 +531,9 @@ def rerun_jobs(jobs, server: Jenkins, options):
 
                 dispatcher_name = job_name_from_url(options.jenkins_url, dispatcher_params['dispatcher_url'])
 
+                if dispatcher_name == "test_suite_dispatcher" and options.override_dispatcher:
+                    dispatcher_name = options.override_dispatcher
+
                 # invalid parameter
                 dispatcher_params.pop("dispatcher_url")
 
@@ -665,13 +642,41 @@ def log_reruns(options, jobs):
             csv_rows.append([now, job['name'], job["failCount"], job["totalCount"], " ".join(previous_builds), options.build])
         csv_writer.writerows(csv_rows)
 
+def validate_options(options, cluster: Cluster):
+    if not options.build:
+        logger.error("No build given")
+        sys.exit(1)
+
+    if (options.strategy or options.wait_for_main_run) and (not options.previous_builds or len(options.previous_builds) == 0):
+        logger.info("--previous-builds not specified, trying the calculate...")
+        version = options.build.split("-")[0]
+        previous_builds = list(cluster.query("select raw `build` from greenboard where `build` like '{}%' and type = 'server' and totalCount > 18500 group by `build` order by `build` desc limit 1".format(version)))
+        if len(previous_builds) == 0:
+            logger.error("couldn't determine previous build automatically, required if --strategy or --wait specified")
+            sys.exit(1)
+        else:
+            logger.info("previous build set to {}".format(previous_builds[0]))
+            options.previous_builds = [previous_builds[0]]
+
+    if options.strategy and options.strategy == "regression" and len(options.previous_builds) != 1:
+        logger.error("regression strategy must specify 1 previous build for comparison")
+        sys.exit(1)
+
+    if options.components and options.exclude_components:
+        logger.error("both include and exclude components specified")
+        sys.exit(1)
+
+    if options.subcomponents and len(options.components) > 1:
+        logger.error("Can't supply multiple components with subcomponents")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     options = parse_arguments()
-    logger.debug(options)
-
-    setup_logs(options)
-
     cluster = Cluster('couchbase://{}'.format(options.server), ClusterOptions(PasswordAuthenticator(options.username, options.password)))
+    validate_options(options, cluster)
+    logger.debug(options)
+    setup_logs(options)
     server = connect_to_jenkins(options.jenkins_url)
 
     if options.wait_for_main_run:
