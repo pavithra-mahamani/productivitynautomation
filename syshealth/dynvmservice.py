@@ -12,6 +12,7 @@ import logging
 from couchbase.cluster import Cluster
 from couchbase.cluster import PasswordAuthenticator
 import XenAPI
+from couchbase.exceptions import NotFoundError
 from flask import Flask, request
 from paramiko import SSHClient, AutoAddPolicy, RSAKey
 from paramiko.auth_handler import AuthenticationException, SSHException
@@ -737,8 +738,7 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
                 "memory": memory_static_max,
                 "os_version": vm_os_name
             }
-            cb_doc.static_cb.upsert(vm_ip_addr, static_doc_value)
-            log.info("{} added to static pools: {}".format(vm_ip_addr, ",".join(pools)))
+            cb_doc.add_to_static_pool(static_doc_value)
 
 
         vm_max_expiry_minutes = int(config.get("common", "vm.expiry.minutes"))
@@ -846,6 +846,7 @@ def delete_vm(session, vm_name):
                 doc_value["live_duration_secs"] = round(current_time - doc_value["created_time"])
             doc_value["delete_duration_secs"] = delete_duration
             cbdoc.save_dynvm_doc(doc_key, doc_value)
+            cbdoc.remove_from_static_pool(doc_value["ipaddr"])
 
 
 def read_vm_ip_address(session, a_vm):
@@ -1159,6 +1160,27 @@ class CBDoc:
             log.info("%s added/updated successfully" % doc_key)
         except Exception as e:
             log.error('Document with key: %s saving error' % doc_key)
+            log.error(e)
+
+    def remove_from_static_pool(self, ip):
+        try:
+            static_doc_value = self.static_cb.get(ip).value
+            self.static_cb.remove(ip)
+            log.info("{} removed from static pools: {}".format(ip, ",".join(static_doc_value["poolId"])))
+        except NotFoundError:
+            pass
+        except Exception as e:
+            log.error("Error removing {} from static pools".format(ip))
+            log.error(e)
+    
+    def add_to_static_pool(self, doc_value):
+        ip = doc_value["ipaddr"]
+        pools_str = ",".join(doc_value["poolId"])
+        try:
+            self.static_cb.upsert(ip, doc_value)
+            log.info("{} added to static pools: {}".format(ip, pools_str))
+        except Exception as e:
+            log.error("Error adding {} to static pools: {}".format(ip, pools_str))
             log.error(e)
 
 
