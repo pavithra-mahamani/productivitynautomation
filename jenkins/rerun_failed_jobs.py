@@ -187,17 +187,33 @@ def get_duplicate_jobs(running_builds, job_name, parameters, options):
                 else:
                     dispatcher_name = job_name_from_url(options.jenkins_url, parameters["dispatcher_params"]['dispatcher_url'])
 
-                    if running_build["name"] != dispatcher_name:
-                        continue
+                    if dispatcher_name == "test_suite_dispatcher":
+                        dispatcher_names = [dispatcher_name, "test_suite_dispatcher_multiple_pools"]
+                    else:
+                        dispatcher_names = [dispatcher_name]
 
-                    if running_build["parameters"]["component"] != parameters["component"]:
-                        continue
+                    duplicate = False
 
-                    if running_build["parameters"]["version_number"] != parameters["version_number"]:
-                        continue
+                    # Hack until main dispatcher supports multiple pools
+                    for dispatcher_name in dispatcher_names:
 
-                    # if dispatcher subcomponent is not None or "" then list of subcomponents must not contain parameters["subcomponent"]
-                    if running_build["parameters"]["subcomponent"] not in ["None", ""] and parameters["subcomponent"] not in running_build["parameters"]["subcomponent"].split(","):
+                        if running_build["name"] != dispatcher_name:
+                            continue
+
+                        if running_build["parameters"]["component"] != parameters["component"]:
+                            continue
+
+                        if running_build["parameters"]["version_number"] != parameters["version_number"]:
+                            continue
+
+                        # if dispatcher subcomponent is not None or "" then list of subcomponents must not contain parameters["subcomponent"]
+                        if running_build["parameters"]["subcomponent"] not in ["None", ""] and parameters["subcomponent"] not in running_build["parameters"]["subcomponent"].split(","):
+                            continue
+
+                        duplicate = True
+                        break
+
+                    if not duplicate:
                         continue
 
             else:
