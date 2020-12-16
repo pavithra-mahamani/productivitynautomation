@@ -430,7 +430,12 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, pool_threshold
     logger.info("filtering {} jobs".format(len(jobs)))
     running_builds = get_running_builds(server)
     filtered_jobs = []
+    already_filtered = set()
     for job in jobs:
+
+        if job["name"] in already_filtered:
+            continue
+
         try:
 
             rerun_was_worse = rerun_worse(cluster, job, options)
@@ -514,6 +519,7 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, pool_threshold
 
             job["parameters"] = parameters
             filtered_jobs.append(job)
+            already_filtered.add(job["name"])
 
         except Exception:
             traceback.print_exc()
