@@ -6,7 +6,7 @@
 
     <groupId>com.couchbase</groupId>
     <artifactId>transaction</artifactId>
-    <version>syncgateway</version>
+    <version>performer</version>
     <repositories>
   <repository>
     <id>couchbase</id>
