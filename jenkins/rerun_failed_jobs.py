@@ -106,6 +106,18 @@ def parse_arguments():
 
     return options
 
+def parameters_from_actions(actions):
+    parameters = {}
+    for a in actions:
+        try:
+            if a["_class"] == "hudson.model.ParametersAction":
+                for param in a["parameters"]:
+                    if "name" in param and "value" in param:
+                        parameters[param['name']] = param['value']
+        except KeyError:
+            pass
+    return parameters
+
 
 def parameters_for_job(server: Jenkins, name, number, version_number=None, s3_logs_url=None):
     try:
@@ -117,42 +129,26 @@ def parameters_for_job(server: Jenkins, name, number, version_number=None, s3_lo
         else:
             raise ValueError(
                 "no version number for build missing from jenkins")
-    parameters = {}
-    for a in info["actions"]:
-        try:
-            if a["_class"] == "hudson.model.ParametersAction":
-                for param in a["parameters"]:
-                    if "name" in param and "value" in param:
-                        parameters[param['name']] = param['value']
-        except KeyError:
-            pass
-    return parameters
+    return parameters_from_actions(info["actions"])
 
 
- # these parameters could be different even for duplicate jobs
-ignore_params_list = ["descriptor", "servers", "dispatcher_params", "fresh_run", "rerun_params",
-                      "retries", "timeout", "mailing_list", "addPoolServers", "version_number"]
-
-
-def get_running_builds(server):
+def get_running_builds(server: Jenkins):
+    # running_builds = []
     # get all running builds so we know if a duplicate job is already running
     running_builds = server.get_running_builds()
-
-    # server.get_running_builds() can take a while so these can be used to cache the value and reuse
-
-    # with open("running_builds.json", 'w') as outfile:
-    #     json.dump(running_builds, outfile)
-
-    # with open("running_builds.json") as json_file:
-    #     running_builds = json.load(json_file)
+    queued_builds = server.get_queue_info()
 
     builds_with_params = []
 
+    for build in queued_builds:
+        parameters = parameters_from_actions(build["actions"])
+        builds_with_params.append({
+            "name": build["task"]["name"],
+            "parameters": parameters
+        })
+
     for build in running_builds:
         parameters = parameters_for_job(server, build['name'], build['number'])
-        for param in ignore_params_list:
-            if param in parameters:
-                parameters.pop(param)
         builds_with_params.append({
             "name": build['name'],
             "number": build['number'],
@@ -168,53 +164,58 @@ def get_duplicate_jobs(running_builds, job_name, parameters, options):
     duplicates = []
 
     for running_build in running_builds:
+        try:
 
-        if "dispatcher_params" in parameters:
+            if "dispatcher_params" in parameters:
 
-            # check if duplicate executor job
-            if running_build["name"] == job_name:
+                # check if duplicate executor job
+                if running_build["name"] == job_name:
 
-                # executor job with different component
-                if running_build["parameters"]["component"] != parameters["component"]:
-                    continue
+                    # executor job with different component
+                    if running_build["parameters"]["component"] != parameters["component"]:
+                        continue
 
-                # executor job with different subcomponent
-                if running_build["parameters"]["subcomponent"] != parameters["subcomponent"]:
-                    continue
+                    # executor job with different subcomponent
+                    if running_build["parameters"]["subcomponent"] != parameters["subcomponent"]:
+                        continue
 
-                # executor job with different version_number
-                if running_build["parameters"]["version_number"] != parameters["version_number"]:
-                    continue
+                    # executor job with different version_number
+                    if running_build["parameters"]["version_number"] != parameters["version_number"]:
+                        continue
 
-            # check if duplicate dispatcher job
+                # check if duplicate dispatcher job
+                else:
+                    dispatcher_name = job_name_from_url(options.jenkins_url, parameters["dispatcher_params"]['dispatcher_url'])
+
+                    if running_build["name"] != dispatcher_name:
+                        continue
+
+                    if running_build["parameters"]["component"] != parameters["component"]:
+                        continue
+
+                    if running_build["parameters"]["version_number"] != parameters["version_number"]:
+                        continue
+
+                    # if dispatcher subcomponent is not None or "" then list of subcomponents must not contain parameters["subcomponent"]
+                    if running_build["parameters"]["subcomponent"] not in ["None", ""] and parameters["subcomponent"] not in running_build["parameters"]["subcomponent"].split(","):
+                        continue
+
             else:
-                dispatcher_name = job_name_from_url(options.jenkins_url, parameters["dispatcher_params"]['dispatcher_url'])
-
-                if running_build["name"] != dispatcher_name:
+                # standalone job with different name
+                if running_build["name"] != job_name:
                     continue
 
-                if running_build["parameters"]["component"] != parameters["component"]:
+                # has version_number field and is not the same
+                if "version_number" in running_build["parameters"] and running_build["parameters"]["version_number"] != parameters["version_number"]:
                     continue
 
-                if running_build["parameters"]["version_number"] != parameters["version_number"]:
-                    continue
+                # otherwise job name equal and can't differentiate by version_number so duplicate
 
-                # if dispatcher subcomponent is not None or "" then list of subcomponents must not contain parameters["subcomponent"]
-                if running_build["parameters"]["subcomponent"] not in ["None", ""] and parameters["subcomponent"] not in running_build["parameters"]["subcomponent"].split(","):
-                    continue
+            duplicates.append(running_build)
 
-        else:
-            # standalone job with different name
-            if running_build["name"] != job_name:
-                continue
-
-            # has version_number field and is not the same
-            if "version_number" in running_build["parameters"] and running_build["parameters"]["version_number"] != parameters["version_number"]:
-                continue
-
-            # otherwise job name equal and can't differentiate by version_number so duplicate
-
-        duplicates.append(running_build)
+        except Exception:
+            traceback.print_exc()
+            continue
 
     return duplicates
 
@@ -409,7 +410,8 @@ def rerun_worse(cluster: Cluster, job, options):
     return latest_rerun["failCount"] > fresh_run["failCount"] or latest_rerun["totalCount"] < fresh_run["totalCount"]
 
 
-def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun, pool_thresholds_hit):
+def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, pool_thresholds_hit):
+    logger.info("filtering {} jobs".format(len(jobs)))
     running_builds = get_running_builds(server)
     filtered_jobs = []
     for job in jobs:
@@ -421,9 +423,7 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun,
             if not rerun_was_worse:
 
                 if not passes_max_rerun_filter(cluster, job, options):
-                    continue
-
-                if job['name'] in already_rerun:
+                    logger.debug("skipping {} (already rerun max times)".format(job["name"]))
                     continue
 
             job_name = job_name_from_url(options.jenkins_url, job['url'])
@@ -436,10 +436,12 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun,
                 parameters["dispatcher_params"] = dispatcher_params
 
                 if not passes_pool_threshold(cluster, parameters, options, pool_thresholds_hit):
+                    logger.debug("skipping {} (pool threshold not met)".format(job["name"]))
                     continue
 
             # only run dispatcher jobs
             if "dispatcher_params" not in parameters and options.dispatcher_jobs:
+                logger.debug("skipping {} (non dispatcher job)".format(job["name"]))
                 continue
 
             duplicates = get_duplicate_jobs(running_builds, job_name, parameters, options)
@@ -447,14 +449,21 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun,
             if len(duplicates) > 0:
                 if options.stop:
                     for build in duplicates:
-                        logger.info(
-                            "aborting {}/{}".format(build['name'], build['number']))
-                        if not options.noop:
-                            server.stop_build(build['name'], build['number'])
+                        if "number" in build:
+                            logger.info(
+                                "aborting {}/{}".format(build['name'], build['number']))
+                            if not options.noop:
+                                server.stop_build(build['name'], build['number'])
+                        else:
+                            # duplicate queued job, don't stop it
+                            logger.debug("skipping {} (already queued)".format(job["name"]))
+                            continue
                 else:
+                    logger.debug("skipping {} (already running or waiting to be dispatched)".format(job["name"]))
                     continue
 
             if not passes_component_filter(job, parameters, options):
+                logger.debug("skipping {} (component not included)".format(job["name"]))
                 continue
 
             if options.strategy:
@@ -466,6 +475,7 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun,
                     
                     # job wasn't common across all previous builds
                     if common_count != len(options.previous_builds):
+                        logger.debug("skipping {} (not common across all previous builds)".format(job["name"]))
                         continue
 
                 elif options.strategy == "regression":
@@ -483,11 +493,11 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, already_rerun,
                         curr_total_count = int(job['totalCount'])
 
                         if prev_fail_count == curr_fail_count and prev_total_count == curr_total_count:
+                            logger.debug("skipping {} (not regression)".format(job["name"]))
                             continue
 
             job["parameters"] = parameters
             filtered_jobs.append(job)
-            already_rerun.append(job["name"])
 
         except Exception:
             traceback.print_exc()
@@ -627,7 +637,7 @@ def setup_logs(options):
 
     with open(reruns_path, 'w') as csvfile:
         csv_writer = csv.writer(csvfile)
-        csv_writer.writerow(["timestamp", "name", "fail_count", "total_count", "previous_builds", "current_build"])
+        csv_writer.writerow(["timestamp", "name", "url", "fail_count", "total_count", "previous_builds", "current_build"])
    
 def log_reruns(options, jobs):
     _, _, reruns_path = log_paths(options)
@@ -639,7 +649,7 @@ def log_reruns(options, jobs):
         csv_rows = []
         previous_builds = options.previous_builds or []
         for job in jobs:
-            csv_rows.append([now, job['name'], job["failCount"], job["totalCount"], " ".join(previous_builds), options.build])
+            csv_rows.append([now, job['name'], job["url"]+str(job["build_id"]), job["failCount"], job["totalCount"], " ".join(previous_builds), options.build])
         csv_writer.writerows(csv_rows)
 
 def validate_options(options, cluster: Cluster):
@@ -682,7 +692,6 @@ if __name__ == "__main__":
     if options.wait_for_main_run:
         wait_for_main_run(options, cluster, server)
 
-    already_rerun = []
     pool_thresholds_hit = []
 
     # timeout after 20 hours
@@ -691,7 +700,7 @@ if __name__ == "__main__":
     while True:
 
         jobs = all_failed_jobs(cluster, options)
-        jobs = filter_jobs(jobs, cluster, server, options, already_rerun, pool_thresholds_hit)
+        jobs = filter_jobs(jobs, cluster, server, options, pool_thresholds_hit)
 
         if len(jobs) > 0:
             rerun_jobs(jobs, server, options)
