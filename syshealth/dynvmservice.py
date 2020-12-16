@@ -112,11 +112,11 @@ def check_vms(os_name, hosts):
 
 def create_vms_single_host(all_or_none: bool, checkvms: bool, xhostref: str, os_name: str, username: str, vm_count: int,
                                        cpus: int, maxmemory: int, expiry_minutes: int,
-                                       output_format: str, start_suffix: int = 0):
+                                       output_format: str, start_suffix: int = 0, pools=None):
     try:              
         vms_ips_list = perform_service(xhostref, 'createvm', os_name, username, vm_count,
                                             cpus=cpus, maxmemory=maxmemory, expiry_minutes=expiry_minutes,
-                                            output_format=output_format, start_suffix=start_suffix)
+                                            output_format=output_format, start_suffix=start_suffix, pools=pools)
         if isinstance(vms_ips_list, str):
             raise Exception(vms_ips_list)
         # if there was an error, two entries are added to vms_ips_list
@@ -181,6 +181,11 @@ def getservers_service(username):
     else:
         all_or_none = True
 
+    if request.args.get("pools"):
+        pools = request.args.get("pools").split(",")
+    else:
+        pools = None
+
     xhostref = None
     if request.args.get('xhostref'):
         xhostref = request.args.get('xhostref')
@@ -190,7 +195,7 @@ def getservers_service(username):
     if xhostref:
         log.info("-->  VMs on given xenh    ost" + xhostref)
         try:
-            return json.dumps(create_vms_single_host(all_or_none, checkvms, xhostref, os_name, username, vm_count, cpus_count, mem, exp, output_format))
+            return json.dumps(create_vms_single_host(all_or_none, checkvms, xhostref, os_name, username, vm_count, cpus_count, mem, exp, output_format, pools=pools))
         except Exception as e:
             return str(e), 499
 
@@ -225,7 +230,7 @@ def getservers_service(username):
             else:
                 username1 = username
             try:
-                per_xen_host_res = create_vms_single_host(all_or_none, checkvms, free_xenhost_ref, os_name, username1, per_xen_host_vms, cpus_count, mem, exp, output_format, start_suffix=vm_name_suffix_index)
+                per_xen_host_res = create_vms_single_host(all_or_none, checkvms, free_xenhost_ref, os_name, username1, per_xen_host_vms, cpus_count, mem, exp, output_format, start_suffix=vm_name_suffix_index, pools=pools)
             except Exception as e:
                 log.debug(str(e))
                 continue
@@ -299,7 +304,7 @@ def releaseservers_service(username, target_state=None):
 def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_prefix_names="",
                     number_of_vms=1, cpus="default", maxmemory="default",
                     expiry_minutes=MAX_EXPIRY_MINUTES, output_format="servermanager",
-                    start_suffix=0):
+                    start_suffix=0, pools=None):
     xen_host = get_xen_host(xen_host_ref, os)
     if not xen_host:
         error = "Error: No XenHost available for the OS matching template!"
@@ -328,7 +333,7 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
                                                                               vm_prefix_names, cpus,
                                                                               maxmemory))
             new_vms, list_of_vms = create_vms(session, os, template, vm_prefix_names, number_of_vms,
-                                              cpus, maxmemory, expiry_minutes, start_suffix)
+                                              cpus, maxmemory, expiry_minutes, start_suffix, pools)
             log.info(new_vms)
             log.info(list_of_vms)
             if output_format == 'detailed':
@@ -501,7 +506,7 @@ def list_vm_details(session, vm_name):
 
 
 def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="default",
-               maxmemory="default", expiry_minutes=MAX_EXPIRY_MINUTES, start_suffix=0):
+               maxmemory="default", expiry_minutes=MAX_EXPIRY_MINUTES, start_suffix=0, pools=None):
     global reserved_count
     vm_names = vm_prefix_names.split(",")
     index = 1
@@ -512,7 +517,7 @@ def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="de
             for k in range(int(number_of_vms)):
                 vm_name = vm_names[i] + str(start_suffix + 1)
                 vm_ip, vm_os, error = create_vm(session, os, template, vm_name, cpus, maxmemory,
-                                                expiry_minutes)
+                                                expiry_minutes, pools)
                 new_vms_info[vm_name] = vm_ip
                 list_of_vms.append(vm_ip)
                 reserved_count -= 1
@@ -524,7 +529,7 @@ def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="de
                 index += 1
         else:
             vm_ip, vm_os, error = create_vm(session, os, template, vm_names[i], cpus, maxmemory,
-                                            expiry_minutes)
+                                            expiry_minutes, pools)
             new_vms_info[vm_names[i]] = vm_ip
             list_of_vms.append(vm_ip)
             reserved_count -= 1
@@ -537,7 +542,7 @@ def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="de
 
 
 def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory="default",
-              expiry_minutes=MAX_EXPIRY_MINUTES):
+              expiry_minutes=MAX_EXPIRY_MINUTES, pools=None):
     error = ''
     vm_os_name = ''
     vm_ip_addr = ''
@@ -715,6 +720,23 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
 
         cb_doc = CBDoc()
         cb_doc.save_dynvm_doc(doc_key, doc_value)
+
+        if pools:
+            static_doc_value = {
+                "ipaddr": vm_ip_addr,
+                "origin": xen_host_description,
+                "os": os_name,
+                "state": "available",
+                "poolId": pools,
+                "prevUser": "",
+                "username": "",
+                "ver": 12,
+                "memory": memory_static_max,
+                "os_version": vm_os_name
+            }
+            cb_doc.static_cb.upsert(vm_ip_addr, static_doc_value)
+            log.info("{} added to static pools: {}".format(vm_ip_addr, ",".join(pools)))
+
 
         vm_max_expiry_minutes = int(config.get("common", "vm.expiry.minutes"))
         if expiry_minutes > vm_max_expiry_minutes:
@@ -1103,11 +1125,19 @@ class CBDoc:
         self.cb_bucket = config.get("couchbase", "couchbase.bucket")
         self.cb_username = config.get("couchbase", "couchbase.username")
         self.cb_userpassword = config.get("couchbase", "couchbase.userpassword")
+        self.static_cb_server = config.get("couchbase", "static.server")
+        self.static_cb_bucket = config.get("couchbase", "static.bucket")
+        self.static_cb_username = config.get("couchbase", "static.username")
+        self.static_cb_userpassword = config.get("couchbase", "static.userpassword")
         try:
             self.cb_cluster = Cluster('couchbase://' + self.cb_server)
             self.cb_auth = PasswordAuthenticator(self.cb_username, self.cb_userpassword)
             self.cb_cluster.authenticate(self.cb_auth)
             self.cb = self.cb_cluster.open_bucket(self.cb_bucket)
+            self.static_cb_cluster = Cluster('couchbase://' + self.static_cb_server)
+            self.static_cb_auth = PasswordAuthenticator(self.static_cb_username, self.static_cb_userpassword)
+            self.static_cb_cluster.authenticate(self.static_cb_auth)
+            self.static_cb = self.static_cb_cluster.open_bucket(self.static_cb_bucket)
         except Exception as e:
             log.error('Connection Failed: %s ' % self.cb_server)
             log.error(e)
