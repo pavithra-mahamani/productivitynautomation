@@ -722,6 +722,9 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
         cb_doc.save_dynvm_doc(doc_key, doc_value)
 
         if pools:
+            # static pool uses centos for centos7
+            if os_name == "centos7":
+                os_name = "centos"
             static_doc_value = {
                 "ipaddr": vm_ip_addr,
                 "origin": xen_host_description,
