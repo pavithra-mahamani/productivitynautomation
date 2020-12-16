@@ -66,7 +66,8 @@ class TestDuplicates(unittest.TestCase):
             [1, "test_suite_dispatcher", "aa", "bb", "7.0.0-3874"],
             [1, "test_suite_dispatcher", "aa", "bb,cc", "7.0.0-3874"],
             [1, "test_suite_dispatcher", "aa", "None", "7.0.0-3874"],
-            [1, "test_suite_dispatcher", "aa", "", "7.0.0-3874"]
+            [1, "test_suite_dispatcher", "aa", "", "7.0.0-3874"],
+            [1, "test_suite_dispatcher_multiple_pools", "aa", "bb", "7.0.0-3874"]
         ]
 
         for [expected_duplicates, name, component, subcomponent, version_number] in tests:
