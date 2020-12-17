@@ -28,6 +28,7 @@ public class transaction {
     private static ArrayList<TxnOperationId> txnOptObj = new ArrayList<TxnOperationId>();
     private static TxnOperationId txnobj;
     private static  String opt;
+    private static  String optDocid;
     
    
     public static void main(String[] args)  {
@@ -62,10 +63,9 @@ public class transaction {
         
         
         for(int i=0;i<optDocidArray.length;i++) {
-        	txnobj= new TxnOperationId();
         	opt = optDocidArray[i].split("-")[0];
-        	txnobj.txnOperation = opt;
-        	txnobj.txnDocID = optDocidArray[i].split("-")[1];
+        	optDocid = optDocidArray[i].split("-")[1];
+        	txnobj= new TxnOperationId(opt, optDocid);
         	txnOptObj.add(txnobj);
         	if(!operationList.contains(opt))
         		operationList.add(opt);
@@ -144,14 +144,21 @@ public class transaction {
         }
     }
 
+    private static void insert() {
+    	
+    }
     private static void Usage(){
         System.out.println("\n Usage: \n");
         System.out.println("Please enter the command in below format: \n");
-        System.out.println("java -cp <Relative location to this Jar> com.couchbase.transaction  clusterIp=<YourClusterIp> operationDocids=<RequiredTransactionOperation> docId=<DocumentId>  \n");
+        System.out.println("java -cp <Relative location to this Jar> com.couchbase.transaction  clusterIp=<YourClusterIp> operationDocids=<operation-docid> doccontent=<json body as string with single quotes enclosed>\n");
     }
     
-    private static class TxnOperationId{
+    public static class TxnOperationId{
     	String txnOperation=null, txnDocID=null;
+    	TxnOperationId(String txnOperation, String txnDocID){
+    		this.txnOperation = txnOperation;
+    		this.txnDocID = txnDocID;
+    	}
     }
 
 }
