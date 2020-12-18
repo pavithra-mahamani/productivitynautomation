@@ -124,8 +124,11 @@ def parameters_for_job(server: Jenkins, name, number, version_number=None, s3_lo
         info = server.get_build_info(name, number)
     except jenkins.JenkinsException:
         if version_number and s3_logs_url:
-            info = requests.get("{}/{}/jenkins_logs/{}/{}/jobinfo.json".format(
-                s3_logs_url, version_number, name, number)).json()
+            try:
+                info = requests.get("{}/{}/jenkins_logs/{}/{}/jobinfo.json".format(
+                    s3_logs_url, version_number, name, number)).json()
+            except:
+                raise Exception("couldn't get parameters from s3")
         else:
             raise ValueError(
                 "no version number for build missing from jenkins")
@@ -141,19 +144,26 @@ def get_running_builds(server: Jenkins):
     builds_with_params = []
 
     for build in queued_builds:
-        parameters = parameters_from_actions(build["actions"])
-        builds_with_params.append({
-            "name": build["task"]["name"],
-            "parameters": parameters
-        })
+        if "task" in build and "name" in build["task"]:
+            try:
+                parameters = parameters_from_actions(build["actions"])
+                builds_with_params.append({
+                    "name": build["task"]["name"],
+                    "parameters": parameters
+                })
+            except Exception:
+                traceback.print_exc()
 
     for build in running_builds:
-        parameters = parameters_for_job(server, build['name'], build['number'])
-        builds_with_params.append({
-            "name": build['name'],
-            "number": build['number'],
-            "parameters": parameters
-        })
+        try:
+            parameters = parameters_for_job(server, build['name'], build['number'])
+            builds_with_params.append({
+                "name": build['name'],
+                "number": build['number'],
+                "parameters": parameters
+            })
+        except Exception:
+            traceback.print_exc()
 
     return builds_with_params
 
@@ -316,9 +326,6 @@ def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
 
         time.sleep(options.sleep)
 
-
-def run_test_dispatcher(cmd, testrunner_dir):
-    subprocess.call(cmd, shell=True, cwd=testrunner_dir)
 
 def filter_query(query: str, options):
     # options.failed -> failures or no tests passed
