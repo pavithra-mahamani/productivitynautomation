@@ -1,8 +1,12 @@
 package com.couchbase;
 
+import java.util.ArrayList;
+import java.util.UUID;
+
 import com.couchbase.client.java.Cluster;
 import com.couchbase.client.java.Collection;
 import com.couchbase.client.java.json.JsonObject;
+import com.couchbase.transactions.AttemptContext;
 import com.couchbase.transactions.TransactionGetResult;
 import com.couchbase.transactions.Transactions;
 import com.couchbase.transactions.config.TransactionConfigBuilder;
@@ -13,68 +17,104 @@ public class transaction {
     private final static String CONTENT_NAME= "content";
     private final static String CLUSTER_LOGIN_USERNAME= "Administrator";
     private final static String CLUSTER_LOGIN_PASSWORD= "password";
-    private final static JsonObject INITIAL = JsonObject.create().put(CONTENT_NAME, "initial");
-    private final static JsonObject UPDATED = JsonObject.create().put(CONTENT_NAME, "updated");
-
+    private static JsonObject doccontent = JsonObject.create();
     private static String clusterIP;
-
+    private static String bucket;
+    private static String docstring;
+    private static ArrayList<String> operationList = new ArrayList<String>();;
+    private static String temp_str;
+    private static JsonObject temp_obj;
+    private static String[] optDocidArray;
+    private static String operationDocids;
+    private static ArrayList<TxnOperationId> txnOptObj = new ArrayList<TxnOperationId>();
+    private static TxnOperationId txnobj;
+    private static  String opt;
+    private static  String optDocid;
+    
+   
     public static void main(String[] args)  {
-      //  String randomId = UUID.randomUUID().toString();
+        String randomId = UUID.randomUUID().toString();
         String docId = null;
-        String operation = "insert";
         for(String parameter : args) {
-            switch (parameter.split("=")[0].toLowerCase()) {
+			switch (parameter.split("=")[0].toLowerCase()) {
                 case "clusterip":
                     clusterIP= parameter.split("=")[1];
                     break;
-                case "operation":
-                    operation = parameter.split("=")[1];
+                case "operationdocids":
+                    operationDocids = parameter.split("=")[1];
+                    optDocidArray = operationDocids.split(",");
                     break;
-                case "docid":
-                    docId = parameter.split("=")[1];
-                    break;
+                case "bucket":
+                	bucket = parameter.split("=")[1];
+                	break;
+                case "doccontent":
+                	docstring = parameter.split("=")[1];
+                	doccontent = JsonObject.fromJson(docstring);              	
+                	break;
                 default:
-                    System.out.println("Unknown parameter is given as input. Exiting");
+                    System.out.println("Unknown parameter is given as input. Exiting " + parameter);
                     Usage();
                     System.exit(-1);
             }
         }
-
-
+        if(doccontent.isEmpty()) {
+        	doccontent = JsonObject.create().put(CONTENT_NAME, "initial");
+        	doccontent.put("id", randomId);
+        }
+        
+        
+        for(int i=0;i<optDocidArray.length;i++) {
+        	if(optDocidArray[i].contains("-")) {
+        		opt = optDocidArray[i].split("-")[0];
+        		if(optDocidArray[i].split("-").length>1) {
+	        		if(opt.equals("insert") || opt.equals("replace") || opt.equals("remove")) {
+	        			opt = optDocidArray[i].split("-")[0];
+	            		optDocid = optDocidArray[i].split("-")[1];
+	        		}
+	        		else
+	        			System.out.println("doc ids other than insert, replace and remove operatios will be ignored for other operations");
+        		}
+        		
+        	}
+        	else
+        		opt = optDocidArray[i];
+        	txnobj= new TxnOperationId(opt, optDocid);
+        	txnOptObj.add(txnobj);
+        }
+        
         try{
 
             //Cluster on which transactions are to be executed
             Cluster cluster = Cluster.connect(clusterIP, CLUSTER_LOGIN_USERNAME, CLUSTER_LOGIN_PASSWORD);
 
             //Collection in which transactions will be executed
-            Collection collectionForTxnOperations = cluster.bucket("default").defaultCollection();
+            Collection collectionForTxnOperations = cluster.bucket(bucket).defaultCollection();
 
             TransactionConfigBuilder builder = TransactionConfigBuilder.create();  // Default transaction Configuration
             Transactions transactions = Transactions.create(cluster, builder);  // Transaction factory with default config is created on the cluster
-            String finalOperation = operation;
+            
             String finalDocId = docId;
-           /* if(finalOperation.equals("insert")){
-                finalDocId = randomId;
-            }*/
-
+            
             transactions.run((ctx) -> {
                 TransactionGetResult result ;
-                switch(finalOperation){
-                    case "insert":
-                        ctx.insert(collectionForTxnOperations,finalDocId,INITIAL);
+                for(int j=0;j<txnOptObj.size();j++) {
+                switch(txnOptObj.get(j).txnOperation){
+                    case "insert":                    	
+                    	insert(ctx, txnOptObj.get(j).txnDocID, collectionForTxnOperations);
                         break;
                     case "get":
                         ctx.get(collectionForTxnOperations, finalDocId);
+                        result = ctx.get(collectionForTxnOperations, finalDocId);
+                        System.out.println("get of doc is " + result);
                         break;
                     case "getoptional":
                         ctx.getOptional(collectionForTxnOperations, finalDocId);
                         break;
                     case "replace":
-                        result =  ctx.get(collectionForTxnOperations, finalDocId);
-                        ctx.replace(result,UPDATED);
+                    	replace(ctx, txnOptObj.get(j).txnDocID, collectionForTxnOperations);
                         break;
                     case "remove":
-                        result =  ctx.get(collectionForTxnOperations, finalDocId);
+                    	result =  ctx.get(collectionForTxnOperations, txnOptObj.get(j).txnDocID);
                         ctx.remove(result);
                         break;
                     case "commit":
@@ -84,6 +124,7 @@ public class transaction {
                         ctx.rollback();
                         break;
                 }
+            }
             });
         } catch(TransactionFailed e) {
             System.out.println("Exception occurred while executing the transaction:" + e.getMessage());
@@ -94,9 +135,34 @@ public class transaction {
         }
     }
 
+    private static void insert(AttemptContext ctx, String txnid, Collection collectionForTxnOperations) {
+    	doccontent.put("id", txnid);
+        doccontent.put("content", "doc_content"+txnid);
+        ctx.insert(collectionForTxnOperations,txnid,doccontent);
+    }
+    private static void replace(AttemptContext ctx, String txnid, Collection collectionForTxnOperations) {
+    	TransactionGetResult result;
+    	result =  ctx.get(collectionForTxnOperations, txnid);
+        temp_obj = result.contentAsObject();
+        temp_str = temp_obj.get("id").toString();
+        temp_obj.put("id", temp_str+"_updated");
+        temp_str = temp_obj.get("content").toString();
+        temp_obj.put("content", temp_str+"_updated");
+        ctx.replace(result,temp_obj);
+    }
     private static void Usage(){
         System.out.println("\n Usage: \n");
         System.out.println("Please enter the command in below format: \n");
-        System.out.println("java -cp <Relative location to this Jar> com.couchbase.transaction  clusterIp=<YourClusterIp> operation=<RequiredTransactionOperation> docId=<DocumentId>  \n");
+        System.out.println("java -cp <Relative location to this Jar> com.couchbase.transaction  clusterIp=<YourClusterIp> operationDocids=<operation-docid> doccontent=<json body as string with single quotes enclosed>\n");
     }
+    
+    public static class TxnOperationId{
+    	String txnOperation=null, txnDocID=null;
+    	TxnOperationId(String txnOperation, String txnDocID){
+    		this.txnOperation = txnOperation;
+    		this.txnDocID = txnDocID;
+    	}
+    }
+
 }
+
