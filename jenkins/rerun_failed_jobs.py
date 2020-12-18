@@ -666,7 +666,7 @@ def setup_logs(options):
 
     with open(reruns_path, 'w') as csvfile:
         csv_writer = csv.writer(csvfile)
-        csv_writer.writerow(["timestamp", "name", "url", "fail_count", "total_count", "previous_builds", "current_build"])
+        csv_writer.writerow(["timestamp", "name", "url", "pass_count", "fail_count", "total_count", "result", "previous_builds", "current_build"])
    
 def log_reruns(options, jobs):
     _, _, reruns_path = log_paths(options)
@@ -678,7 +678,7 @@ def log_reruns(options, jobs):
         csv_rows = []
         previous_builds = options.previous_builds or []
         for job in jobs:
-            csv_rows.append([now, job['name'], job["url"]+str(job["build_id"]), job["failCount"], job["totalCount"], " ".join(previous_builds), options.build])
+            csv_rows.append([now, job['name'], job["url"]+str(job["build_id"]), job["totalCount"] - job["failCount"], job["failCount"], job["totalCount"], job["result"], " ".join(previous_builds), options.build])
         csv_writer.writerows(csv_rows)
 
 def validate_options(options, cluster: Cluster):
