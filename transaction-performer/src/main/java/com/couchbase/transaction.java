@@ -63,12 +63,22 @@ public class transaction {
         
         
         for(int i=0;i<optDocidArray.length;i++) {
-        	opt = optDocidArray[i].split("-")[0];
-        	optDocid = optDocidArray[i].split("-")[1];
+        	if(optDocidArray[i].contains("-")) {
+        		opt = optDocidArray[i].split("-")[0];
+        		if(optDocidArray[i].split("-").length>1) {
+	        		if(opt.equals("insert") || opt.equals("replace") || opt.equals("remove")) {
+	        			opt = optDocidArray[i].split("-")[0];
+	            		optDocid = optDocidArray[i].split("-")[1];
+	        		}
+	        		else
+	        			System.out.println("doc ids other than insert, replace and remove operatios will be ignored for other operations");
+        		}
+        		
+        	}
+        	else
+        		opt = optDocidArray[i];
         	txnobj= new TxnOperationId(opt, optDocid);
         	txnOptObj.add(txnobj);
-        	if(!operationList.contains(opt))
-        		operationList.add(opt);
         }
         
         try{
@@ -86,16 +96,12 @@ public class transaction {
             
             transactions.run((ctx) -> {
                 TransactionGetResult result ;
-                for(int j=0;j<operationList.size();j++) {
-                switch(operationList.get(j)){
+                for(int j=0;j<txnOptObj.size();j++) {
+                switch(txnOptObj.get(j).txnOperation){
                     case "insert":                    	
-                    	for(int i=0; i<txnOptObj.size(); i++) {
-                    		if(txnOptObj.get(i).txnOperation.equals("insert")) {
-	                    		doccontent.put("id", txnOptObj.get(i).txnDocID);
-	                        	doccontent.put("content", "doc_content"+txnOptObj.get(i).txnDocID);
-	                    		ctx.insert(collectionForTxnOperations,txnOptObj.get(i).txnDocID,doccontent);
-                    		}	
-                    	}
+                    	doccontent.put("id", txnOptObj.get(j).txnDocID);
+	                    doccontent.put("content", "doc_content"+txnOptObj.get(j).txnDocID);
+	                    ctx.insert(collectionForTxnOperations,txnOptObj.get(j).txnDocID,doccontent);
                         break;
                     case "get":
                         ctx.get(collectionForTxnOperations, finalDocId);
@@ -106,25 +112,17 @@ public class transaction {
                         ctx.getOptional(collectionForTxnOperations, finalDocId);
                         break;
                     case "replace":
-                    	for(int i=0; i<txnOptObj.size(); i++) {
-                    		if(txnOptObj.get(i).txnOperation.equals("replace")) {
-                    			result =  ctx.get(collectionForTxnOperations, txnOptObj.get(i).txnDocID);
-                        		temp_obj = result.contentAsObject();
-                        		temp_str = temp_obj.get("id").toString();
-                        		temp_obj.put("id", temp_str+"_updated");
-                        		temp_str = temp_obj.get("content").toString();
-                        		temp_obj.put("content", temp_str+"_updated");
-                        		ctx.replace(result,temp_obj);
-                    		}	
-                    	}
+                    	result =  ctx.get(collectionForTxnOperations, txnOptObj.get(j).txnDocID);
+                        temp_obj = result.contentAsObject();
+                        temp_str = temp_obj.get("id").toString();
+                        temp_obj.put("id", temp_str+"_updated");
+                        temp_str = temp_obj.get("content").toString();
+                        temp_obj.put("content", temp_str+"_updated");
+                        ctx.replace(result,temp_obj);
                         break;
                     case "remove":
-                    	for(int i=0; i<txnOptObj.size(); i++) {
-                    		if(txnOptObj.get(i).txnOperation.equals("remove")) {
-                    			result =  ctx.get(collectionForTxnOperations, txnOptObj.get(i).txnDocID);
-                        		ctx.remove(result);
-                    		}	
-                    	}
+                    	result =  ctx.get(collectionForTxnOperations, txnOptObj.get(j).txnDocID);
+                        ctx.remove(result);
                         break;
                     case "commit":
                         ctx.commit();
