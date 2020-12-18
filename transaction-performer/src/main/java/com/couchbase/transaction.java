@@ -6,6 +6,7 @@ import java.util.UUID;
 import com.couchbase.client.java.Cluster;
 import com.couchbase.client.java.Collection;
 import com.couchbase.client.java.json.JsonObject;
+import com.couchbase.transactions.AttemptContext;
 import com.couchbase.transactions.TransactionGetResult;
 import com.couchbase.transactions.Transactions;
 import com.couchbase.transactions.config.TransactionConfigBuilder;
@@ -99,9 +100,7 @@ public class transaction {
                 for(int j=0;j<txnOptObj.size();j++) {
                 switch(txnOptObj.get(j).txnOperation){
                     case "insert":                    	
-                    	doccontent.put("id", txnOptObj.get(j).txnDocID);
-	                    doccontent.put("content", "doc_content"+txnOptObj.get(j).txnDocID);
-	                    ctx.insert(collectionForTxnOperations,txnOptObj.get(j).txnDocID,doccontent);
+                    	insert(ctx, txnOptObj.get(j).txnDocID, collectionForTxnOperations);
                         break;
                     case "get":
                         ctx.get(collectionForTxnOperations, finalDocId);
@@ -112,13 +111,7 @@ public class transaction {
                         ctx.getOptional(collectionForTxnOperations, finalDocId);
                         break;
                     case "replace":
-                    	result =  ctx.get(collectionForTxnOperations, txnOptObj.get(j).txnDocID);
-                        temp_obj = result.contentAsObject();
-                        temp_str = temp_obj.get("id").toString();
-                        temp_obj.put("id", temp_str+"_updated");
-                        temp_str = temp_obj.get("content").toString();
-                        temp_obj.put("content", temp_str+"_updated");
-                        ctx.replace(result,temp_obj);
+                    	replace(ctx, txnOptObj.get(j).txnDocID, collectionForTxnOperations);
                         break;
                     case "remove":
                     	result =  ctx.get(collectionForTxnOperations, txnOptObj.get(j).txnDocID);
@@ -142,8 +135,20 @@ public class transaction {
         }
     }
 
-    private static void insert() {
-    	
+    private static void insert(AttemptContext ctx, String txnid, Collection collectionForTxnOperations) {
+    	doccontent.put("id", txnid);
+        doccontent.put("content", "doc_content"+txnid);
+        ctx.insert(collectionForTxnOperations,txnid,doccontent);
+    }
+    private static void replace(AttemptContext ctx, String txnid, Collection collectionForTxnOperations) {
+    	TransactionGetResult result;
+    	result =  ctx.get(collectionForTxnOperations, txnid);
+        temp_obj = result.contentAsObject();
+        temp_str = temp_obj.get("id").toString();
+        temp_obj.put("id", temp_str+"_updated");
+        temp_str = temp_obj.get("content").toString();
+        temp_obj.put("content", temp_str+"_updated");
+        ctx.replace(result,temp_obj);
     }
     private static void Usage(){
         System.out.println("\n Usage: \n");
