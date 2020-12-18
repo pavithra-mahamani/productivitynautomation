@@ -253,6 +253,33 @@ def get_duplicate_jobs(running_builds, job_name, parameters, options):
     return duplicates
 
 
+def latest_jenkins_builds(options):
+    latest_builds = []
+    try:
+        response = requests.get(options.jenkins_url + "/api/json?tree=jobs[url,name,builds[url,number,actions[parameters[name,value]]]]").json()
+        for job in response["jobs"]:
+            for build in job["builds"]:
+                parameters = parameters_from_actions(build["actions"])
+                latest_builds.append({
+                    "name": job['name'],
+                    "number": build['number'],
+                    "parameters": parameters
+                })
+    except Exception:
+        traceback.print_exc()
+    return latest_builds
+
+
+# jinja (jenkins collector) can take a few minutes to collect a build
+# make sure there is no build in jenkins newer than in the bucket
+def newer_build_in_jenkins(job, parameters, latest_jenkins_builds, options):
+    for duplicate in get_duplicate_jobs(latest_jenkins_builds, job["name"], parameters, options):
+        # get_duplicate_jobs can return dispatcher jobs
+        if duplicate["name"] == job["name"] and duplicate["number"] > job["build_id"]:
+            return True
+    return False
+
+
 def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
     jobs = list(cluster.query("SELECT name, component, url, build_id, `build` FROM server WHERE `build`= '{}' AND url LIKE '{}/job/%'".format(options.previous_builds[0], options.jenkins_url)))
     previous_jobs = set()
@@ -443,6 +470,7 @@ def rerun_worse(cluster: Cluster, job, options):
 def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, pool_thresholds_hit):
     logger.info("filtering {} jobs".format(len(jobs)))
     running_builds = get_running_builds(server)
+    latest_builds = latest_jenkins_builds(options)
     filtered_jobs = []
     already_filtered = set()
     for job in jobs:
@@ -477,6 +505,10 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, pool_threshold
             # only run dispatcher jobs
             if "dispatcher_params" not in parameters and options.dispatcher_jobs:
                 logger.debug("skipping {} (non dispatcher job)".format(job["name"]))
+                continue
+
+            if newer_build_in_jenkins(job, parameters, latest_builds, options):
+                logger.debug("skipping {} (newer build in jenkins)".format(job["name"]))
                 continue
 
             duplicates = get_duplicate_jobs(running_builds, job_name, parameters, options)
