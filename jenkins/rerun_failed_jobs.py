@@ -124,8 +124,11 @@ def parameters_for_job(server: Jenkins, name, number, version_number=None, s3_lo
         info = server.get_build_info(name, number)
     except jenkins.JenkinsException:
         if version_number and s3_logs_url:
-            info = requests.get("{}/{}/jenkins_logs/{}/{}/jobinfo.json".format(
-                s3_logs_url, version_number, name, number)).json()
+            try:
+                info = requests.get("{}/{}/jenkins_logs/{}/{}/jobinfo.json".format(
+                    s3_logs_url, version_number, name, number)).json()
+            except:
+                raise Exception("couldn't get parameters from s3")
         else:
             raise ValueError(
                 "no version number for build missing from jenkins")
@@ -141,19 +144,26 @@ def get_running_builds(server: Jenkins):
     builds_with_params = []
 
     for build in queued_builds:
-        parameters = parameters_from_actions(build["actions"])
-        builds_with_params.append({
-            "name": build["task"]["name"],
-            "parameters": parameters
-        })
+        if "task" in build and "name" in build["task"]:
+            try:
+                parameters = parameters_from_actions(build["actions"])
+                builds_with_params.append({
+                    "name": build["task"]["name"],
+                    "parameters": parameters
+                })
+            except Exception:
+                traceback.print_exc()
 
     for build in running_builds:
-        parameters = parameters_for_job(server, build['name'], build['number'])
-        builds_with_params.append({
-            "name": build['name'],
-            "number": build['number'],
-            "parameters": parameters
-        })
+        try:
+            parameters = parameters_for_job(server, build['name'], build['number'])
+            builds_with_params.append({
+                "name": build['name'],
+                "number": build['number'],
+                "parameters": parameters
+            })
+        except Exception:
+            traceback.print_exc()
 
     return builds_with_params
 
@@ -170,6 +180,10 @@ def get_duplicate_jobs(running_builds, job_name, parameters, options):
 
                 # check if duplicate executor job
                 if running_build["name"] == job_name:
+
+                    # executor job with different os
+                    if running_build["parameters"]["os"] != parameters["os"]:
+                        continue
 
                     # executor job with different component
                     if running_build["parameters"]["component"] != parameters["component"]:
@@ -198,6 +212,9 @@ def get_duplicate_jobs(running_builds, job_name, parameters, options):
                     for dispatcher_name in dispatcher_names:
 
                         if running_build["name"] != dispatcher_name:
+                            continue
+
+                        if running_build["parameters"]["OS"] != parameters["os"]:
                             continue
 
                         if running_build["parameters"]["component"] != parameters["component"]:
@@ -234,6 +251,33 @@ def get_duplicate_jobs(running_builds, job_name, parameters, options):
             continue
 
     return duplicates
+
+
+def latest_jenkins_builds(options):
+    latest_builds = []
+    try:
+        response = requests.get(options.jenkins_url + "/api/json?tree=jobs[url,name,builds[url,number,actions[parameters[name,value]]]]").json()
+        for job in response["jobs"]:
+            for build in job["builds"]:
+                parameters = parameters_from_actions(build["actions"])
+                latest_builds.append({
+                    "name": job['name'],
+                    "number": build['number'],
+                    "parameters": parameters
+                })
+    except Exception:
+        traceback.print_exc()
+    return latest_builds
+
+
+# jinja (jenkins collector) can take a few minutes to collect a build
+# make sure there is no build in jenkins newer than in the bucket
+def newer_build_in_jenkins(job, parameters, latest_jenkins_builds, options):
+    for duplicate in get_duplicate_jobs(latest_jenkins_builds, job["name"], parameters, options):
+        # get_duplicate_jobs can return dispatcher jobs
+        if duplicate["name"] == job["name"] and duplicate["number"] > job["build_id"]:
+            return True
+    return False
 
 
 def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
@@ -309,9 +353,6 @@ def wait_for_main_run(options, cluster: Cluster, server: Jenkins):
 
         time.sleep(options.sleep)
 
-
-def run_test_dispatcher(cmd, testrunner_dir):
-    subprocess.call(cmd, shell=True, cwd=testrunner_dir)
 
 def filter_query(query: str, options):
     # options.failed -> failures or no tests passed
@@ -429,6 +470,7 @@ def rerun_worse(cluster: Cluster, job, options):
 def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, pool_thresholds_hit):
     logger.info("filtering {} jobs".format(len(jobs)))
     running_builds = get_running_builds(server)
+    latest_builds = latest_jenkins_builds(options)
     filtered_jobs = []
     already_filtered = set()
     for job in jobs:
@@ -463,6 +505,10 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, pool_threshold
             # only run dispatcher jobs
             if "dispatcher_params" not in parameters and options.dispatcher_jobs:
                 logger.debug("skipping {} (non dispatcher job)".format(job["name"]))
+                continue
+
+            if newer_build_in_jenkins(job, parameters, latest_builds, options):
+                logger.debug("skipping {} (newer build in jenkins)".format(job["name"]))
                 continue
 
             duplicates = get_duplicate_jobs(running_builds, job_name, parameters, options)
@@ -659,7 +705,7 @@ def setup_logs(options):
 
     with open(reruns_path, 'w') as csvfile:
         csv_writer = csv.writer(csvfile)
-        csv_writer.writerow(["timestamp", "name", "url", "fail_count", "total_count", "previous_builds", "current_build"])
+        csv_writer.writerow(["timestamp", "name", "url", "pass_count", "fail_count", "total_count", "result", "previous_builds", "current_build"])
    
 def log_reruns(options, jobs):
     _, _, reruns_path = log_paths(options)
@@ -671,7 +717,7 @@ def log_reruns(options, jobs):
         csv_rows = []
         previous_builds = options.previous_builds or []
         for job in jobs:
-            csv_rows.append([now, job['name'], job["url"]+str(job["build_id"]), job["failCount"], job["totalCount"], " ".join(previous_builds), options.build])
+            csv_rows.append([now, job['name'], job["url"]+str(job["build_id"]), job["totalCount"] - job["failCount"], job["failCount"], job["totalCount"], job["result"], " ".join(previous_builds), options.build])
         csv_writer.writerows(csv_rows)
 
 def validate_options(options, cluster: Cluster):
