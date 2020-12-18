@@ -171,6 +171,10 @@ def get_duplicate_jobs(running_builds, job_name, parameters, options):
                 # check if duplicate executor job
                 if running_build["name"] == job_name:
 
+                    # executor job with different os
+                    if running_build["parameters"]["os"] != parameters["os"]:
+                        continue
+
                     # executor job with different component
                     if running_build["parameters"]["component"] != parameters["component"]:
                         continue
@@ -198,6 +202,9 @@ def get_duplicate_jobs(running_builds, job_name, parameters, options):
                     for dispatcher_name in dispatcher_names:
 
                         if running_build["name"] != dispatcher_name:
+                            continue
+
+                        if running_build["parameters"]["OS"] != parameters["os"]:
                             continue
 
                         if running_build["parameters"]["component"] != parameters["component"]:
