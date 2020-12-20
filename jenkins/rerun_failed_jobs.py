@@ -426,14 +426,9 @@ def passes_pool_threshold(cluster: Cluster, parameters, options, pool_thresholds
 
     # if none of the pools are available, skip if options.maintain_threshold is true
 
-    found = False
     query = "select count(*) as count from `QE-server-pool` where state = '{0}' and (poolId = '{1}' or '{1}' in poolId)"
 
     for pool in pools:
-
-        if not options.maintain_threshold and pool in pool_thresholds_hit:
-            found = True
-            continue
 
         available = list(cluster.query(query.format("available", pool)))[0]['count']
         booked = list(cluster.query(query.format("booked", pool)))[0]['count']
@@ -445,13 +440,15 @@ def passes_pool_threshold(cluster: Cluster, parameters, options, pool_thresholds
         percent_available = (available/total) * 100
 
         if percent_available >= options.pools_threshold_percent or available >= options.pools_threshold_num:
-            found = True
             if pool not in pool_thresholds_hit:
                 pool_thresholds_hit.append(pool)
+        else:
+            if options.maintain_pools or pool not in pool_thresholds_hit:
+                return False
     
     parameters["dispatcher_params"]["serverPoolId"] = ",".join(pools)
 
-    return found
+    return True
 
 def rerun_worse(cluster: Cluster, job, options):
     query = "select raw os.`{}`.`{}`.`{}` from greenboard where `build` = '{}' and type = 'server'".format(job["os"], job["component"], job["name"], options.build)
