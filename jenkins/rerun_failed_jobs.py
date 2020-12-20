@@ -272,12 +272,13 @@ def latest_jenkins_builds(options):
 
 # jinja (jenkins collector) can take a few minutes to collect a build
 # make sure there is no build in jenkins newer than in the bucket
-def newer_build_in_jenkins(job, parameters, latest_jenkins_builds, options):
-    for duplicate in get_duplicate_jobs(latest_jenkins_builds, job["name"], parameters, options):
+def newer_build_in_jenkins(job_name, job, parameters, latest_jenkins_builds, options):
+    duplicates = get_duplicate_jobs(latest_jenkins_builds, job_name, parameters, options)
+    for duplicate in duplicates:
         # get_duplicate_jobs can return dispatcher jobs
-        if duplicate["name"] == job["name"] and duplicate["number"] > job["build_id"]:
-            return True
-    return False
+        if duplicate["name"] == job_name and duplicate["number"] > job["build_id"]:
+            return True, duplicates
+    return False, duplicates
 
 
 def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
@@ -507,15 +508,18 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, pool_threshold
                 logger.debug("skipping {} (non dispatcher job)".format(job["name"]))
                 continue
 
-            if newer_build_in_jenkins(job, parameters, latest_builds, options):
-                logger.debug("skipping {} (newer build in jenkins)".format(job["name"]))
-                continue
+            is_newer, newer_builds = newer_build_in_jenkins(job_name, job, parameters, latest_builds, options)
+            already_running = get_duplicate_jobs(running_builds, job_name, parameters, options)
 
-            duplicates = get_duplicate_jobs(running_builds, job_name, parameters, options)
+            if is_newer:
+                for build in newer_builds:
+                    if build not in already_running:
+                        logger.debug("skipping {} (newer build in jenkins)".format(job["name"]))
+                        continue
 
-            if len(duplicates) > 0:
+            if len(already_running) > 0:
                 if options.stop:
-                    for build in duplicates:
+                    for build in already_running:
                         if "number" in build:
                             logger.info(
                                 "aborting {}/{}".format(build['name'], build['number']))
