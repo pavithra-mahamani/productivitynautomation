@@ -10,7 +10,6 @@ import traceback
 import requests
 import jenkins
 import time
-import subprocess
 import os
 import csv
 
@@ -365,7 +364,20 @@ def filter_query(query: str, options):
     # options.failed -> failures or no tests passed
     # options.aborted -> result is aborted
 
-    filter = None
+    filter = ""
+
+    if options.failed:
+        filter = "failCount > 0 OR failCount = totalCount"
+    
+    if options.aborted:
+        if filter != "":
+            filter += " OR "
+        filter += "result = 'ABORTED'"
+
+    if options.failed_jobs:
+        if filter != "":
+            filter += " OR "
+        filter += "result = 'FAILURE'"
 
     if options.failed and options.aborted:
         filter = "(failCount > 0 OR failCount = totalCount OR result = 'ABORTED')"
@@ -374,7 +386,7 @@ def filter_query(query: str, options):
     elif options.aborted:
         filter = "result = 'ABORTED'"
 
-    if filter:
+    if filter != "":
         query += " AND {}".format(filter)
 
     if options.os:
