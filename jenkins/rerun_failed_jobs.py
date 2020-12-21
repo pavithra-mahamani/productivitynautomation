@@ -472,6 +472,10 @@ def rerun_worse(cluster: Cluster, job, options):
     latest_rerun = all_runs[0]
     fresh_run = all_runs[len(all_runs) - 1]
 
+    # if fresh run was failure, failCount will be 0 so anything higher would cause another rerun
+    if fresh_run["result"] == "FAILURE" and latest_rerun["result"] != "FAILURE":
+        return False
+
     return latest_rerun["failCount"] > fresh_run["failCount"] or latest_rerun["totalCount"] < fresh_run["totalCount"]
 
 
