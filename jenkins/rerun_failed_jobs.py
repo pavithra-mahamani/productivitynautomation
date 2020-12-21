@@ -427,16 +427,15 @@ def passes_max_rerun_filter(cluster: Cluster, job, options):
 
     return reruns < options.max_reruns
 
-def passes_pool_threshold(cluster: Cluster, parameters, options, pool_thresholds_hit):
+def passes_pool_threshold(cluster: Cluster, dispatcher_name, dispatcher_params, options, pool_thresholds_hit):
     # if any pool ids in serverPoolId are in options.merge_pools 
     # then add the other pools in options.merge_pools to serverPoolId
     # e.g. serverPoolId = os_certification,regression options.merge_pools=regression,12hrreg
     # serverPoolId becomes os_certification,regression,12hrreg
-    pool_ids = set(parameters["dispatcher_params"]["serverPoolId"].split(","))
+    pool_ids = set(dispatcher_params["serverPoolId"].split(","))
     pools = pool_ids.copy()
 
     # only test_suite_dispatcher supports multiple pools for now
-    dispatcher_name = job_name_from_url(options.jenkins_url, parameters["dispatcher_params"]['dispatcher_url'])
     if dispatcher_name == "test_suite_dispatcher" and options.merge_pools:
         for pool in pool_ids:
             if pool in options.merge_pools:
@@ -465,7 +464,7 @@ def passes_pool_threshold(cluster: Cluster, parameters, options, pool_thresholds
             if options.maintain_threshold or pool not in pool_thresholds_hit:
                 return False
     
-    parameters["dispatcher_params"]["serverPoolId"] = ",".join(pools)
+    dispatcher_params["serverPoolId"] = ",".join(pools)
 
     return True
 
@@ -484,15 +483,13 @@ def rerun_worse(cluster: Cluster, job, options):
     return latest_rerun["failCount"] > fresh_run["failCount"] or latest_rerun["totalCount"] < fresh_run["totalCount"]
 
 
-def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, pool_thresholds_hit):
+def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue):
     logger.info("filtering {} jobs".format(len(jobs)))
     running_builds = get_running_builds(server)
     latest_builds = latest_jenkins_builds(options)
-    filtered_jobs = []
-    already_filtered = set()
     for job in jobs:
 
-        if job["name"] in already_filtered:
+        if job["name"] in queue:
             continue
 
         try:
@@ -514,10 +511,6 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, pool_threshold
             if "dispatcher_params" in parameters:
                 dispatcher_params = json.loads(parameters['dispatcher_params'][11:])
                 parameters["dispatcher_params"] = dispatcher_params
-
-                if not passes_pool_threshold(cluster, parameters, options, pool_thresholds_hit):
-                    logger.debug("skipping {} (pool threshold not met)".format(job["name"]))
-                    continue
 
             # only run dispatcher jobs
             if "dispatcher_params" not in parameters and options.dispatcher_jobs:
@@ -591,19 +584,19 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, pool_threshold
                             continue
 
             job["parameters"] = parameters
-            filtered_jobs.append(job)
-            already_filtered.add(job["name"])
+            queue[job["name"]] = job
 
         except Exception:
             traceback.print_exc()
             continue
 
-    return filtered_jobs
 
-def rerun_jobs(jobs, server: Jenkins, options):
+def rerun_jobs(queue, server: Jenkins, cluster, pool_thresholds_hit, options):
     already_dispatching = {}
 
-    for job in jobs:
+    triggered = []
+
+    for job in queue:
         job_name = job_name_from_url(options.jenkins_url, job['url'])
 
         try:
@@ -616,6 +609,8 @@ def rerun_jobs(jobs, server: Jenkins, options):
                     server.build_job(job_name, parameters)
 
                 logger.info("Triggered {} with parameters {}".format(job_name, parameters))
+
+                triggered.append(job["name"])
 
             else:
 
@@ -662,11 +657,13 @@ def rerun_jobs(jobs, server: Jenkins, options):
                         if parameters['subcomponent'] not in subcomponents['subcomponents']:
                             subcomponents['subcomponents'].append(
                                 parameters['subcomponent'])
+                            subcomponents["job_names"].append(job["name"])
 
                 if not found:
                     already_dispatching_component.append({
                         "params": dispatcher_params,
-                        "subcomponents": [parameters['subcomponent']]
+                        "subcomponents": [parameters['subcomponent']],
+                        "job_names": [job["name"]]
                     })
         
         except Exception:
@@ -682,14 +679,25 @@ def rerun_jobs(jobs, server: Jenkins, options):
                     dispatcher_params['subcomponent'] = ",".join(
                         job['subcomponents'])
 
+                    if not passes_pool_threshold(cluster, dispatcher_name, dispatcher_params, options, pool_thresholds_hit):
+                        continue
+
                     if not options.noop:
                         server.build_job(dispatcher_name, dispatcher_params)
                         time.sleep(options.dispatch_delay)
 
                     logger.info("Triggered {} with parameters {}".format(dispatcher_name, dispatcher_params))
+
+                    # each subcomponent will be its own job
+                    for job_name in job["job_names"]:
+                        queue.pop(job_name)
+                        triggered.append(job_name)
+
                 except:
                     traceback.print_exc()
                     continue
+
+    return triggered
 
 def log_paths(options):
     major_version = options.build[0]
@@ -788,6 +796,7 @@ if __name__ == "__main__":
         wait_for_main_run(options, cluster, server)
 
     pool_thresholds_hit = []
+    queue = {}
 
     # timeout after 20 hours
     timeout = time.time() + (options.timeout * 60 * 60)
@@ -795,25 +804,32 @@ if __name__ == "__main__":
     while True:
         try:
             jobs = all_failed_jobs(cluster, options)
-            jobs = filter_jobs(jobs, cluster, server, options, pool_thresholds_hit)
+            filter_jobs(jobs, cluster, server, options, queue)
 
             if len(jobs) > 0:
-                rerun_jobs(jobs, server, options)
-                log_reruns(options, jobs)
+                triggered_jobs = rerun_jobs(jobs, server, cluster, pool_thresholds_hit, options)
+                log_reruns(options, triggered_jobs)
+
+            num_still_to_run = 0
 
             if options.wait_for_main_run:
                 previous_jobs, still_to_run, component_map = get_jobs_still_to_run(options, cluster, server)
+                num_still_to_run = len(still_to_run)
                 if len(still_to_run) > 0:
                     logger.info("{} more jobs from the main run to finish".format(len(still_to_run)))
                     for job_name in still_to_run:
                         logger.debug(job_name)
 
                 log_progress(options, previous_jobs, still_to_run, component_map)
-                    
-                if time.time() > timeout or len(still_to_run) == 0:
-                    break
-            else:
+            
+            if len(queue) == 0 and (time.time() > timeout or (options.wait_for_main_run and num_still_to_run == 0)):
                 break
+
+            if len(queue) > 0:
+                logger.info("{} jobs in rerun queue".format(len(queue)))
+                for job in queue:
+                    logger.debug(job["name"])
+
         except Exception:
             traceback.print_exc()
 
