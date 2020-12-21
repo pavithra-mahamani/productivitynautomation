@@ -587,7 +587,7 @@ def rerun_jobs(queue, server: Jenkins, cluster, pool_thresholds_hit, options):
 
     triggered = []
 
-    for job in queue:
+    for job in queue.values():
         job_name = job_name_from_url(options.jenkins_url, job['url'])
 
         try:
@@ -601,7 +601,7 @@ def rerun_jobs(queue, server: Jenkins, cluster, pool_thresholds_hit, options):
 
                 logger.info("Triggered {} with parameters {}".format(job_name, parameters))
 
-                triggered.append(job["name"])
+                triggered.append(job)
 
             else:
 
@@ -648,13 +648,13 @@ def rerun_jobs(queue, server: Jenkins, cluster, pool_thresholds_hit, options):
                         if parameters['subcomponent'] not in subcomponents['subcomponents']:
                             subcomponents['subcomponents'].append(
                                 parameters['subcomponent'])
-                            subcomponents["job_names"].append(job["name"])
+                            subcomponents["jobs"].append(job)
 
                 if not found:
                     already_dispatching_component.append({
                         "params": dispatcher_params,
                         "subcomponents": [parameters['subcomponent']],
-                        "job_names": [job["name"]]
+                        "jobs": [job]
                     })
         
         except Exception:
@@ -680,13 +680,15 @@ def rerun_jobs(queue, server: Jenkins, cluster, pool_thresholds_hit, options):
                     logger.info("Triggered {} with parameters {}".format(dispatcher_name, dispatcher_params))
 
                     # each subcomponent will be its own job
-                    for job_name in job["job_names"]:
-                        queue.pop(job_name)
-                        triggered.append(job_name)
+                    for j in job["jobs"]:
+                        triggered.append(j)
 
                 except:
                     traceback.print_exc()
                     continue
+
+    for job in triggered:
+        queue.pop(job["name"])
 
     return triggered
 
@@ -798,7 +800,7 @@ if __name__ == "__main__":
             filter_jobs(jobs, cluster, server, options, queue)
 
             if len(jobs) > 0:
-                triggered_jobs = rerun_jobs(jobs, server, cluster, pool_thresholds_hit, options)
+                triggered_jobs = rerun_jobs(queue, server, cluster, pool_thresholds_hit, options)
                 log_reruns(options, triggered_jobs)
 
             num_still_to_run = 0
@@ -818,8 +820,8 @@ if __name__ == "__main__":
 
             if len(queue) > 0:
                 logger.info("{} jobs in rerun queue".format(len(queue)))
-                for job in queue:
-                    logger.debug(job["name"])
+                for job_name in queue:
+                    logger.debug(job_name)
 
         except Exception:
             traceback.print_exc()
