@@ -12,6 +12,7 @@ import jenkins
 import time
 import os
 import csv
+from copy import deepcopy
 
 logger = logging.getLogger("rerun_failed_jobs")
 logger.setLevel(logging.DEBUG)
@@ -592,7 +593,7 @@ def rerun_jobs(queue, server: Jenkins, cluster, pool_thresholds_hit, options):
 
         try:
 
-            parameters = job["parameters"]
+            parameters = deepcopy(job["parameters"])
 
             if 'dispatcher_params' not in parameters:
 
