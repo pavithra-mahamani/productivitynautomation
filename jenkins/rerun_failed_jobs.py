@@ -774,24 +774,26 @@ if __name__ == "__main__":
     timeout = time.time() + (options.timeout * 60 * 60)
 
     while True:
+        try:
+            jobs = all_failed_jobs(cluster, options)
+            jobs = filter_jobs(jobs, cluster, server, options, pool_thresholds_hit)
 
-        jobs = all_failed_jobs(cluster, options)
-        jobs = filter_jobs(jobs, cluster, server, options, pool_thresholds_hit)
+            if len(jobs) > 0:
+                rerun_jobs(jobs, server, options)
+                log_reruns(options, jobs)
 
-        if len(jobs) > 0:
-            rerun_jobs(jobs, server, options)
-            log_reruns(options, jobs)
+            if options.wait_for_main_run:
+                previous_jobs, still_to_run, component_map = get_jobs_still_to_run(options, cluster, server)
+                if len(still_to_run) > 0:
+                    logger.info("{} more jobs from the main run to finish".format(len(still_to_run)))
 
-        if options.wait_for_main_run:
-            previous_jobs, still_to_run, component_map = get_jobs_still_to_run(options, cluster, server)
-            if len(still_to_run) > 0:
-                logger.info("{} more jobs from the main run to finish".format(len(still_to_run)))
-
-            log_progress(options, previous_jobs, still_to_run, component_map)
-                
-            if time.time() > timeout or len(still_to_run) == 0:
+                log_progress(options, previous_jobs, still_to_run, component_map)
+                    
+                if time.time() > timeout or len(still_to_run) == 0:
+                    break
+            else:
                 break
-        else:
-            break
+        except Exception:
+            pass
 
         time.sleep(options.sleep)
