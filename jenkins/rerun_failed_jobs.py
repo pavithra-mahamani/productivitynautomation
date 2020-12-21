@@ -786,6 +786,8 @@ if __name__ == "__main__":
                 previous_jobs, still_to_run, component_map = get_jobs_still_to_run(options, cluster, server)
                 if len(still_to_run) > 0:
                     logger.info("{} more jobs from the main run to finish".format(len(still_to_run)))
+                    for job_name in still_to_run:
+                        logger.debug(job_name)
 
                 log_progress(options, previous_jobs, still_to_run, component_map)
                     
