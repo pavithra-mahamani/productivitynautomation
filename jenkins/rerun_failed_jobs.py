@@ -258,14 +258,20 @@ def latest_jenkins_builds(options):
     latest_builds = []
 
     for job_to_check in jobs_to_check:
-        response = requests.get("{}/job/{}/api/json?tree=allBuilds[url,number,actions[parameters[name,value]]]".format(options.jenkins_url, job_to_check)).json()
-        for build in response["builds"]:
-            parameters = parameters_from_actions(build["actions"])
-            latest_builds.append({
-                "name": job_to_check,
-                "number": build['number'],
-                "parameters": parameters
-            })
+        while True:
+            try:
+                response = requests.get("{}/job/{}/api/json?tree=allBuilds[url,number,actions[parameters[name,value]]]".format(options.jenkins_url, job_to_check)).json()
+            except Exception:
+                time.sleep(5)
+            else:
+                for build in response["allBuilds"]:
+                    parameters = parameters_from_actions(build["actions"])
+                    latest_builds.append({
+                        "name": job_to_check,
+                        "number": build['number'],
+                        "parameters": parameters
+                    })
+                break
 
     return latest_builds
 
@@ -796,6 +802,6 @@ if __name__ == "__main__":
             else:
                 break
         except Exception:
-            pass
+            traceback.print_exc()
 
         time.sleep(options.sleep)
