@@ -254,19 +254,19 @@ def get_duplicate_jobs(running_builds, job_name, parameters, options):
 
 
 def latest_jenkins_builds(options):
+    jobs_to_check = ["test_suite_executor", "test_suite_executor-dynvm", "test_suite_executor-jython", "test_suite_executor-TAF"]
     latest_builds = []
-    try:
-        response = requests.get(options.jenkins_url + "/api/json?tree=jobs[url,name,builds[url,number,actions[parameters[name,value]]]]").json()
-        for job in response["jobs"]:
-            for build in job["builds"]:
-                parameters = parameters_from_actions(build["actions"])
-                latest_builds.append({
-                    "name": job['name'],
-                    "number": build['number'],
-                    "parameters": parameters
-                })
-    except Exception:
-        traceback.print_exc()
+
+    for job_to_check in jobs_to_check:
+        response = requests.get("{}/job/{}/api/json?tree=allBuilds[url,number,actions[parameters[name,value]]]".format(options.jenkins_url, job_to_check)).json()
+        for build in response["builds"]:
+            parameters = parameters_from_actions(build["actions"])
+            latest_builds.append({
+                "name": job_to_check,
+                "number": build['number'],
+                "parameters": parameters
+            })
+
     return latest_builds
 
 
