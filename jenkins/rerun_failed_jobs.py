@@ -74,6 +74,7 @@ def parse_arguments():
     parser.add_option("--merge-pools", dest="merge_pools", help="List of pools that can be used interchangeably")
     parser.add_option("--maintain-threshold", dest="maintain_threshold", help="Check pool availability every time before dispatching", action="store_true", default=False)
     parser.add_option("--override-dispatcher", dest="override_dispatcher", default="test_suite_dispatcher_multiple_pools")
+    parser.add_option("--failed-jobs", dest="failed_jobs", default=False, action="store_true")
 
     options, _ = parser.parse_args()
 
