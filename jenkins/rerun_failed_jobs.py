@@ -443,7 +443,7 @@ def passes_pool_threshold(cluster: Cluster, parameters, options, pool_thresholds
             if pool not in pool_thresholds_hit:
                 pool_thresholds_hit.append(pool)
         else:
-            if options.maintain_pools or pool not in pool_thresholds_hit:
+            if options.maintain_threshold or pool not in pool_thresholds_hit:
                 return False
     
     parameters["dispatcher_params"]["serverPoolId"] = ",".join(pools)
