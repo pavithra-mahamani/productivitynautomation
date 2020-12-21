@@ -509,13 +509,18 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, pool_threshold
             already_running = get_duplicate_jobs(running_builds, job_name, parameters, options)
 
             if is_newer:
+                should_skip = False
                 for build in newer_builds:
                     if build not in already_running:
-                        logger.debug("skipping {} (newer build in jenkins)".format(job["name"]))
-                        continue
+                        should_skip = True
+                        break
+                if should_skip:
+                    logger.debug("skipping {} (newer build in jenkins)".format(job["name"]))
+                    continue
 
             if len(already_running) > 0:
                 if options.stop:
+                    should_skip = False
                     for build in already_running:
                         if "number" in build:
                             logger.info(
@@ -523,9 +528,11 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, pool_threshold
                             if not options.noop:
                                 server.stop_build(build['name'], build['number'])
                         else:
-                            # duplicate queued job, don't stop it
-                            logger.debug("skipping {} (already queued)".format(job["name"]))
-                            continue
+                            should_skip = True
+                    if should_skip:    
+                        # duplicate queued job, don't stop it
+                        logger.debug("skipping {} (already queued)".format(job["name"]))
+                        continue
                 else:
                     logger.debug("skipping {} (already running or waiting to be dispatched)".format(job["name"]))
                     continue
