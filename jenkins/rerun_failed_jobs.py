@@ -698,7 +698,7 @@ def rerun_jobs(queue, server: Jenkins, cluster, pool_thresholds_hit, options):
     return triggered
 
 def log_paths(options):
-    major_version = options.build[0]
+    major_version = options.build.split("-")[0]
     if options.output:
         waiting_path = os.path.join(options.output, major_version + WAITING_PATH)
         component_progress_path = os.path.join(options.output, major_version + COMPONENT_PROGRESS_PATH)
