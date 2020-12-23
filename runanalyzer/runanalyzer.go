@@ -659,7 +659,11 @@ func getreruntotalbuildcycleduration(buildN string) int {
 				//	key, totalTestCount, totalFailCount, totalAborted, totalFailed, totalUnstable, totalSuccess, totalDuration, len(value), totalJobs,
 				//	totalRuns, totalReruns, reranJobCount)
 				var totalPassCount = totalTestCount - totalFailCount
-				var totalPassRate = (totalPassCount * 100) / totalTestCount
+				var totalPassRate = 0
+				// prevent divide by zero
+				if totalPassCount > 0 {
+					totalPassRate = (totalPassCount * 100) / totalTestCount
+				}
 				var totalComps = len(value)
 				hours := math.Floor(float64(totalGrandDuration) / 1000 / 60 / 60)
 				secs := totalDuration % (1000 * 60 * 60)
@@ -964,7 +968,11 @@ func getreruntotalbuildcycledurationclocktime(buildN string) int {
 				//	key, totalTestCount, totalFailCount, totalAborted, totalFailed, totalUnstable, totalSuccess, totalDuration, len(value), totalJobs,
 				//	totalRuns, totalReruns, reranJobCount)
 				var totalPassCount = totalTestCount - totalFailCount
-				var totalPassRate = (totalPassCount * 100) / totalTestCount
+				var totalPassRate = 0
+				// prevent divide by zero
+				if totalPassCount > 0 {
+					totalPassRate = (totalPassCount * 100) / totalTestCount
+				}
 				var totalComps = len(value)
 				hours := math.Floor(float64(totalGrandDuration) / 1000 / 60 / 60)
 				secs := totalGrandDuration % (1000 * 60 * 60)
