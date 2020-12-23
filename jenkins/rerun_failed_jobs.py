@@ -678,6 +678,18 @@ def rerun_jobs(queue, server: Jenkins, cluster, pool_thresholds_hit, options):
                     if not passes_pool_threshold(cluster, dispatcher_name, dispatcher_params, options, pool_thresholds_hit):
                         continue
 
+                    queued_builds = server.get_queue_info()
+                    queued_build_names = set()
+
+                    for build in queued_builds:
+                        if "task" in build and "name" in build["task"]:
+                            queued_build_names.add(build["task"]["name"])
+
+                    # skip if build for this dispatcher in queue
+                    if dispatcher_name in queued_build_names:
+                        time.sleep(options.dispatch_delay)
+                        continue
+
                     if not options.noop:
                         server.build_job(dispatcher_name, dispatcher_params)
                         time.sleep(options.dispatch_delay)
