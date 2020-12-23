@@ -502,6 +502,20 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue):
 
         try:
 
+            reasons = []
+
+            if job["result"] == "ABORTED":
+                reasons.append("aborted")
+            
+            if job["result"] == "FAILURE":
+                reasons.append("failure")
+
+            if job["failCount"] == job["totalCount"]:
+                reasons.append("no tests passed")
+
+            if job["failCount"] > 0:
+                reasons.append("failed tests")
+
             rerun_was_worse = rerun_worse(cluster, job, options)
 
             # if rerun was worse we skip these checks
@@ -576,11 +590,13 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue):
                     if common_count != len(options.previous_builds):
                         logger.debug("skipping {} (not common across all previous builds)".format(job["name"]))
                         continue
+                    else:
+                        reasons.append("common")
 
                 elif options.strategy == "regression":
                     # regression (if name in previous build and failCount or totalCount was different)
 
-                    query = "select failCount, totalCount from server where `build` = '{}' and name = '{}'".format(options.previous_builds[0], job['name'])
+                    query = "select failCount, totalCount, build_id, result from server where `build` = '{}' and name = '{}'".format(options.previous_builds[0], job['name'])
                     previous_job = list(cluster.query(query))
                     # if no previous job then this is either a new job or 
                     # that job wasn't run last time so don't filter
@@ -594,8 +610,19 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue):
                         if prev_fail_count == curr_fail_count and prev_total_count == curr_total_count:
                             logger.debug("skipping {} (not regression)".format(job["name"]))
                             continue
+                        else:
+                            reasons.append("regression")
+                            job["prev_total_count"] = prev_total_count
+                            job["prev_fail_count"] = prev_fail_count
+                            job["prev_pass_count"] = prev_total_count - prev_fail_count
+                            job["prev_build_id"] = int(previous_job[0]["build_id"])
+                            job["prev_result"] = previous_job[0]["result"]
+
+            if len(reasons) == 0:
+                reasons.append("forced")
 
             job["parameters"] = parameters
+            job["reasons_for_rerun"] = reasons
             queue[job["name"]] = job
 
         except Exception:
@@ -766,7 +793,7 @@ def setup_logs(options):
 
     with open(reruns_path, 'w') as csvfile:
         csv_writer = csv.writer(csvfile)
-        csv_writer.writerow(["timestamp", "name", "url", "pass_count", "fail_count", "total_count", "result", "previous_builds", "current_build"])
+        csv_writer.writerow(["timestamp", "name", "url", "pass_count", "fail_count", "total_count", "result", "reasons_for_rerun", "prev_url", "prev_pass_count", "prev_fail_count", "prev_total_count", "prev_result", "previous_builds", "current_build"])
    
 def log_reruns(options, jobs):
     _, _, reruns_path = log_paths(options)
@@ -777,8 +804,15 @@ def log_reruns(options, jobs):
         csv_writer = csv.writer(csvfile)
         csv_rows = []
         previous_builds = options.previous_builds or []
+        previous_builds = " ".join(previous_builds)
         for job in jobs:
-            csv_rows.append([now, job['name'], job["url"]+str(job["build_id"]), job["totalCount"] - job["failCount"], job["failCount"], job["totalCount"], job["result"], " ".join(previous_builds), options.build])
+            reasons_for_rerun = "|".join(job["reasons_for_rerun"])
+            prev_total_count = job["prev_total_count"] if "prev_total_count" in job else ""
+            prev_fail_count = job["prev_fail_count"] if "prev_fail_count" in job else ""
+            prev_pass_count = job["prev_total_count"] - job["prev_fail_count"] if "prev_total_count" in job and "prev_fail_count" in job else ""
+            prev_url = job["url"] + str(job["prev_build_id"]) if "prev_build_id" in job else ""
+            prev_result = job.get("prev_result") or ""
+            csv_rows.append([now, job['name'], job["url"]+str(job["build_id"]), job["totalCount"] - job["failCount"], job["failCount"], job["totalCount"], job["result"], reasons_for_rerun, prev_url, prev_pass_count, prev_fail_count, prev_total_count, prev_result, previous_builds, options.build])
         csv_writer.writerows(csv_rows)
 
 def validate_options(options, cluster: Cluster):
