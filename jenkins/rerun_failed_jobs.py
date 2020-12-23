@@ -762,9 +762,10 @@ def validate_options(options, cluster: Cluster):
         logger.info("--previous-builds not specified, trying the calculate...")
         version = options.build.split("-")[0]
         previous_builds = list(cluster.query("select raw `build` from greenboard where `build` like '{}%' and type = 'server' and totalCount > 18500 group by `build` order by `build` desc limit 1".format(version)))
-        if len(previous_builds) == 0:
-            logger.error("couldn't determine previous build automatically, required if --strategy or --wait specified")
-            sys.exit(1)
+        if len(previous_builds) == 0 or previous_builds[0] == options.build:
+            logger.warning("couldn't determine previous build automatically, ignoring --wait and --strategy parameters")
+            options.strategy = None
+            options.wait_for_main_run = False
         else:
             logger.info("previous build set to {}".format(previous_builds[0]))
             options.previous_builds = [previous_builds[0]]
