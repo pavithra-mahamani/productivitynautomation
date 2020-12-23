@@ -54,9 +54,10 @@ def parse_arguments():
     parser.add_option("--password", dest="password", help="Couchbase server password", default="password")
     parser.add_option("--dispatcher-jobs", dest="dispatcher_jobs", help="only rerun jobs managed by a dispatcher", action="store_true", default=False)
     parser.add_option("--os", dest="os", help="List of operating systems: e.g. win, magma, centos, ubuntu, mac, debian, suse, oel")
+    parser.add_option("--exclude-os", dest="exclude_os", help="List of operating systems to exclude: e.g. win, magma, centos, ubuntu, mac, debian, suse, oel")
     parser.add_option("--components", dest="components", help="List of components to include")
     parser.add_option("--subcomponents", dest="subcomponents", help="List of subcomponents to include")
-    parser.add_option("--exclude-components", dest="exclude_components", help="List of components to exclyde e.g. magma")
+    parser.add_option("--exclude-components", dest="exclude_components", help="List of components to exclude e.g. magma")
     parser.add_option("--override-executor", dest="override_executor", help="Force passing of -j option to test dispatcher", action="store_true", default=False)
     parser.add_option("--s3-logs-url", dest="s3_logs_url", help="Amazon S3 bucket url that stores historical jenkins logs", default="http://cb-logs-qe.s3-website-us-west-2.amazonaws.com")
     parser.add_option("--strategy", dest="strategy", help="Which strategy should be used to find jobs to rerun", choices=("common", "regression"))
@@ -84,6 +85,9 @@ def parse_arguments():
 
     if options.os:
         options.os = options.os.split(",")
+
+    if options.exclude_os:
+        options.exclude_os = options.exclude_os.split(",")
 
     if options.components:
         options.components = options.components.split(",")
@@ -284,7 +288,7 @@ def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
     previous_jobs = set()
 
     # filter out components not in options.components
-    if options.components or options.exclude_components:
+    if options.components or options.exclude_components or options.os or options.exclude_os:
         for job in jobs:
             try:
                 job_name = job_name_from_url(options.jenkins_url, job['url'])
@@ -292,7 +296,7 @@ def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
                 parameters = parameters_for_job(server,
                     job_name, job['build_id'], job['build'], options.s3_logs_url)
 
-                if passes_component_filter(job, parameters, options):
+                if passes_component_filter(job, parameters, options) and passes_os_filter(job, parameters, options):
                     previous_jobs.add(job["name"])
 
             except Exception:
@@ -382,9 +386,6 @@ def filter_query(query: str, options):
     if filter != "":
         query += " AND {}".format(filter)
 
-    if options.os:
-        query += " AND LOWER(os) in {}".format(options.os)
-
     return query
 
 def all_failed_jobs(cluster: Cluster, options):
@@ -407,6 +408,17 @@ def passes_component_filter(job, parameters, options):
     
     if options.exclude_components:
         if ("component" in parameters and parameters["component"] in options.exclude_components) or job["component"].lower() in options.exclude_components:
+            return False
+
+    return True
+
+def passes_os_filter(job, parameters, options):
+    if options.os:
+        if ("os" in parameters and parameters["os"] not in options.os) and job["os"].lower() not in options.os:
+            return False
+    
+    if options.exclude_os:
+        if ("os" in parameters and parameters["os"] in options.exclude_os) or job["os"].lower() in options.exclude_os:
             return False
 
     return True
@@ -490,6 +502,20 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue):
 
         try:
 
+            reasons = []
+
+            if job["result"] == "ABORTED":
+                reasons.append("aborted")
+            
+            if job["result"] == "FAILURE":
+                reasons.append("failure")
+
+            if job["failCount"] == job["totalCount"]:
+                reasons.append("no tests passed")
+
+            if job["failCount"] > 0:
+                reasons.append("failed tests")
+
             rerun_was_worse = rerun_worse(cluster, job, options)
 
             # if rerun was worse we skip these checks
@@ -549,6 +575,10 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue):
                 logger.debug("skipping {} (component not included)".format(job["name"]))
                 continue
 
+            if not passes_os_filter(job, parameters, options):
+                logger.debug("skipping {} (os not included)".format(job["name"]))
+                continue
+
             if options.strategy:
 
                 if options.strategy == "common":
@@ -560,11 +590,13 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue):
                     if common_count != len(options.previous_builds):
                         logger.debug("skipping {} (not common across all previous builds)".format(job["name"]))
                         continue
+                    else:
+                        reasons.append("common")
 
                 elif options.strategy == "regression":
                     # regression (if name in previous build and failCount or totalCount was different)
 
-                    query = "select failCount, totalCount from server where `build` = '{}' and name = '{}'".format(options.previous_builds[0], job['name'])
+                    query = "select failCount, totalCount, build_id, result from server where `build` = '{}' and name = '{}'".format(options.previous_builds[0], job['name'])
                     previous_job = list(cluster.query(query))
                     # if no previous job then this is either a new job or 
                     # that job wasn't run last time so don't filter
@@ -578,8 +610,19 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue):
                         if prev_fail_count == curr_fail_count and prev_total_count == curr_total_count:
                             logger.debug("skipping {} (not regression)".format(job["name"]))
                             continue
+                        else:
+                            reasons.append("regression")
+                            job["prev_total_count"] = prev_total_count
+                            job["prev_fail_count"] = prev_fail_count
+                            job["prev_pass_count"] = prev_total_count - prev_fail_count
+                            job["prev_build_id"] = int(previous_job[0]["build_id"])
+                            job["prev_result"] = previous_job[0]["result"]
+
+            if len(reasons) == 0:
+                reasons.append("forced")
 
             job["parameters"] = parameters
+            job["reasons_for_rerun"] = reasons
             queue[job["name"]] = job
 
         except Exception:
@@ -678,6 +721,18 @@ def rerun_jobs(queue, server: Jenkins, cluster, pool_thresholds_hit, options):
                     if not passes_pool_threshold(cluster, dispatcher_name, dispatcher_params, options, pool_thresholds_hit):
                         continue
 
+                    queued_builds = server.get_queue_info()
+                    queued_build_names = set()
+
+                    for build in queued_builds:
+                        if "task" in build and "name" in build["task"]:
+                            queued_build_names.add(build["task"]["name"])
+
+                    # skip if build for this dispatcher in queue
+                    if dispatcher_name in queued_build_names:
+                        time.sleep(options.dispatch_delay)
+                        continue
+
                     if not options.noop:
                         server.build_job(dispatcher_name, dispatcher_params)
                         time.sleep(options.dispatch_delay)
@@ -698,7 +753,7 @@ def rerun_jobs(queue, server: Jenkins, cluster, pool_thresholds_hit, options):
     return triggered
 
 def log_paths(options):
-    major_version = options.build[0]
+    major_version = options.build.split("-")[0]
     if options.output:
         waiting_path = os.path.join(options.output, major_version + WAITING_PATH)
         component_progress_path = os.path.join(options.output, major_version + COMPONENT_PROGRESS_PATH)
@@ -738,7 +793,7 @@ def setup_logs(options):
 
     with open(reruns_path, 'w') as csvfile:
         csv_writer = csv.writer(csvfile)
-        csv_writer.writerow(["timestamp", "name", "url", "pass_count", "fail_count", "total_count", "result", "previous_builds", "current_build"])
+        csv_writer.writerow(["timestamp", "name", "url", "pass_count", "fail_count", "total_count", "result", "reasons_for_rerun", "prev_url", "prev_pass_count", "prev_fail_count", "prev_total_count", "prev_result", "previous_builds", "current_build"])
    
 def log_reruns(options, jobs):
     _, _, reruns_path = log_paths(options)
@@ -749,8 +804,15 @@ def log_reruns(options, jobs):
         csv_writer = csv.writer(csvfile)
         csv_rows = []
         previous_builds = options.previous_builds or []
+        previous_builds = " ".join(previous_builds)
         for job in jobs:
-            csv_rows.append([now, job['name'], job["url"]+str(job["build_id"]), job["totalCount"] - job["failCount"], job["failCount"], job["totalCount"], job["result"], " ".join(previous_builds), options.build])
+            reasons_for_rerun = "|".join(job["reasons_for_rerun"])
+            prev_total_count = job["prev_total_count"] if "prev_total_count" in job else ""
+            prev_fail_count = job["prev_fail_count"] if "prev_fail_count" in job else ""
+            prev_pass_count = job["prev_total_count"] - job["prev_fail_count"] if "prev_total_count" in job and "prev_fail_count" in job else ""
+            prev_url = job["url"] + str(job["prev_build_id"]) if "prev_build_id" in job else ""
+            prev_result = job.get("prev_result") or ""
+            csv_rows.append([now, job['name'], job["url"]+str(job["build_id"]), job["totalCount"] - job["failCount"], job["failCount"], job["totalCount"], job["result"], reasons_for_rerun, prev_url, prev_pass_count, prev_fail_count, prev_total_count, prev_result, previous_builds, options.build])
         csv_writer.writerows(csv_rows)
 
 def validate_options(options, cluster: Cluster):
@@ -761,10 +823,11 @@ def validate_options(options, cluster: Cluster):
     if (options.strategy or options.wait_for_main_run) and (not options.previous_builds or len(options.previous_builds) == 0):
         logger.info("--previous-builds not specified, trying the calculate...")
         version = options.build.split("-")[0]
-        previous_builds = list(cluster.query("select raw `build` from greenboard where `build` like '{}%' and type = 'server' and totalCount > 18500 group by `build` order by `build` desc limit 1".format(version)))
-        if len(previous_builds) == 0:
-            logger.error("couldn't determine previous build automatically, required if --strategy or --wait specified")
-            sys.exit(1)
+        previous_builds = list(cluster.query("select raw `build` from greenboard where `build` like '{}%' and type = 'server' and totalCount > 18500 and `build` != '{}' group by `build` order by `build` desc limit 1".format(version, options.build)))
+        if len(previous_builds) == 0 or previous_builds[0] == options.build:
+            logger.warning("couldn't determine previous build automatically, ignoring --wait and --strategy parameters")
+            options.strategy = None
+            options.wait_for_main_run = False
         else:
             logger.info("previous build set to {}".format(previous_builds[0]))
             options.previous_builds = [previous_builds[0]]
