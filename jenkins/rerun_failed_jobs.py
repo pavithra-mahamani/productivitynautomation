@@ -54,9 +54,10 @@ def parse_arguments():
     parser.add_option("--password", dest="password", help="Couchbase server password", default="password")
     parser.add_option("--dispatcher-jobs", dest="dispatcher_jobs", help="only rerun jobs managed by a dispatcher", action="store_true", default=False)
     parser.add_option("--os", dest="os", help="List of operating systems: e.g. win, magma, centos, ubuntu, mac, debian, suse, oel")
+    parser.add_option("--exclude-os", dest="exclude_os", help="List of operating systems to exclude: e.g. win, magma, centos, ubuntu, mac, debian, suse, oel")
     parser.add_option("--components", dest="components", help="List of components to include")
     parser.add_option("--subcomponents", dest="subcomponents", help="List of subcomponents to include")
-    parser.add_option("--exclude-components", dest="exclude_components", help="List of components to exclyde e.g. magma")
+    parser.add_option("--exclude-components", dest="exclude_components", help="List of components to exclude e.g. magma")
     parser.add_option("--override-executor", dest="override_executor", help="Force passing of -j option to test dispatcher", action="store_true", default=False)
     parser.add_option("--s3-logs-url", dest="s3_logs_url", help="Amazon S3 bucket url that stores historical jenkins logs", default="http://cb-logs-qe.s3-website-us-west-2.amazonaws.com")
     parser.add_option("--strategy", dest="strategy", help="Which strategy should be used to find jobs to rerun", choices=("common", "regression"))
@@ -84,6 +85,9 @@ def parse_arguments():
 
     if options.os:
         options.os = options.os.split(",")
+
+    if options.exclude_os:
+        options.exclude_os = options.exclude_os.split(",")
 
     if options.components:
         options.components = options.components.split(",")
@@ -284,7 +288,7 @@ def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
     previous_jobs = set()
 
     # filter out components not in options.components
-    if options.components or options.exclude_components:
+    if options.components or options.exclude_components or options.os or options.exclude_os:
         for job in jobs:
             try:
                 job_name = job_name_from_url(options.jenkins_url, job['url'])
@@ -292,7 +296,7 @@ def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
                 parameters = parameters_for_job(server,
                     job_name, job['build_id'], job['build'], options.s3_logs_url)
 
-                if passes_component_filter(job, parameters, options):
+                if passes_component_filter(job, parameters, options) and passes_os_filter(job, parameters, options):
                     previous_jobs.add(job["name"])
 
             except Exception:
@@ -382,9 +386,6 @@ def filter_query(query: str, options):
     if filter != "":
         query += " AND {}".format(filter)
 
-    if options.os:
-        query += " AND LOWER(os) in {}".format(options.os)
-
     return query
 
 def all_failed_jobs(cluster: Cluster, options):
@@ -407,6 +408,17 @@ def passes_component_filter(job, parameters, options):
     
     if options.exclude_components:
         if ("component" in parameters and parameters["component"] in options.exclude_components) or job["component"].lower() in options.exclude_components:
+            return False
+
+    return True
+
+def passes_os_filter(job, parameters, options):
+    if options.os:
+        if ("os" in parameters and parameters["os"] not in options.os) and job["os"].lower() not in options.os:
+            return False
+    
+    if options.exclude_os:
+        if ("os" in parameters and parameters["os"] in options.exclude_os) or job["os"].lower() in options.exclude_os:
             return False
 
     return True
@@ -547,6 +559,10 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue):
 
             if not passes_component_filter(job, parameters, options):
                 logger.debug("skipping {} (component not included)".format(job["name"]))
+                continue
+
+            if not passes_os_filter(job, parameters, options):
+                logger.debug("skipping {} (os not included)".format(job["name"]))
                 continue
 
             if options.strategy:
