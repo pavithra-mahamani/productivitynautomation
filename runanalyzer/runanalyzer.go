@@ -570,7 +570,7 @@ func getreruntotalbuildcycleduration(buildN string) int {
 	//qry := "select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" " + qryfilter
 	//qry := "select numofjobs, totaltime, failcount, totalcount from (select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b " +
 	//	"where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" ) as result " + qryfilter + " limit " + finallimits
-	qry := "select `build`, totalCount, failCount, `type`, os as buildOS from test_eventing b " +
+	qry := "select `build`, totalCount, failCount, `type`, os as buildOS from greenboard b " +
 		"where  b.`build` like \"" + cbbuild + "%\" " + qryfilter + " order by `build` desc"
 	//qry := "select `build`, numofjobs, totaltime, failcount, totalcount from (select b.`build`, count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like "centos" and b.`build` like "6.5%" group by b.`build` order by b.`build` desc) as result where numofjobs>500 limit 30"
 	//fmt.Println("\nquery=" + qry)
@@ -801,7 +801,7 @@ func getreruntotalbuildcycledurationclocktime(buildN string) int {
 	//qry := "select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" " + qryfilter
 	//qry := "select numofjobs, totaltime, failcount, totalcount from (select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b " +
 	//	"where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" ) as result " + qryfilter + " limit " + finallimits
-	qry := "select `build`, totalCount, failCount, `type`, os as buildOS from test_eventing b " +
+	qry := "select `build`, totalCount, failCount, `type`, os as buildOS from greenboard b " +
 		"where  b.`build` like \"" + cbbuild + "%\" " + qryfilter + " order by `build` desc"
 	//qry := "select `build`, numofjobs, totaltime, failcount, totalcount from (select b.`build`, count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like "centos" and b.`build` like "6.5%" group by b.`build` order by b.`build` desc) as result where numofjobs>500 limit 30"
 	//fmt.Println("\nquery=" + qry)
