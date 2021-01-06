@@ -670,9 +670,6 @@ def rerun_jobs(queue, server: Jenkins, cluster, pool_thresholds_hit, options):
 
                 dispatcher_name = job_name_from_url(options.jenkins_url, dispatcher_params['dispatcher_url'])
 
-                if dispatcher_name == "test_suite_dispatcher" and options.override_dispatcher:
-                    dispatcher_name = options.override_dispatcher
-
                 # invalid parameter
                 dispatcher_params.pop("dispatcher_url")
 
@@ -727,6 +724,9 @@ def rerun_jobs(queue, server: Jenkins, cluster, pool_thresholds_hit, options):
                     for build in queued_builds:
                         if "task" in build and "name" in build["task"]:
                             queued_build_names.add(build["task"]["name"])
+
+                    if dispatcher_name == "test_suite_dispatcher" and options.override_dispatcher:
+                        dispatcher_name = options.override_dispatcher
 
                     # skip if build for this dispatcher in queue
                     if dispatcher_name in queued_build_names:
