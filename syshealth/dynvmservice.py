@@ -247,6 +247,8 @@ def getservers_service(username):
                     "start_suffix": vm_name_suffix_index
                 }
 
+    reserved_count -= (vm_count-len(merged_vms_list))
+
     if (len(merged_vms_list) != vm_count) and all_or_none:
         # delete all created vms
         log.warning("deleting all created vms due to failure")
@@ -259,8 +261,6 @@ def getservers_service(username):
                 # delete username with start_suffix of xhost['start_suffix']
                 perform_service(xen_host_ref=ref, service_name='deletevm', vm_prefix_names=username, number_of_vms=xhost['count'], start_suffix=xhost['start_suffix'], os=os_name)
         return "Error creating vms", 499
-
-    reserved_count -= (vm_count-len(merged_vms_list))
 
     if output_format == 'detailed':
         return json.dumps(merged_vms_list, indent=2, sort_keys=True)
