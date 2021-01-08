@@ -432,21 +432,8 @@ def passes_max_rerun_filter(cluster: Cluster, job, options):
     return reruns < options.max_reruns
 
 def passes_pool_threshold(cluster: Cluster, dispatcher_name, dispatcher_params, options, pool_thresholds_hit):
-    # if any pool ids in serverPoolId are in options.merge_pools 
-    # then add the other pools in options.merge_pools to serverPoolId
-    # e.g. serverPoolId = os_certification,regression options.merge_pools=regression,12hrreg
-    # serverPoolId becomes os_certification,regression,12hrreg
-    pool_ids = set(dispatcher_params["serverPoolId"].split(","))
+    pool_ids = dispatcher_params["serverPoolId"].split(",")
     pools = pool_ids.copy()
-
-    # only test_suite_dispatcher supports multiple pools for now
-    if dispatcher_name == "test_suite_dispatcher" and options.merge_pools:
-        for pool in pool_ids:
-            if pool in options.merge_pools:
-                for pool in options.merge_pools:
-                    pools.add(pool)
-
-    # if none of the pools are available, skip if options.maintain_threshold is true
 
     query = "select count(*) as count from `QE-server-pool` where state = '{0}' and (poolId = '{1}' or '{1}' in poolId)"
 
@@ -467,6 +454,18 @@ def passes_pool_threshold(cluster: Cluster, dispatcher_name, dispatcher_params, 
         else:
             if options.maintain_threshold or pool not in pool_thresholds_hit:
                 return False
+
+    # if any pool ids in serverPoolId are in options.merge_pools 
+    # then add the other pools in options.merge_pools to serverPoolId
+    # e.g. serverPoolId = os_certification,regression options.merge_pools=regression,12hrreg
+    # serverPoolId becomes os_certification,regression,12hrreg
+    # only test_suite_dispatcher supports multiple pools for now
+    if dispatcher_name == "test_suite_dispatcher" and options.merge_pools:
+        for pool in pool_ids:
+            if pool in options.merge_pools:
+                for pool in options.merge_pools:
+                    if pool not in pools:
+                        pools.append(pool)
     
     dispatcher_params["serverPoolId"] = ",".join(pools)
 
@@ -725,19 +724,31 @@ def rerun_jobs(queue, server: Jenkins, cluster, pool_thresholds_hit, options):
                         if "task" in build and "name" in build["task"]:
                             queued_build_names.add(build["task"]["name"])
 
+                    actual_dispatcher_name = dispatcher_name
+
                     if dispatcher_name == "test_suite_dispatcher" and options.override_dispatcher:
-                        dispatcher_name = options.override_dispatcher
+                        actual_dispatcher_name = options.override_dispatcher
 
                     # skip if build for this dispatcher in queue
-                    if dispatcher_name in queued_build_names:
+                    if actual_dispatcher_name in queued_build_names:
                         time.sleep(options.dispatch_delay)
                         continue
 
+                    final_params = []
+
+                    for [key, value] in dispatcher_params.items():
+                        if key == "serverPoolId":
+                            pools = value.split(",")
+                            for pool in pools:
+                                final_params.append(("serverPoolId", pool))
+                        else:
+                            final_params.append((key, value))
+
                     if not options.noop:
-                        server.build_job(dispatcher_name, dispatcher_params)
+                        server.build_job(actual_dispatcher_name, final_params)
                         time.sleep(options.dispatch_delay)
 
-                    logger.info("Triggered {} with parameters {}".format(dispatcher_name, dispatcher_params))
+                    logger.info("Triggered {} with parameters {}".format(actual_dispatcher_name, dispatcher_params))
 
                     # each subcomponent will be its own job
                     for j in job["jobs"]:
