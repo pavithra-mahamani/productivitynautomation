@@ -5,3 +5,24 @@
 #title {
     margin-bottom: 20px;
 }
+
+h2 {
+    margin: 20px 0;
+}
+
+h1, h2 {
+    color: #fff
+}
+
+body {
+    background-color: #4287D6;
+}
+
+.btn-secondary {
+    background-color: #4287D6;
+}
+
+a {
+    text-decoration: none;
+    color: #4287D6
+}
