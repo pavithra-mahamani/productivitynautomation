@@ -180,6 +180,7 @@ var defaultSuiteType string
 var qaJenkinsURL string
 var requiredServerPools string
 var requiredStates string
+var component string
 
 func main() {
 	fmt.Println("*** Helper Tool ***")
@@ -189,6 +190,7 @@ func main() {
 	overwriteInput := flag.String("overwrite", "no", usage())
 	updateURLInput := flag.String("updateurl", "no", usage())
 	cbplatformInput := flag.String("os", "centos", usage())
+	componentInput := flag.String("component", "", usage())
 	cbbucketInput := flag.String("cbbucket", "server", usage())
 	s3bucketInput := flag.String("s3bucket", "cb-logs-qe", usage())
 	s3urlInput := flag.String("s3url", "http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/", usage())
@@ -229,6 +231,7 @@ func main() {
 	qaJenkinsURL = *qaJenkinsURLInput
 	requiredServerPools = *requiredServerPoolsInput
 	requiredStates = *requiredStatesInput
+	component = *componentInput
 
 	//fmt.Println("original dest=", dest, "--", *destInput)
 	//time.Sleep(10 * time.Second)
@@ -617,6 +620,9 @@ func getreruntotalbuildcycleduration(buildN string) int {
 				var totalDuration int64
 				var reranJobsList string
 				for key1, value1 := range value {
+					if component != "" && strings.ToUpper(component) != key1 {
+						continue
+					}
 					//fmt.Println("\nComponent:", key1, "Value1:", value1)
 					totalJobs += len(value1)
 					for key2, value2 := range value1 {
@@ -679,8 +685,12 @@ func getreruntotalbuildcycleduration(buildN string) int {
 				freshTotaltime := int64(hours) - int64(rerunHours)
 				freshTotalJobs := totalJobs - reranJobCount
 
-				var rerunsRate = (totalReruns * 100) / totalRuns
-				if totalJobs > 100 {
+				var rerunsRate = 0
+				if totalRuns > 0 {
+					rerunsRate = (totalReruns * 100) / totalRuns
+				}
+
+				if totalJobs > 100 || (component != "" && totalJobs > 0) {
 					fmt.Printf("\n%d\t%s \t\t%d \t%d", (sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount)
 					fmt.Fprintf(outW, "\n%d\t%s \t\t%d \t%d", (sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount)
 					if rerunHours > 0 || rerunMins > 0 {
