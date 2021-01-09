@@ -4,6 +4,9 @@
 
 #title {
     margin-bottom: 20px;
+    text-align: center;
+    background-color: #fff;
+    color: #e93c07;
 }
 
 h2 {
@@ -19,10 +22,10 @@ body {
 }
 
 .btn-secondary {
-    background-color: #4287D6;
+    background-color: #e93c07;
 }
 
 a {
     text-decoration: none;
-    color: #4287D6
+    color: #e93c07;
 }
