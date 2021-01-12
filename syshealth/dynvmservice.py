@@ -716,6 +716,11 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
         for host_key in host_records.keys():
             xen_host_description = host_records[host_key]['name_label']
 
+        vm_max_expiry_minutes = int(config.get("common", "vm.expiry.minutes"))
+        if expiry_minutes > vm_max_expiry_minutes:
+            log.info("Max allowed expiry in minutes is " + str(vm_max_expiry_minutes))
+            expiry_minutes = vm_max_expiry_minutes
+
         # Save as doc in CB
         state = "available"
         username = new_vm_name
@@ -724,7 +729,7 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
                      "state": state, "poolId": pool, "prevUser": "", "username": username,
                      "ver": "12", "memory": memory_static_max, "os_version": vm_os_name,
                      "name": new_vm_name, "created_time": prov_end_time,
-                     "create_duration_secs": create_duration, "cpu": vcpus, "disk": disks_info}
+                     "create_duration_secs": create_duration, "cpu": vcpus, "disk": disks_info, "expired_time": prov_end_time + (expiry_minutes * 60)}
         # doc_value["mac_address"] = mac_address
         doc_key = uuid
 
@@ -748,18 +753,6 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
                 "os_version": vm_os_name
             }
             cb_doc.add_to_static_pool(static_doc_value)
-
-
-        vm_max_expiry_minutes = int(config.get("common", "vm.expiry.minutes"))
-        if expiry_minutes > vm_max_expiry_minutes:
-            log.info("Max allowed expiry in minutes is " + str(vm_max_expiry_minutes))
-            expiry_minutes = vm_max_expiry_minutes
-
-        log.info("Starting the timer for expiry of " + str(expiry_minutes) + " minutes.")
-        t = threading.Timer(interval=expiry_minutes * 60, function=call_release_url,
-                            args=[new_vm_name, os_name, uuid])
-        t.setName(new_vm_name + "__" + uuid)
-        t.start()
 
     except Exception as e:
         error = str(e)
@@ -1191,6 +1184,13 @@ class CBDoc:
         except Exception as e:
             log.error("Error adding {} to static pools: {}".format(ip, pools_str))
             log.error(e)
+    
+    def get_expired(self):
+        try:
+            return list(self.cb.n1ql_query("SELECT os, username FROM `QE-dynserver-pool` WHERE ipaddr != '' AND state = 'available' AND expired_time is not missing AND expired_time < {}".format(time.time())))
+        except Exception as e:
+            log.error("Error getting expired vms: {}".format(str(e)))
+            return []
 
 
 def list_given_vm_set_details(session, list_vm_names, number_of_vms):
@@ -1212,12 +1212,24 @@ def parse_arguments():
     options = parser.parse_args()
     return options
 
+def expire_vms():
+    cb_doc = CBDoc()
+    while True:
+        expired = cb_doc.get_expired()
+        for vm in expired:
+            try:
+                release_servers(vm["username"], vm["os"], 1)
+                log.info("deleted expired vm: {}".format(vm["username"]))
+            except Exception:
+                pass
+        time.sleep(60)
 
 def main():
     # options = parse_arguments()
     set_log_level()
-    app.run(host='0.0.0.0', debug=True)
-
+    expiry_thread = threading.Thread(target=expire_vms, daemon=True)
+    expiry_thread.start()
+    app.run(host='0.0.0.0', debug=False)
 
 if __name__ == "__main__":
     main()
