@@ -41,8 +41,11 @@ from paramiko import SSHClient, AutoAddPolicy
        Multiple VMs: http://127.0.0.1:5000/releaseservers/<vmnameprefix>?os=centos&count=<count>
 """
 
-log = logging.getLogger(__name__)
-logging.info("dynxenvms")
+log = logging.getLogger("dynvmservice")
+ch = logging.StreamHandler()
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+ch.setFormatter(formatter)
+log.addHandler(ch)
 print("*** Dynamic VMs ***")
 app = Flask(__name__)
 
