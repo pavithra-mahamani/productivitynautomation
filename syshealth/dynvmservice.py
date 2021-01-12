@@ -263,6 +263,10 @@ def getservers_service(username):
 
     reserved_count -= (vm_count-len(merged_vms_list))
 
+    if reserved_count < 0:
+        log.warning("Reserved count is < 0")
+        reserved_count = 0
+
     if (len(merged_vms_list) != vm_count) and all_or_none:
         log.warning("deleting all created vms due to failure")
         try:
