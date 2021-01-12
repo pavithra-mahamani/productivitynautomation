@@ -267,6 +267,20 @@ def getservers_service(username):
     else:
         return json.dumps(merged_vms_list)
 
+def release_servers(username, os_name, vm_count):
+    delete_vms_res = []
+    for vm_index in range(vm_count):
+        if vm_count > 1:
+            vm_name = username + str(vm_index + 1)
+        else:
+            vm_name = username
+        xen_host_ref = get_vm_existed_xenhost_ref(vm_name, 1, None)
+        log.info("VM to be deleted from xhost_ref=" + str(xen_host_ref))
+        if xen_host_ref != 0:
+            delete_per_xen_res = perform_service(xen_host_ref, 'deletevm', os_name, vm_name, 1)
+            for deleted_vm_res in delete_per_xen_res:
+                delete_vms_res.append(deleted_vm_res)
+    return delete_vms_res
 
 # /releaseservers/{username}
 @app.route('/releaseservers/<string:username>/<string:target_state>')
@@ -285,18 +299,7 @@ def releaseservers_service(username, target_state=None):
             vm_count=9 #TBD: how to get the matched prefixes
 
     os_name = request.args.get('os')
-    delete_vms_res = []
-    for vm_index in range(vm_count):
-        if vm_count > 1:
-            vm_name = username + str(vm_index + 1)
-        else:
-            vm_name = username
-        xen_host_ref = get_vm_existed_xenhost_ref(vm_name, 1, None)
-        log.info("VM to be deleted from xhost_ref=" + str(xen_host_ref))
-        if xen_host_ref != 0:
-            delete_per_xen_res = perform_service(xen_host_ref, 'deletevm', os_name, vm_name, 1)
-            for deleted_vm_res in delete_per_xen_res:
-                delete_vms_res.append(deleted_vm_res)
+    delete_vms_res = release_servers(username, os_name, vm_count)
     if len(delete_vms_res) < 1:
         return "Error: VM " + username + " doesn't exist"
     else:
