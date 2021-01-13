@@ -683,7 +683,7 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
             vm_ip_addr = read_ip_address(session, vm)
             log.info("VM IP: {}".format(vm_ip_addr))
 
-            if vm_ip_addr.startswith('169'):
+            if vm_ip_addr is None or vm_ip_addr.startswith('169'):
                 log.info("No Network IP available. Deleting this VM ... ")
                 record = session.xenapi.VM.get_record(vm)
                 power_state = record["power_state"]
@@ -696,6 +696,11 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
                 retry_count += 1
             else:
                 is_local_ip = False
+
+        if is_local_ip:
+            # empty string represents no/invalid IP
+            ip_addr = ""
+            raise Exception("Couldn't get IP within timeout")
 
         log.info("Final VM IP: {}".format(vm_ip_addr))
         # Measure time taken for VM provisioning
