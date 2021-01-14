@@ -347,10 +347,11 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
             return []
     try:
         if service_name == 'createvm':
+            network = xen_host[os + ".template.network"]
             log.debug("Creating from {0} :{1}, cpus: {2}, memory: {3}".format(str(template),
                                                                               vm_prefix_names, cpus,
                                                                               maxmemory))
-            new_vms, _ = create_vms(session, os, template, vm_prefix_names, number_of_vms,
+            new_vms, _ = create_vms(session, os, template, network, vm_prefix_names, number_of_vms,
                                               cpus, maxmemory, expiry_minutes, start_suffix, pools)
             log.info(new_vms)
             return new_vms
@@ -423,6 +424,10 @@ def get_xen_values(config, xen_host_ref, os):
                                                    'host.storage.name')
         if os is not None:
             xen_host[os + ".template"] = config.get('xenhost' + str(xen_host_ref), os + '.template')
+            if config.has_option('xenhost' + str(xen_host_ref), os + '.template' + '.network'):
+                xen_host[os + ".template.network"] = config.get('xenhost' + str(xen_host_ref), os + '.template' + '.network')
+            else:
+                xen_host[os + ".template.network"] = None
     except Exception as e:
         log.info("--> check for template and other values in the .ini file!")
         log.info(e)
@@ -448,7 +453,7 @@ Examples:
     sys.exit(0)
 
 
-def set_log_level(log_level='info'):
+def set_log_level(log_level='debug'):
     if log_level and log_level.lower() == 'info':
         log.setLevel(logging.INFO)
     elif log_level and log_level.lower() == 'warning':
@@ -519,7 +524,7 @@ def list_vm_details(session, vm_name):
             + networkinfo + ", " + name_description)
 
 
-def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="default",
+def create_vms(session, os, template, network, vm_prefix_names, number_of_vms=1, cpus="default",
                maxmemory="default", expiry_minutes=MAX_EXPIRY_MINUTES, start_suffix=0, pools=None):
     global reserved_count
     vm_names = vm_prefix_names.split(",")
@@ -530,7 +535,7 @@ def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="de
         if int(number_of_vms) > 1:
             for k in range(int(number_of_vms)):
                 vm_name = vm_names[i] + str(start_suffix + 1)
-                vm_ip, vm_os, error = create_vm(session, os, template, vm_name, cpus, maxmemory,
+                vm_ip, vm_os, error = create_vm(session, os, template, network, vm_name, cpus, maxmemory,
                                                 expiry_minutes, pools)
                 new_vms_info[vm_name] = vm_ip
                 list_of_vms.append(vm_ip)
@@ -542,7 +547,7 @@ def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="de
                 start_suffix += 1
                 index += 1
         else:
-            vm_ip, vm_os, error = create_vm(session, os, template, vm_names[i], cpus, maxmemory,
+            vm_ip, vm_os, error = create_vm(session, os, template, network, vm_names[i], cpus, maxmemory,
                                             expiry_minutes, pools)
             new_vms_info[vm_names[i]] = vm_ip
             list_of_vms.append(vm_ip)
@@ -555,7 +560,7 @@ def create_vms(session, os, template, vm_prefix_names, number_of_vms=1, cpus="de
     return new_vms_info, list_of_vms
 
 
-def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory="default",
+def create_vm(session, os_name, template, network, new_vm_name, cpus="default", maxmemory="default",
               expiry_minutes=MAX_EXPIRY_MINUTES, pools=None):
     error = ''
     vm_os_name = ''
@@ -564,10 +569,18 @@ def create_vm(session, os_name, template, new_vm_name, cpus="default", maxmemory
     try:
         log.info("\n--- Creating VM: " + new_vm_name + " using " + template)
         pifs = session.xenapi.PIF.get_all_records()
+        # log.debug(pifs)
         lowest = None
-        for pifRef in pifs.keys():
-            if (lowest is None) or (pifs[pifRef]['device'] < pifs[lowest]['device']):
-                lowest = pifRef
+        if network:
+            for pifRef in pifs.keys():
+                if network in pifRef:
+                    lowest = pifRef
+                    log.debug("using custom network: {} {}".format(network, pifs[lowest]['device']))
+                    break
+        if lowest is None:
+            for pifRef in pifs.keys():
+                if (lowest is None) or (pifs[pifRef]['device'] < pifs[lowest]['device']):
+                    lowest = pifRef
         log.debug("Choosing PIF with device: {}".format(pifs[lowest]['device']))
         ref = lowest
         mac = pifs[ref]['MAC']
