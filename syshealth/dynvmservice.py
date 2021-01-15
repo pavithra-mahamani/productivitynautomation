@@ -114,11 +114,11 @@ def check_vm(os_name, host):
 
 def create_vms_single_host(checkvms: bool, xhostref: str, os_name: str, username: str, vm_count: int,
                                        cpus: int, maxmemory: int, expiry_minutes: int,
-                                       output_format: str, start_suffix: int = 0, pools=None):
+                                       output_format: str, start_suffix: int = 0, pools=None, networkid=None):
     global reserved_count
     vms_info = perform_service(xhostref, 'createvm', os_name, username, vm_count,
                                         cpus=cpus, maxmemory=maxmemory, expiry_minutes=expiry_minutes,
-                                        output_format=output_format, start_suffix=start_suffix, pools=pools)
+                                        output_format=output_format, start_suffix=start_suffix, pools=pools, networkid=networkid)
     if isinstance(vms_info, str):
         raise Exception(vms_info)
 
@@ -191,6 +191,11 @@ def getservers_service(username):
     else:
         pools = None
 
+    if request.args.get("networkid"):
+        networkid = request.args.get("networkid")
+    else:
+        networkid = None 
+
     xhostref = None
     if request.args.get('xhostref'):
         xhostref = request.args.get('xhostref')
@@ -200,7 +205,7 @@ def getservers_service(username):
     if xhostref:
         log.info("-->  VMs on given xenhost" + xhostref)
         try:
-            ips, vms_info = create_vms_single_host(checkvms, xhostref, os_name, username, vm_count, cpus_count, mem, exp, output_format, pools=pools)
+            ips, vms_info = create_vms_single_host(checkvms, xhostref, os_name, username, vm_count, cpus_count, mem, exp, output_format, pools=pools, networkid=networkid)
         except Exception as e:
             return str(e), 499
         else:
@@ -247,7 +252,7 @@ def getservers_service(username):
             else:
                 username1 = username
             try:
-                per_xen_host_res, vms_info = create_vms_single_host(checkvms, free_xenhost_ref, os_name, username1, per_xen_host_vms, cpus_count, mem, exp, output_format, start_suffix=vm_name_suffix_index, pools=pools)
+                per_xen_host_res, vms_info = create_vms_single_host(checkvms, free_xenhost_ref, os_name, username1, per_xen_host_vms, cpus_count, mem, exp, output_format, start_suffix=vm_name_suffix_index, pools=pools, networkid=networkid)
             except Exception as e:
                 log.debug(str(e))
                 continue
@@ -322,7 +327,7 @@ def releaseservers_service(username, target_state=None):
 def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_prefix_names="",
                     number_of_vms=1, cpus="default", maxmemory="default",
                     expiry_minutes=MAX_EXPIRY_MINUTES, output_format="servermanager",
-                    start_suffix=0, pools=None):
+                    start_suffix=0, pools=None, networkid=None):
     xen_host = get_xen_host(xen_host_ref, os)
     if not xen_host:
         error = "Error: No XenHost available for the OS matching template!"
@@ -347,7 +352,7 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
             return []
     try:
         if service_name == 'createvm':
-            network = xen_host[os + ".template.network"]
+            network = networkid or xen_host["host.network.id"] or xen_host[os + ".template.network"]
             log.debug("Creating from {0} :{1}, cpus: {2}, memory: {3}".format(str(template),
                                                                               vm_prefix_names, cpus,
                                                                               maxmemory))
@@ -422,6 +427,10 @@ def get_xen_values(config, xen_host_ref, os):
         xen_host["host.password"] = config.get('xenhost' + str(xen_host_ref), 'host.password')
         xen_host["host.storage.name"] = config.get('xenhost' + str(xen_host_ref),
                                                    'host.storage.name')
+        if config.has_option('xenhost' + str(xen_host_ref), 'host.network.id'):
+            xen_host["host.network.id"] = config.get('xenhost' + str(xen_host_ref), 'host.network.id')
+        else:
+            xen_host["host.network.id"] = None
         if os is not None:
             xen_host[os + ".template"] = config.get('xenhost' + str(xen_host_ref), os + '.template')
             if config.has_option('xenhost' + str(xen_host_ref), os + '.template' + '.network'):
