@@ -86,5 +86,31 @@ class TestDuplicates(unittest.TestCase):
             self.assertTrue(len(duplicates) == expected_duplicates)
 
 
+class TestRerunWorseHelper(unittest.TestCase):
+    def test_rerun_worse_helper(self):
+        # expected_result, max_failed_reruns, [total_count, fail_count, result]...
+        tests = [
+            [False, 1, [0, 0, "FAILURE"]],
+            [False, 1, [0, 0, "FAILURE"], [1, 0, "SUCCESS"]],
+            [False, 1, [0, 0, "FAILURE"], [2, 2, "UNSTABLE"]],
+            [True, 1, [2, 1, "UNSTABLE"], [2, 2, "UNSTABLE"]],
+            [True, 1, [2, 1, "UNSTABLE"], [0, 0, "FAILURE"]],
+            [True, 1, [2, 1, "UNSTABLE"], [0, 0, "FAILURE"]],
+            [True, 1, [3, 2, "UNSTABLE"], [3, 1, "UNSTABLE"], [0, 0, "FAILURE"]],
+            [False, 1, [2, 1, "UNSTABLE"], [0, 0, "FAILURE"], [0, 0, "FAILURE"]],
+            [True, 2, [2, 1, "UNSTABLE"], [0, 0, "FAILURE"], [0, 0, "FAILURE"]],
+
+        ]
+
+        for test in tests:
+            result = test[0]
+            class TestOptions:
+                max_failed_reruns = test[1]
+
+            options = TestOptions()
+            all_runs = [{"totalCount": run[0], "failCount": run[1], "result": run[2]} for run in reversed(test[2:])]
+            self.assertEqual(result, rerun_failed_jobs.rerun_worse_helper(all_runs, options))
+
+
 if __name__ == '__main__':
     unittest.main()

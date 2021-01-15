@@ -471,23 +471,29 @@ def passes_pool_threshold(cluster: Cluster, dispatcher_name, dispatcher_params, 
 
     return True
 
+def rerun_worse_helper(all_runs, options):
+    # we will only try a worse rerun again if there was a rerun and the number of worse reruns is less than `max_failed_reruns`
+
+    if len(all_runs) < 2:
+        return False
+
+    fresh_run = all_runs[len(all_runs) - 1]
+    latest_rerun = all_runs[0]
+
+    def worse(run, fresh_run):
+        # if fresh run was failure, failCount will be 0 so anything higher would cause another rerun
+        if fresh_run["result"] == "FAILURE" and run["result"] != "FAILURE":
+            return False
+        return run["failCount"] > fresh_run["failCount"] or run["totalCount"] < fresh_run["totalCount"]
+
+    worse_reruns = list(filter(lambda run: worse(run, fresh_run), all_runs[:-1]))
+
+    return worse(latest_rerun, fresh_run) and len(worse_reruns) <= options.max_failed_reruns
+
 def rerun_worse(cluster: Cluster, job, options):
     query = "select raw os.`{}`.`{}`.`{}` from greenboard where `build` = '{}' and type = 'server'".format(job["os"], job["component"], job["name"], options.build)
-
     all_runs = list(cluster.query(query))[0]
-
-    # we will only try a worse rerun again if there was a rerun and the number of worse reruns is less than `max_failed_reruns`
-    if len(all_runs) < 2 or len(all_runs) > (options.max_failed_reruns + 1):
-        return False
-
-    latest_rerun = all_runs[0]
-    fresh_run = all_runs[len(all_runs) - 1]
-
-    # if fresh run was failure, failCount will be 0 so anything higher would cause another rerun
-    if fresh_run["result"] == "FAILURE" and latest_rerun["result"] != "FAILURE":
-        return False
-
-    return latest_rerun["failCount"] > fresh_run["failCount"] or latest_rerun["totalCount"] < fresh_run["totalCount"]
+    return rerun_worse_helper(all_runs, options)
 
 
 def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue):
