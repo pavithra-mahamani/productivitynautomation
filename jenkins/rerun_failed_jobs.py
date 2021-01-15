@@ -532,6 +532,10 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue):
             if "dispatcher_params" in parameters:
                 dispatcher_params = json.loads(parameters['dispatcher_params'][11:])
                 parameters["dispatcher_params"] = dispatcher_params
+                # TODO: Remove when CBQE-6336 fixed
+                if "component" not in dispatcher_params:
+                    logger.debug("skipping {} (invalid dispatcher_params)".format(job["name"]))
+                    continue
 
             # only run dispatcher jobs
             if "dispatcher_params" not in parameters and options.dispatcher_jobs:
