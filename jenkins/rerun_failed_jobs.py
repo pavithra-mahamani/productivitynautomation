@@ -496,13 +496,15 @@ def rerun_worse(cluster: Cluster, job, options):
     return rerun_worse_helper(all_runs, options)
 
 
-def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue):
+def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue, already_rerun):
     logger.info("filtering {} jobs".format(len(jobs)))
     running_builds = get_running_builds(server)
     latest_builds = latest_jenkins_builds(options)
     for job in jobs:
 
-        if job["name"] in queue:
+        run_url = job["url"] + str(job["build_id"])
+
+        if job["name"] in queue or run_url in already_rerun:
             continue
 
         try:
@@ -633,6 +635,7 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue):
             job["parameters"] = parameters
             job["reasons_for_rerun"] = reasons
             queue[job["name"]] = job
+            already_rerun.add(run_url)
 
         except Exception:
             traceback.print_exc()
@@ -879,6 +882,7 @@ if __name__ == "__main__":
 
     pool_thresholds_hit = []
     queue = {}
+    already_rerun = set()
 
     # timeout after 20 hours
     timeout = time.time() + (options.timeout * 60 * 60)
@@ -886,7 +890,7 @@ if __name__ == "__main__":
     while True:
         try:
             jobs = all_failed_jobs(cluster, options)
-            filter_jobs(jobs, cluster, server, options, queue)
+            filter_jobs(jobs, cluster, server, options, queue, already_rerun)
 
             if len(jobs) > 0:
                 triggered_jobs = rerun_jobs(queue, server, cluster, pool_thresholds_hit, options)
