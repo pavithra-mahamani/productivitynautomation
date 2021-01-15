@@ -83,7 +83,7 @@ def getavailable_count_service(os='centos'):
     """
     count, available_counts, xen_hosts = get_all_available_count(os)
     log.info("{},{},{},{}".format(count, available_counts, xen_hosts, reserved_count))
-    if count > reserved_count:
+    if count >= reserved_count:
         count -= reserved_count
     log.info("Less reserved count: {},{},{},{}".format(count, available_counts, xen_hosts,
                                                  reserved_count))
@@ -712,7 +712,7 @@ def create_vm(session, os_name, template, network, new_vm_name, cpus="default", 
 
         if is_local_ip:
             # empty string represents no/invalid IP
-            ip_addr = ""
+            vm_ip_addr = ""
             raise Exception("Couldn't get IP within timeout")
 
         log.info("Final VM IP: {}".format(vm_ip_addr))
