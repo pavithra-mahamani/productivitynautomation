@@ -50,8 +50,10 @@ class TestDuplicates(unittest.TestCase):
             "subcomponent": "bb",
             "version_number": "7.0.0-3874",
             "dispatcher_params": {
-                "dispatcher_url": "http://qa.sc.couchbase.com/job/test_suite_dispatcher/"
-            }
+                "dispatcher_url": "http://qa.sc.couchbase.com/job/test_suite_dispatcher/",
+                "OS": "centos"
+            },
+            "os": "centos"
         }
         job_name = "test_suite_executor"
 
@@ -81,6 +83,10 @@ class TestDuplicates(unittest.TestCase):
                     }
                 }
             ]
+            if "dispatcher" in name:
+                running_builds[0]["parameters"]["OS"] = "centos"
+            else:
+                running_builds[0]["parameters"]["os"] = "centos"
             duplicates = rerun_failed_jobs.get_duplicate_jobs(
                 running_builds, job_name, parameters, options)
             self.assertTrue(len(duplicates) == expected_duplicates)
