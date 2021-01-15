@@ -471,32 +471,40 @@ def passes_pool_threshold(cluster: Cluster, dispatcher_name, dispatcher_params, 
 
     return True
 
+def rerun_worse_helper(all_runs, options):
+    # we will only try a worse rerun again if there was a rerun and the number of worse reruns is less than `max_failed_reruns`
+
+    if len(all_runs) < 2:
+        return False
+
+    fresh_run = all_runs[len(all_runs) - 1]
+    latest_rerun = all_runs[0]
+
+    def worse(run, fresh_run):
+        # if fresh run was failure, failCount will be 0 so anything higher would cause another rerun
+        if fresh_run["result"] == "FAILURE" and run["result"] != "FAILURE":
+            return False
+        return run["failCount"] > fresh_run["failCount"] or run["totalCount"] < fresh_run["totalCount"]
+
+    worse_reruns = list(filter(lambda run: worse(run, fresh_run), all_runs[:-1]))
+
+    return worse(latest_rerun, fresh_run) and len(worse_reruns) <= options.max_failed_reruns
+
 def rerun_worse(cluster: Cluster, job, options):
     query = "select raw os.`{}`.`{}`.`{}` from greenboard where `build` = '{}' and type = 'server'".format(job["os"], job["component"], job["name"], options.build)
-
     all_runs = list(cluster.query(query))[0]
-
-    # we will only try a worse rerun again if there was a rerun and the number of worse reruns is less than `max_failed_reruns`
-    if len(all_runs) < 2 or len(all_runs) > (options.max_failed_reruns + 1):
-        return False
-
-    latest_rerun = all_runs[0]
-    fresh_run = all_runs[len(all_runs) - 1]
-
-    # if fresh run was failure, failCount will be 0 so anything higher would cause another rerun
-    if fresh_run["result"] == "FAILURE" and latest_rerun["result"] != "FAILURE":
-        return False
-
-    return latest_rerun["failCount"] > fresh_run["failCount"] or latest_rerun["totalCount"] < fresh_run["totalCount"]
+    return rerun_worse_helper(all_runs, options)
 
 
-def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue):
+def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue, already_rerun):
     logger.info("filtering {} jobs".format(len(jobs)))
     running_builds = get_running_builds(server)
     latest_builds = latest_jenkins_builds(options)
     for job in jobs:
 
-        if job["name"] in queue:
+        run_url = job["url"] + str(job["build_id"])
+
+        if job["name"] in queue or run_url in already_rerun:
             continue
 
         try:
@@ -532,6 +540,10 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue):
             if "dispatcher_params" in parameters:
                 dispatcher_params = json.loads(parameters['dispatcher_params'][11:])
                 parameters["dispatcher_params"] = dispatcher_params
+                # TODO: Remove when CBQE-6336 fixed
+                if "component" not in dispatcher_params:
+                    logger.debug("skipping {} (invalid dispatcher_params)".format(job["name"]))
+                    continue
 
             # only run dispatcher jobs
             if "dispatcher_params" not in parameters and options.dispatcher_jobs:
@@ -623,6 +635,7 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue):
             job["parameters"] = parameters
             job["reasons_for_rerun"] = reasons
             queue[job["name"]] = job
+            already_rerun.add(run_url)
 
         except Exception:
             traceback.print_exc()
@@ -869,6 +882,7 @@ if __name__ == "__main__":
 
     pool_thresholds_hit = []
     queue = {}
+    already_rerun = set()
 
     # timeout after 20 hours
     timeout = time.time() + (options.timeout * 60 * 60)
@@ -876,7 +890,7 @@ if __name__ == "__main__":
     while True:
         try:
             jobs = all_failed_jobs(cluster, options)
-            filter_jobs(jobs, cluster, server, options, queue)
+            filter_jobs(jobs, cluster, server, options, queue, already_rerun)
 
             if len(jobs) > 0:
                 triggered_jobs = rerun_jobs(queue, server, cluster, pool_thresholds_hit, options)
