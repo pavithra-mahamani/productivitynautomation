@@ -1,5 +1,6 @@
 from typing import Dict, List, Optional
 import jenkinshelper
+from time import time as current_time
 import traceback
 from datetime import datetime
 from pytz import timezone
@@ -82,8 +83,18 @@ def get_hanging_jobs(server, options):
 
         try:
             latest_timestamp = None
-            console = list(requests.get(
-                build['url'] + 'consoleText').iter_lines(decode_unicode=True))
+            start_download_time = current_time()
+            download_complete = True
+            console = []
+            for line in requests.get(build['url'] + 'consoleText', stream=True).iter_lines():
+                console.append(line)
+                if current_time() > start_download_time + options.download_timeout:
+                    download_complete = False
+                    break
+            if not download_complete:
+                logger.error("{} skipped (downloading console log took too long)".format(build['url']))
+                continue
+
             for line in reversed(console):
 
                 def parse_timestamp(timestamp, format):
@@ -189,6 +200,7 @@ def parse_arguments():
     parser.add_option("--include_components", dest="include_components", help="List of component and subcomponents to include in format component1:subcomponent1,subcomponent2 component2:subcomponent3 component3")
     parser.add_option("--exclude_components", dest="exclude_components", help="List of components and subcomponents to exclude in format component1:subcomponent1,subcomponent2 component2:subcomponent3 component3")
     parser.add_option("-f", "--force", dest="force", help="Regular expression of job names to abort if no timestamp found and running time > timeout")
+    parser.add_option("--download_timeout", dest="download_timeout", help="Timeout for downloading job log in secs", type="int", default="10")
 
     options, args = parser.parse_args()
 
