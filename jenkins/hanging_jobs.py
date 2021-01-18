@@ -86,7 +86,7 @@ def get_hanging_jobs(server, options):
             start_download_time = current_time()
             download_complete = True
             console = []
-            for line in requests.get(build['url'] + 'consoleText', stream=True).iter_lines():
+            for line in requests.get(build['url'] + 'consoleText', stream=True).iter_lines(decode_unicode=True):
                 console.append(line)
                 if current_time() > start_download_time + options.download_timeout:
                     download_complete = False
