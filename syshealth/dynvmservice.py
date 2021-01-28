@@ -81,7 +81,13 @@ def getavailable_count_service(os='centos'):
         Available count2 = (Free Memory - VMs Memory)/OS_Template_Memory
         Return min(count1,count2)
     """
-    count, available_counts, xen_hosts = get_all_available_count(os)
+
+    if request.args.get('labels'):
+        labels = request.args.get('labels').split(",")
+    else:
+        labels = None
+
+    count, available_counts, xen_hosts = get_all_available_count(os, labels)
     log.info("{},{},{},{}".format(count, available_counts, xen_hosts, reserved_count))
     if count >= reserved_count:
         count -= reserved_count
@@ -196,6 +202,11 @@ def getservers_service(username):
     else:
         networkid = None 
 
+    if request.args.get('labels'):
+        labels = request.args.get('labels').split(",")
+    else:
+        labels = None
+
     xhostref = None
     if request.args.get('xhostref'):
         xhostref = request.args.get('xhostref')
@@ -222,7 +233,7 @@ def getservers_service(username):
                 return json.dumps(ips)
 
     # TBD consider cpus/mem later
-    count, available_counts, xen_hosts_available_refs = get_all_available_count(os_name)
+    count, available_counts, xen_hosts_available_refs = get_all_available_count(os_name, labels)
     log.info("{}, {}".format(available_counts, xen_hosts_available_refs))
     if vm_count > count:
         reserved_count -= vm_count
@@ -391,7 +402,7 @@ def get_config(name):
 
     return all_config
 
-def get_all_xen_hosts_count(os=None):
+def get_all_xen_hosts_count(os=None, labels=None):
     config = read_config()
     xen_host_ref_count = 0
     xen_host_ref = 0
@@ -403,11 +414,23 @@ def get_all_xen_hosts_count(os=None):
                 xen_host_ref_count += 1
                 xen_host_ref += 1
                 xen_host = get_xen_values(config, xen_host_ref, os)
-                if xen_host:
+
+                if xen_host["host.labels"]:
+                    if not labels:
+                        labels_match = False
+                    else:
+                        xen_host_labels = set(xen_host["host.labels"])
+                        labels = set(labels)
+                        labels_match = len(xen_host_labels.intersection(labels)) > 0
+                else:
+                    labels_match = not labels
+                
+                if xen_host and labels_match:
                     all_xen_hosts.append(xen_host)
                 else:
                     xen_host_ref_count -= 1
             except Exception as e:
+                xen_host_ref_count -= 1
                 log.debug(e)
 
     return xen_host_ref_count, all_xen_hosts
@@ -431,6 +454,10 @@ def get_xen_values(config, xen_host_ref, os):
             xen_host["host.network.id"] = config.get('xenhost' + str(xen_host_ref), 'host.network.id')
         else:
             xen_host["host.network.id"] = None
+        if config.has_option('xenhost' + str(xen_host_ref), 'host.labels'):
+            xen_host["host.labels"] = config.get('xenhost' + str(xen_host_ref), 'host.labels').split(",")
+        else:
+            xen_host["host.labels"] = None
         if os is not None:
             xen_host[os + ".template"] = config.get('xenhost' + str(xen_host_ref), os + '.template')
             if config.has_option('xenhost' + str(xen_host_ref), os + '.template' + '.network'):
@@ -916,8 +943,8 @@ def get_vm_existed_xenhost_ref(vm_name, count, os="centos"):
     return xen_host_index
 
 
-def get_all_available_count(os="centos"):
-    num_xen_hosts, xen_hosts = get_all_xen_hosts_count(os)
+def get_all_available_count(os="centos", labels=None):
+    num_xen_hosts, xen_hosts = get_all_xen_hosts_count(os, labels)
     log.info("Number of xen hosts: {}, {}".format(num_xen_hosts, xen_hosts))
     count = 0
     available_counts = []
