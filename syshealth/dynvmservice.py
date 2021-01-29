@@ -323,6 +323,24 @@ def releaseservers_service(username, target_state=None):
     else:
         return json.dumps(delete_vms_res, indent=2, sort_keys=True)
 
+@app.route("/setexpiry/<string:username>/<int:expiresin>")
+def setexpiry_service(username, expiresin):
+    if request.args.get("count"):
+        vm_count = int(request.args.get("count"))
+        names = [username + str(i) for i in range(1, vm_count + 1)]
+    else:
+        names = [username]
+    if request.args.get("from"):
+        valid = ["now", "created"]
+        from_reference = request.args.get("from")
+        if from_reference not in valid:
+            return "Error: from={} is not valid, must be one of: {}".format(from_reference, ",".join(valid)), 499
+    else:
+        from_reference = "now"
+    cb_doc = CBDoc()
+    updated_names = cb_doc.set_expired(names, expiresin, from_reference)
+    return json.dumps(updated_names)
+
 
 def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_prefix_names="",
                     number_of_vms=1, cpus="default", maxmemory="default",
@@ -1222,6 +1240,22 @@ class CBDoc:
         except Exception as e:
             log.error("Error getting expired vms: {}".format(str(e)))
             return []
+
+    def set_expired(self, names, expired_time_mins, from_reference):
+        try:
+            if from_reference == "now":
+                set_expired_to = time.time() + (expired_time_mins * 60)
+            elif from_reference == "created":
+                set_expired_to = "(created_time + {})".format(expired_time_mins * 60)
+            else:
+                log.error("Error setting expired_time for")
+                raise Exception("Invalid from_reference")
+            query = "UPDATE `QE-dynserver-pool` SET expired_time = {} WHERE ipaddr != '' AND state = 'available' AND name in {} RETURNING raw name".format(set_expired_to, names)
+            updated_names = list(self.cb.n1ql_query(query))
+            return updated_names
+        except Exception as e:
+            log.error("Error setting expired_time for {}", names)
+            raise e
 
 
 def list_given_vm_set_details(session, list_vm_names, number_of_vms):
