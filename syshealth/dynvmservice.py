@@ -81,7 +81,44 @@ def getavailable_count_service(os='centos'):
         Available count2 = (Free Memory - VMs Memory)/OS_Template_Memory
         Return min(count1,count2)
     """
-    count, available_counts, xen_hosts = get_all_available_count(os)
+
+    if request.args.get('labels'):
+        labels = request.args.get('labels').split(",")
+    else:
+        labels = None
+
+    if request.args.get("alllabels"):
+        get_all_labels = request.args.get("alllabels").lower() == "true"
+    else:
+        get_all_labels = False
+
+    if request.args.get("ignorelabels"):
+        ignore_labels = request.args.get("ignorelabels").lower() == "true"
+    else:
+        ignore_labels = False
+    
+    if get_all_labels:
+        all_labels = set()
+        _, xen_hosts = get_all_xen_hosts_count(os, ignore_labels=True)
+        for xen_host in xen_hosts:
+            if "host.labels" in xen_host and xen_host["host.labels"] is not None:
+                for label in xen_host["host.labels"]:
+                    all_labels.add(label)
+        response = []
+        for label in all_labels:
+            count, _, _ = get_all_available_count(os, [label])
+            response.append({
+                "label": label,
+                "count": count
+            })
+        count, _, _ = get_all_available_count(os)
+        response.append({
+            "label": "default",
+            "count": count
+        })
+        return json.dumps(response)
+
+    count, available_counts, xen_hosts = get_all_available_count(os, labels, ignore_labels)
     log.info("{},{},{},{}".format(count, available_counts, xen_hosts, reserved_count))
     if count >= reserved_count:
         count -= reserved_count
@@ -196,6 +233,16 @@ def getservers_service(username):
     else:
         networkid = None 
 
+    if request.args.get('labels'):
+        labels = request.args.get('labels').split(",")
+    else:
+        labels = None
+
+    if request.args.get("ignorelabels"):
+        ignore_labels = request.args.get("ignorelabels").lower() == "true"
+    else:
+        ignore_labels = False
+
     xhostref = None
     if request.args.get('xhostref'):
         xhostref = request.args.get('xhostref')
@@ -222,7 +269,7 @@ def getservers_service(username):
                 return json.dumps(ips)
 
     # TBD consider cpus/mem later
-    count, available_counts, xen_hosts_available_refs = get_all_available_count(os_name)
+    count, available_counts, xen_hosts_available_refs = get_all_available_count(os_name, labels, ignore_labels)
     log.info("{}, {}".format(available_counts, xen_hosts_available_refs))
     if vm_count > count:
         reserved_count -= vm_count
@@ -371,11 +418,12 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
     try:
         if service_name == 'createvm':
             network = networkid or xen_host["host.network.id"] or xen_host[os + ".template.network"]
+            labels = xen_host["host.labels"]
             log.debug("Creating from {0} :{1}, cpus: {2}, memory: {3}".format(str(template),
                                                                               vm_prefix_names, cpus,
                                                                               maxmemory))
             new_vms, _ = create_vms(session, os, template, network, vm_prefix_names, number_of_vms,
-                                              cpus, maxmemory, expiry_minutes, start_suffix, pools)
+                                              cpus, maxmemory, expiry_minutes, start_suffix, pools, labels)
             log.info(new_vms)
             return new_vms
         elif service_name == 'deletevm':
@@ -409,7 +457,7 @@ def get_config(name):
 
     return all_config
 
-def get_all_xen_hosts_count(os=None):
+def get_all_xen_hosts_count(os=None, labels=None, ignore_labels=False):
     config = read_config()
     xen_host_ref_count = 0
     xen_host_ref = 0
@@ -421,11 +469,26 @@ def get_all_xen_hosts_count(os=None):
                 xen_host_ref_count += 1
                 xen_host_ref += 1
                 xen_host = get_xen_values(config, xen_host_ref, os)
-                if xen_host:
+
+                if ignore_labels:
+                    labels_match = True
+                else:
+                    if xen_host["host.labels"]:
+                        if not labels:
+                            labels_match = False
+                        else:
+                            xen_host_labels = set(xen_host["host.labels"])
+                            labels = set(labels)
+                            labels_match = len(xen_host_labels.intersection(labels)) > 0
+                    else:
+                        labels_match = not labels
+                
+                if xen_host and labels_match:
                     all_xen_hosts.append(xen_host)
                 else:
                     xen_host_ref_count -= 1
             except Exception as e:
+                xen_host_ref_count -= 1
                 log.debug(e)
 
     return xen_host_ref_count, all_xen_hosts
@@ -449,6 +512,10 @@ def get_xen_values(config, xen_host_ref, os):
             xen_host["host.network.id"] = config.get('xenhost' + str(xen_host_ref), 'host.network.id')
         else:
             xen_host["host.network.id"] = None
+        if config.has_option('xenhost' + str(xen_host_ref), 'host.labels'):
+            xen_host["host.labels"] = config.get('xenhost' + str(xen_host_ref), 'host.labels').split(",")
+        else:
+            xen_host["host.labels"] = None
         if os is not None:
             xen_host[os + ".template"] = config.get('xenhost' + str(xen_host_ref), os + '.template')
             if config.has_option('xenhost' + str(xen_host_ref), os + '.template' + '.network'):
@@ -552,7 +619,7 @@ def list_vm_details(session, vm_name):
 
 
 def create_vms(session, os, template, network, vm_prefix_names, number_of_vms=1, cpus="default",
-               maxmemory="default", expiry_minutes=MAX_EXPIRY_MINUTES, start_suffix=0, pools=None):
+               maxmemory="default", expiry_minutes=MAX_EXPIRY_MINUTES, start_suffix=0, pools=None, labels=None):
     global reserved_count
     vm_names = vm_prefix_names.split(",")
     index = 1
@@ -563,7 +630,7 @@ def create_vms(session, os, template, network, vm_prefix_names, number_of_vms=1,
             for k in range(int(number_of_vms)):
                 vm_name = vm_names[i] + str(start_suffix + 1)
                 vm_ip, vm_os, error = create_vm(session, os, template, network, vm_name, cpus, maxmemory,
-                                                expiry_minutes, pools)
+                                                expiry_minutes, pools, labels)
                 new_vms_info[vm_name] = vm_ip
                 list_of_vms.append(vm_ip)
                 reserved_count -= 1
@@ -575,7 +642,7 @@ def create_vms(session, os, template, network, vm_prefix_names, number_of_vms=1,
                 index += 1
         else:
             vm_ip, vm_os, error = create_vm(session, os, template, network, vm_names[i], cpus, maxmemory,
-                                            expiry_minutes, pools)
+                                            expiry_minutes, pools, labels)
             new_vms_info[vm_names[i]] = vm_ip
             list_of_vms.append(vm_ip)
             reserved_count -= 1
@@ -588,7 +655,7 @@ def create_vms(session, os, template, network, vm_prefix_names, number_of_vms=1,
 
 
 def create_vm(session, os_name, template, network, new_vm_name, cpus="default", maxmemory="default",
-              expiry_minutes=MAX_EXPIRY_MINUTES, pools=None):
+              expiry_minutes=MAX_EXPIRY_MINUTES, pools=None, labels=None):
     error = ''
     vm_os_name = ''
     vm_ip_addr = ''
@@ -778,7 +845,7 @@ def create_vm(session, os_name, template, network, new_vm_name, cpus="default", 
                      "state": state, "poolId": pool, "prevUser": "", "username": username,
                      "ver": "12", "memory": memory_static_max, "os_version": vm_os_name,
                      "name": new_vm_name, "created_time": prov_end_time,
-                     "create_duration_secs": create_duration, "cpu": vcpus, "disk": disks_info, "expired_time": prov_end_time + (expiry_minutes * 60)}
+                     "create_duration_secs": create_duration, "cpu": vcpus, "disk": disks_info, "expired_time": prov_end_time + (expiry_minutes * 60), "labels": labels or []}
         # doc_value["mac_address"] = mac_address
         doc_key = uuid
 
@@ -912,7 +979,7 @@ def read_vm_ip_address(session, a_vm):
 
 
 def get_vm_existed_xenhost_ref(vm_name, count, os="centos"):
-    num_xen_hosts, xen_hosts = get_all_xen_hosts_count(os)
+    num_xen_hosts, xen_hosts = get_all_xen_hosts_count(os, ignore_labels=True)
 
     if count > 1:
         vm_name = vm_name + "1"
@@ -934,8 +1001,8 @@ def get_vm_existed_xenhost_ref(vm_name, count, os="centos"):
     return xen_host_index
 
 
-def get_all_available_count(os="centos"):
-    num_xen_hosts, xen_hosts = get_all_xen_hosts_count(os)
+def get_all_available_count(os="centos", labels=None, ignore_labels=False):
+    num_xen_hosts, xen_hosts = get_all_xen_hosts_count(os, labels, ignore_labels)
     log.info("Number of xen hosts: {}, {}".format(num_xen_hosts, xen_hosts))
     count = 0
     available_counts = []
