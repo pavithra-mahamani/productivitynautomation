@@ -87,6 +87,32 @@ def getavailable_count_service(os='centos'):
     else:
         labels = None
 
+    if request.args.get("alllabels"):
+        get_all_labels = request.args.get("alllabels").lower() == "true"
+    else:
+        get_all_labels = False
+    
+    if get_all_labels:
+        all_labels = set()
+        _, xen_hosts = get_all_xen_hosts_count(os, ignore_labels=True)
+        for xen_host in xen_hosts:
+            if "host.labels" in xen_host and xen_host["host.labels"] is not None:
+                for label in xen_host["host.labels"]:
+                    all_labels.add(label)
+        response = []
+        for label in all_labels:
+            count, _, _ = get_all_available_count(os, [label])
+            response.append({
+                "label": label,
+                "count": count
+            })
+        count, _, _ = get_all_available_count(os)
+        response.append({
+            "label": "default",
+            "count": count
+        })
+        return json.dumps(response)
+
     count, available_counts, xen_hosts = get_all_available_count(os, labels)
     log.info("{},{},{},{}".format(count, available_counts, xen_hosts, reserved_count))
     if count >= reserved_count:
@@ -402,7 +428,7 @@ def get_config(name):
 
     return all_config
 
-def get_all_xen_hosts_count(os=None, labels=None):
+def get_all_xen_hosts_count(os=None, labels=None, ignore_labels=False):
     config = read_config()
     xen_host_ref_count = 0
     xen_host_ref = 0
@@ -415,15 +441,18 @@ def get_all_xen_hosts_count(os=None, labels=None):
                 xen_host_ref += 1
                 xen_host = get_xen_values(config, xen_host_ref, os)
 
-                if xen_host["host.labels"]:
-                    if not labels:
-                        labels_match = False
-                    else:
-                        xen_host_labels = set(xen_host["host.labels"])
-                        labels = set(labels)
-                        labels_match = len(xen_host_labels.intersection(labels)) > 0
+                if ignore_labels:
+                    labels_match = True
                 else:
-                    labels_match = not labels
+                    if xen_host["host.labels"]:
+                        if not labels:
+                            labels_match = False
+                        else:
+                            xen_host_labels = set(xen_host["host.labels"])
+                            labels = set(labels)
+                            labels_match = len(xen_host_labels.intersection(labels)) > 0
+                    else:
+                        labels_match = not labels
                 
                 if xen_host and labels_match:
                     all_xen_hosts.append(xen_host)
