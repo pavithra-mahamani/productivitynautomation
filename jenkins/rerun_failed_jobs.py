@@ -615,10 +615,12 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue, already
                     if len(previous_job) == 1:
                         prev_fail_count = int(previous_job[0]['failCount'])
                         prev_total_count = int(previous_job[0]['totalCount'])
+                        prev_result = previous_job[0]["result"]
                         curr_fail_count = int(job['failCount'])
                         curr_total_count = int(job['totalCount'])
+                        curr_result = job["result"]
 
-                        if prev_fail_count == curr_fail_count and prev_total_count == curr_total_count:
+                        if prev_fail_count == curr_fail_count and prev_total_count == curr_total_count and prev_result == curr_result:
                             logger.debug("skipping {} (not regression)".format(job["name"]))
                             continue
                         else:
@@ -627,7 +629,7 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue, already
                             job["prev_fail_count"] = prev_fail_count
                             job["prev_pass_count"] = prev_total_count - prev_fail_count
                             job["prev_build_id"] = int(previous_job[0]["build_id"])
-                            job["prev_result"] = previous_job[0]["result"]
+                            job["prev_result"] = prev_result
 
             if len(reasons) == 0:
                 reasons.append("forced")
