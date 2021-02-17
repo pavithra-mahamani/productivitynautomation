@@ -376,15 +376,8 @@ def filter_query(query: str, options):
             filter += " OR "
         filter += "result = 'FAILURE'"
 
-    if options.failed and options.aborted:
-        filter = "(failCount > 0 OR failCount = totalCount OR result = 'ABORTED')"
-    elif options.failed:
-        filter = "(failCount > 0 OR failCount = totalCount)"
-    elif options.aborted:
-        filter = "result = 'ABORTED'"
-
     if filter != "":
-        query += " AND {}".format(filter)
+        query += " AND ({})".format(filter)
 
     return query
 
