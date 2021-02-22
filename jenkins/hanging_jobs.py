@@ -55,8 +55,8 @@ def passes_component_filter(parameters, options):
         if included_subcomponents is not None and subcomponent not in included_subcomponents:
             return False
 
-    if options.exclude_components and component in options.include_components:
-        excluded_subcomponents = options.include_components[component]
+    if options.exclude_components and component in options.exclude_components:
+        excluded_subcomponents = options.exclude_components[component]
 
         if excluded_subcomponents is None or subcomponent in excluded_subcomponents:
             return False
