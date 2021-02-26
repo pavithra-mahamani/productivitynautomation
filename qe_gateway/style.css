@@ -13,7 +13,7 @@ h2 {
     margin: 20px 0;
 }
 
-h1, h2 {
+h1, h2, h3 {
     color: #fff
 }
 
@@ -28,4 +28,8 @@ body {
 a {
     text-decoration: none;
     color: #e93c07;
+}
+
+img {
+    max-height: 150px;
 }
