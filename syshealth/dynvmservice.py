@@ -308,8 +308,8 @@ def getservers_service(username):
                 for ip in per_xen_host_res:
                     merged_vms_list.append(ip)
                 log.info(per_xen_host_res)
-                # increase index by requested amount
-                vm_name_suffix_index = int(vm_name_suffix_index) + int(per_xen_host_vms)
+                # increase index by success amount (could be less than requested)
+                vm_name_suffix_index += len(per_xen_host_res)
                 # decrease need_vms by success amount (could be less than requested)
                 need_vms = need_vms - len(per_xen_host_res)
 
