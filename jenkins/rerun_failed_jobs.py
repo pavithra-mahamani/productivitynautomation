@@ -600,15 +600,20 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue, already
                 elif options.strategy == "regression":
                     # regression (if name in previous build and failCount or totalCount was different)
 
-                    query = "select failCount, totalCount, build_id, result from server where `build` = '{}' and name = '{}'".format(options.previous_builds[0], job['name'])
-                    previous_job = list(cluster.query(query))
+                    query = "select raw os.`{}`.`{}`.`{}` from greenboard where `build` = '{}' and type = 'server'".format(job["os"], job["component"], job["name"], options.previous_builds[0])
+                    previous_job_runs = list(cluster.query(query))
+                    if len(previous_job_runs) == 1:
+                        previous_job_runs = previous_job_runs[0]
+                    else:
+                        previous_job_runs = []
+                    previous_job = next(filter(lambda run: run["olderBuild"] == False, previous_job_runs), None)
                     # if no previous job then this is either a new job or 
                     # that job wasn't run last time so don't filter
 
-                    if len(previous_job) == 1:
-                        prev_fail_count = int(previous_job[0]['failCount'])
-                        prev_total_count = int(previous_job[0]['totalCount'])
-                        prev_result = previous_job[0]["result"]
+                    if previous_job is not None:
+                        prev_fail_count = int(previous_job['failCount'])
+                        prev_total_count = int(previous_job['totalCount'])
+                        prev_result = previous_job["result"]
                         curr_fail_count = int(job['failCount'])
                         curr_total_count = int(job['totalCount'])
                         curr_result = job["result"]
@@ -621,7 +626,7 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue, already
                             job["prev_total_count"] = prev_total_count
                             job["prev_fail_count"] = prev_fail_count
                             job["prev_pass_count"] = prev_total_count - prev_fail_count
-                            job["prev_build_id"] = int(previous_job[0]["build_id"])
+                            job["prev_build_id"] = int(previous_job["build_id"])
                             job["prev_result"] = prev_result
 
             if len(reasons) == 0:
