@@ -621,6 +621,7 @@ func getreruntotalbuildcycleduration(buildN string) int {
 				totalFailed := 0
 				totalUnstable := 0
 				totalSuccess := 0
+				totalComps := 0
 				var totalRerunOnlyDuration int64
 				var totalGrandDuration int64
 				var totalDuration int64
@@ -629,12 +630,13 @@ func getreruntotalbuildcycleduration(buildN string) int {
 					if component != "" && strings.ToUpper(component) != key1 {
 						continue
 					}
+					totalComps++
 					//fmt.Println("\nComponent:", key1, "Value1:", value1)
-					totalJobs += len(value1)
 					for key2, value2 := range value1 {
 						if jobNameRegex != nil && !jobNameRegex.MatchString(key2) {
 							continue
 						}
+						totalJobs++
 						//fmt.Println("\nJob/Suite:", key2, "Value2:", value2)
 						tests := make([]TestResult, 10)
 						rerunCount := copy(tests, value2)
@@ -648,10 +650,17 @@ func getreruntotalbuildcycleduration(buildN string) int {
 						for i := 0; i < len(tests); i++ {
 							totalGrandDuration += tests[i].Duration
 						}
-						totalDuration += tests[0].Duration
-						totalFailCount += tests[0].FailCount
-						totalTestCount += tests[0].TotalCount
-						switch tests[0].Result {
+						var bestRun TestResult = tests[0]
+						for i := range tests {
+							if !tests[i].OlderBuild {
+								bestRun = tests[i]
+								break
+							}
+						}
+						totalDuration += bestRun.Duration
+						totalFailCount += bestRun.FailCount
+						totalTestCount += bestRun.TotalCount
+						switch bestRun.Result {
 						case "ABORTED":
 							totalAborted++
 							break
@@ -679,7 +688,6 @@ func getreruntotalbuildcycleduration(buildN string) int {
 				if totalPassCount > 0 {
 					totalPassRate = (totalPassCount * 100) / totalTestCount
 				}
-				var totalComps = len(value)
 				hours := math.Floor(float64(totalGrandDuration) / 1000 / 60 / 60)
 				secs := totalDuration % (1000 * 60 * 60)
 				mins := math.Floor(float64(secs) / 60 / 1000)
