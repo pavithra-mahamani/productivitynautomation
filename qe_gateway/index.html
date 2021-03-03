@@ -18,7 +18,7 @@
                         <div class="card-header">Test results for latest server builds</div>
                         <img src="img/greenboard.png" class="card-img-bottom">
                         <div class="card-body d-flex flex-column">
-                            <a target="_blank" href="http://greenboard.hq.couchbase.com/" class="mt-auto btn btn-secondary">Functional testing dashboard</a>
+                            <a target="_blank" href="http://greenboard.hq.couchbase.com/" class="mt-auto btn btn-secondary">QE Functional testing dashboard</a>
                         </div>
                     </div>
                 </a>
@@ -101,27 +101,38 @@
                     </div>
                 </a>
             </div>
+            <div class="col">
+                <a target="_blank" href="http://releases.service.couchbase.com/builds/releases/">
+                    <div class="card h-100">
+                        <div class="card-header">Latest Release Builds</div>
+                        <img src="img/release_builds.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://releases.service.couchbase.com/builds/releases/" class="mt-auto btn btn-secondary">Release Builds</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="http://releases.service.couchbase.com/builds/releases/">
+                    <div class="card h-100">
+                        <div class="card-header">Build Manifests</div>
+                        <img src="img/build_manifests.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://releases.service.couchbase.com/builds/releases/" class="mt-auto btn btn-secondary">Build Manifests</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
         </div>
         <h2>Jenkins CI</h2>
         <div class="row row-cols-1 row-cols-sm-2 row-cols-md-4  g-4">
             <div class="col">
                 <a target="_blank" href="http://qa.sc.couchbase.com">
                     <div class="card h-100">
-                        <div class="card-header">Jenkins for server</div>
+                        <div class="card-header">QE Jenkins for Server</div>
                         <img src="img/server_jenkins.png" class="card-img-bottom">
                         <div class="card-body d-flex flex-column">
-                            <a target="_blank" href="http://qa.sc.couchbase.com" class="mt-auto btn btn-secondary">Server Jenkins</a>
-                        </div>
-                    </div>
-                </a>
-            </div>
-            <div class="col">
-                <a target="_blank" href="http://perf.jenkins.couchbase.com/">
-                    <div class="card h-100">
-                        <div class="card-header">Jenkins for performace</div>
-                        <img src="img/performance_jenkins.png" class="card-img-bottom">
-                        <div class="card-body d-flex flex-column">
-                            <a target="_blank" href="http://perf.jenkins.couchbase.com/" class="mt-auto btn btn-secondary">Performance Jenkins</a>
+                            <a target="_blank" href="http://qa.sc.couchbase.com" class="mt-auto btn btn-secondary">Server QE Jenkins</a>
                         </div>
                     </div>
                 </a>
@@ -129,10 +140,10 @@
             <div class="col">
                 <a target="_blank" href="http://server.jenkins.couchbase.com/">
                     <div class="card h-100">
-                        <div class="card-header">Jenkins for build</div>
+                        <div class="card-header">Build Jenkins for Server</div>
                         <img src="img/performance_jenkins.png" class="card-img-bottom">
                         <div class="card-body d-flex flex-column">
-                            <a target="_blank" href="http://server.jenkins.couchbase.com/" class="mt-auto btn btn-secondary">Build Jenkins</a>
+                            <a target="_blank" href="http://server.jenkins.couchbase.com/" class="mt-auto btn btn-secondary">Server Build Jenkins</a>
                         </div>
                     </div>
                 </a>
@@ -140,10 +151,21 @@
             <div class="col">
                 <a target="_blank" href="http://uberjenkins.sc.couchbase.com:8080/">
                     <div class="card h-100">
-                        <div class="card-header">Jenkins for mobile</div>
-                        <img src="img/performance_jenkins.png" class="card-img-bottom">
+                        <div class="card-header">QE Jenkins for Mobile</div>
+                        <img src="img/mobile_qe_jenkins.png" class="card-img-bottom">
                         <div class="card-body d-flex flex-column">
-                            <a target="_blank" href="http://uberjenkins.sc.couchbase.com:8080/" class="mt-auto btn btn-secondary">Mobile Jenkins</a>
+                            <a target="_blank" href="http://uberjenkins.sc.couchbase.com:8080/" class="mt-auto btn btn-secondary">Mobile QE Jenkins</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="http://mobile.jenkins.couchbase.com/">
+                    <div class="card h-100">
+                        <div class="card-header">Build Jenkins for Mobile</div>
+                        <img src="img/mobile_build_jenkins.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://mobile.jenkins.couchbase.com/" class="mt-auto btn btn-secondary">Mobile Build Jenkins</a>
                         </div>
                     </div>
                 </a>
@@ -151,10 +173,10 @@
             <div class="col">
                 <a target="_blank" href="http://sdkbuilds.sc.couchbase.com/">
                     <div class="card h-100">
-                        <div class="card-header">Jenkins for SDK Builds</div>
+                        <div class="card-header">Build Jenkins for SDK</div>
                         <img src="img/sdkbuilds_jenkins.png" class="card-img-bottom">
                         <div class="card-body d-flex flex-column">
-                            <a target="_blank" href="http://sdkbuilds.sc.couchbase.com/" class="mt-auto btn btn-secondary">SDK Builds Jenkins</a>
+                            <a target="_blank" href="http://sdkbuilds.sc.couchbase.com/" class="mt-auto btn btn-secondary">SDK Build Jenkins</a>
                         </div>
                     </div>
                 </a>
@@ -162,13 +184,27 @@
             <div class="col">
                 <a target="_blank" href="http://sdk.jenkins.couchbase.com/">
                     <div class="card h-100">
-                        <div class="card-header">Jenkins for SDK</div>
+                        <div class="card-header">QE Jenkins for SDK</div>
                         <img src="img/sdk_jenkins.png" class="card-img-bottom">
                         <div class="card-body d-flex flex-column">
-                            <a target="_blank" href="http://sdk.jenkins.couchbase.com/" class="mt-auto btn btn-secondary">SDK Jenkins</a>
+                            <a target="_blank" href="http://sdk.jenkins.couchbase.com/" class="mt-auto btn btn-secondary">SDK QE Jenkins</a>
                         </div>
                     </div>
                 </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="http://perf.jenkins.couchbase.com/">
+                    <div class="card h-100">
+                        <div class="card-header">Jenkins for Performance</div>
+                        <img src="img/performance_jenkins.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://perf.jenkins.couchbase.com/" class="mt-auto btn btn-secondary">Performance Jenkins</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div>
+
             </div>
             <div class="col">
                 <a target="_blank" href="http://172.23.109.231/job/centos-systest-launcher/">
