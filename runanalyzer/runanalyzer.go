@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -181,6 +182,7 @@ var qaJenkinsURL string
 var requiredServerPools string
 var requiredStates string
 var component string
+var jobNameRegex *regexp.Regexp
 
 func main() {
 	fmt.Println("*** Helper Tool ***")
@@ -208,6 +210,7 @@ func main() {
 	requiredServerPoolsInput := flag.String("reqserverpools",
 		"regression,durability,ipv6,ipv6-raw,ipv6-fqdn,ipv6-mix,jre-less,jre,security,elastic-fts,elastic-xdcr", usage())
 	requiredStatesInput := flag.String("reqstates", "available,booked", usage())
+	jobNameRegexInput := flag.String("jobname", "", usage())
 
 	flag.Parse()
 	dest = *destInput
@@ -232,6 +235,9 @@ func main() {
 	requiredServerPools = *requiredServerPoolsInput
 	requiredStates = *requiredStatesInput
 	component = *componentInput
+	if *jobNameRegexInput != "" {
+		jobNameRegex = regexp.MustCompile(*jobNameRegexInput)
+	}
 
 	//fmt.Println("original dest=", dest, "--", *destInput)
 	//time.Sleep(10 * time.Second)
@@ -626,6 +632,9 @@ func getreruntotalbuildcycleduration(buildN string) int {
 					//fmt.Println("\nComponent:", key1, "Value1:", value1)
 					totalJobs += len(value1)
 					for key2, value2 := range value1 {
+						if jobNameRegex != nil && !jobNameRegex.MatchString(key2) {
+							continue
+						}
 						//fmt.Println("\nJob/Suite:", key2, "Value2:", value2)
 						tests := make([]TestResult, 10)
 						rerunCount := copy(tests, value2)
