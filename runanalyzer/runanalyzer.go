@@ -717,23 +717,23 @@ func getreruntotalbuildcycleduration(buildN string) int {
 						fmt.Printf("\n\t\t\t%s \t%5d \t%5d \t%5d \t%5d \t%.2f%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%3d%% \t\t%4dhrs:%2dmins",
 							key, totalTestCount, totalFailCount, totalPassCount, totalSkipCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
 							totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins))
-						fmt.Fprintf(outW, "\n\t\t\t%s \t%5d \t%5d \t%5d \t%.2f%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%3d%% \t\t%4dhrs:%2dmins",
-							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
+						fmt.Fprintf(outW, "\n\t\t\t%s \t%5d \t%5d \t%5d \t%5d \t%.2f%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%3d%% \t\t%4dhrs:%2dmins",
+							key, totalTestCount, totalFailCount, totalPassCount, totalSkipCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
 							totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins))
 						fmt.Fprintf(outW, "\n%s", reranJobsList)
 					} else {
-						fmt.Printf("\n\t\t\t%s \t%5d \t%5d \t%5d \t%.2f%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d",
-							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
+						fmt.Printf("\n\t\t\t%s \t%5d \t%5d \t%5d \t%5d \t%.2f%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d",
+							key, totalTestCount, totalFailCount, totalPassCount, totalSkipCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
 							totalRuns, totalReruns, reranJobCount)
-						fmt.Fprintf(outW, "\n\t\t\t%s \t%5d \t%5d \t%5d \t%.2f%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d",
-							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
+						fmt.Fprintf(outW, "\n\t\t\t%s \t%5d \t%5d \t%5d \t%5d \t%.2f%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d",
+							key, totalTestCount, totalFailCount, totalPassCount, totalSkipCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
 							totalRuns, totalReruns, reranJobCount)
 					}
 					//fmt.Fprintf(outWCsv, "%d,%s,%d,%d,%s,%d,%d,%d,%d%%,%d,%d,%d,%d,%dhrs:%dmins,%d,%d,%d,%d,%d,%d%%,%dhrs:%dmins\n",
 					//	(sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount, key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
 					//	totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins))
-					fmt.Fprintf(outWCsv, "%d,%s,%d,%d,%s,%d,%d,%d,%.2f,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
-						(sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount, key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), freshTotaltime, totalComps, totalJobs, freshTotalJobs,
+					fmt.Fprintf(outWCsv, "%d,%s,%d,%d,%s,%d,%d,%d,%d,%.2f,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
+						(sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount, key, totalTestCount, totalFailCount, totalPassCount, totalSkipCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), freshTotaltime, totalComps, totalJobs, freshTotalJobs,
 						totalRuns, freshTotalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours))
 
 					sno++
