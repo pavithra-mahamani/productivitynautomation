@@ -450,6 +450,8 @@ def calculate_rows_and_columns(target):
         def calculate_cell(row, i, column):
             if column['type'] == "number":
                 return int(row[i])
+            elif column['type'] == "number":
+                return float(row[i])
             else:
                 return row[i]
 
