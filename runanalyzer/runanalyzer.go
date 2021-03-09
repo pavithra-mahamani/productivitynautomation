@@ -691,18 +691,18 @@ func getreruntotalbuildcycleduration(buildN string) int {
 				if totalPassCount > 0 {
 					totalPassRate = (float64(totalPassCount) * 100.0) / (float64(totalTestCount - totalSkipCount))
 				}
-				hours := math.Floor(float64(totalGrandDuration) / 1000 / 60 / 60)
+				hours := float64(totalGrandDuration) / 1000 / 60 / 60
 				secs := totalDuration % (1000 * 60 * 60)
 				mins := math.Floor(float64(secs) / 60 / 1000)
 				//totalMins := math.Floor(float64(totalGrandDuration) / 1000 / 60)
 
-				rerunHours := math.Floor(float64(totalRerunOnlyDuration) / 1000 / 60 / 60)
+				rerunHours := float64(totalRerunOnlyDuration) / 1000 / 60 / 60
 				rerunSecs := totalRerunOnlyDuration % (1000 * 60 * 60)
 				rerunMins := math.Floor(float64(rerunSecs) / 60 / 1000)
 				//totalRerunMins := math.Floor(float64(totalRerunOnlyDuration) / 1000 / 60)
 
 				freshTotalRuns := totalRuns - totalReruns
-				freshTotaltime := int64(hours) - int64(rerunHours)
+				freshTotaltime := hours - rerunHours
 				freshTotalJobs := totalJobs - reranJobCount
 
 				var rerunsRate = 0
@@ -732,9 +732,9 @@ func getreruntotalbuildcycleduration(buildN string) int {
 					//fmt.Fprintf(outWCsv, "%d,%s,%d,%d,%s,%d,%d,%d,%d%%,%d,%d,%d,%d,%dhrs:%dmins,%d,%d,%d,%d,%d,%d%%,%dhrs:%dmins\n",
 					//	(sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount, key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
 					//	totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins))
-					fmt.Fprintf(outWCsv, "%d,%s,%d,%d,%s,%d,%d,%d,%d,%.2f,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
-						(sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount, key, totalTestCount, totalFailCount, totalPassCount, totalSkipCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), freshTotaltime, totalComps, totalJobs, freshTotalJobs,
-						totalRuns, freshTotalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours))
+					fmt.Fprintf(outWCsv, "%d,%s,%d,%d,%s,%d,%d,%d,%d,%.2f,%d,%d,%d,%d,%.2f,%.2f,%d,%d,%d,%d,%d,%d,%d,%d,%.2f\n",
+						(sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount, key, totalTestCount, totalFailCount, totalPassCount, totalSkipCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, hours, freshTotaltime, totalComps, totalJobs, freshTotalJobs,
+						totalRuns, freshTotalRuns, totalReruns, reranJobCount, rerunsRate, rerunHours)
 
 					sno++
 				}
