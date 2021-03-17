@@ -59,7 +59,17 @@ reserved_count = 0
 @app.route('/showall/<string:os>')
 @app.route("/showall")
 def showall_service(os=None):
-    count, _ = get_all_xen_hosts_count(os)
+    if request.args.get('labels'):
+        labels = request.args.get('labels').split(",")
+    else:
+        labels = None
+
+    if request.args.get("ignorelabels"):
+        ignore_labels = request.args.get("ignorelabels").lower() == "true"
+    else:
+        ignore_labels = False
+
+    count, _ = get_all_xen_hosts_count(os, labels, ignore_labels)
     log.info("--> count: {}".format(count))
     all_vms = {}
     for xen_host_ref in range(1, count + 1):
