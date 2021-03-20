@@ -59,6 +59,56 @@ checkout_build_smallcb_docker()
    cd cmd/play-server/static/examples
 }
 
+load_or_reload_sample()
+{
+   SAMPLE="$1"
+   EXPECTED_ITEM_COUNT=$2
+   echo "Load/reloading ${SAMPLE} ...expected items:${EXPECTED_ITEM_COUNT}"
+   IS_LOADED=$(curl -s -u${USERNAME}:${PASSWORD} -d '['"\"${SAMPLE}\""']' "http://${HOST}:8091/sampleBuckets/install")
+   if [ "${IS_LOADED}" != "[]" ]; then
+      IS_ALREADY="`echo $IS_LOADED | grep 'is already loaded'`"
+      if [ "${IS_ALREADY}" != "" ]; then
+         echo "${SAMPLE} already exists! " #Deleting and loading again for fresh data..."
+         #curl -XDELETE -u${USERNAME}:${PASSWORD} "http://${HOST}:8091/pools/default/buckets/${SAMPLE}"
+         #sleep 5
+         #IS_LOADED=$(curl -s -u${USERNAME}:${PASSWORD} -d '['"\"${SAMPLE}\""']' "http://${HOST}:8091/sampleBuckets/install")
+      fi
+   fi
+   #sleep 10
+   TIME_INDEX=1
+   ITEM_COUNT=0
+   while [[ ( ${ITEM_COUNT} -lt ${EXPECTED_ITEM_COUNT} ) && ( $TIME_INDEX -lt 120 ) ]];
+   do
+      echo "Waiting to load...${SAMPLE} items:${ITEM_COUNT}...+3 secs"
+      sleep 3
+      ITEM_COUNT=$(curl -s -u${USERNAME}:${PASSWORD} "http://${HOST}:8091/pools/default/buckets/travel-sample" | \
+         python -c 'import sys, json; print(json.load(sys.stdin)["basicStats"]["itemCount"])')
+      ((TIME_INDEX++))
+   done
+
+   echo "Loaded the ${SAMPLE} items:${ITEM_COUNT}"
+   INDEX_PROGRESS=0
+   TIME_INDEX=0
+   while [[ (${INDEX_PROGRESS} -lt 100 ) && ( $TIME_INDEX -lt 120 ) ]];
+   do
+      echo "Waiting to create primary index...${SAMPLE} ${INDEX_PROGRESS}%...+3 secs"
+      sleep 3
+      ITEM_COUNT=$(curl -s -u${USERNAME}:${PASSWORD} "http://${HOST}:8091/pools/default/buckets/travel-sample" | \
+            python -c 'import sys, json; print(json.load(sys.stdin)["basicStats"]["itemCount"])')
+      INDEX_PROGRESS=$(curl -s -u${USERNAME}:${PASSWORD} "http://${HOST}:8091/indexStatus" | \
+            python -c 'import sys, json; data=json.load(sys.stdin);  \
+            primary_index=[index for index in data["indexes"] if index["bucket"]=='\""${SAMPLE}"\"' and index["indexName"]=="def_primary"]; \
+            print(primary_index[0]["progress"])')
+      ((TIME_INDEX++))
+   done
+   echo "Loaded the ${SAMPLE} primary index:${INDEX_PROGRESS}"
+   #sleep 5
+   #curl -s -u${USERNAME}:${PASSWORD} -d 'statement=CREATE PRIMARY INDEX idx_primary ON `'"${SAMPLE}"'`' "http://${HOST}:8093/query/service"
+   #sleep 5
+   echo "Loaded the ${SAMPLE}."
+
+}
+
 # Run given examples
 run_examples()
 {
@@ -87,6 +137,8 @@ run_examples()
       EXAMPLES_DIR=`pwd`
       if [ "${VERSION}" != "remote" ]; then
          cd ../../../../; make restart
+      else
+         load_or_reload_sample "travel-sample" 63288 
       fi
       cd ${EXAMPLES_DIR}
       #
