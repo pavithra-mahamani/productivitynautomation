@@ -349,12 +349,15 @@ def release_servers(username, os_name, vm_count):
             vm_name = username + str(vm_index + 1)
         else:
             vm_name = username
-        xen_host_ref = get_vm_existed_xenhost_ref(vm_name, 1, None)
-        log.info("VM to be deleted from xhost_ref=" + str(xen_host_ref))
-        if xen_host_ref != 0:
-            delete_per_xen_res = perform_service(xen_host_ref, 'deletevm', os_name, vm_name, 1)
-            for deleted_vm_res in delete_per_xen_res:
-                delete_vms_res.append(deleted_vm_res)
+        while True:
+            xen_host_ref = get_vm_existed_xenhost_ref(vm_name, 1, None)
+            if xen_host_ref != 0:
+                log.info("VM to be deleted from xhost_ref=" + str(xen_host_ref))
+                delete_per_xen_res = perform_service(xen_host_ref, 'deletevm', os_name, vm_name, 1)
+                for deleted_vm_res in delete_per_xen_res:
+                    delete_vms_res.append(deleted_vm_res)
+            else:
+                break
     return delete_vms_res
 
 # /releaseservers/{username}
