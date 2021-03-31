@@ -349,12 +349,15 @@ def release_servers(username, os_name, vm_count):
             vm_name = username + str(vm_index + 1)
         else:
             vm_name = username
-        xen_host_ref = get_vm_existed_xenhost_ref(vm_name, 1, None)
-        log.info("VM to be deleted from xhost_ref=" + str(xen_host_ref))
-        if xen_host_ref != 0:
-            delete_per_xen_res = perform_service(xen_host_ref, 'deletevm', os_name, vm_name, 1)
-            for deleted_vm_res in delete_per_xen_res:
-                delete_vms_res.append(deleted_vm_res)
+        while True:
+            xen_host_ref = get_vm_existed_xenhost_ref(vm_name, 1, None)
+            if xen_host_ref != 0:
+                log.info("VM to be deleted from xhost_ref=" + str(xen_host_ref))
+                delete_per_xen_res = perform_service(xen_host_ref, 'deletevm', os_name, vm_name, 1)
+                for deleted_vm_res in delete_per_xen_res:
+                    delete_vms_res.append(deleted_vm_res)
+            else:
+                break
     return delete_vms_res
 
 # /releaseservers/{username}
@@ -847,6 +850,12 @@ def create_vm(session, os_name, template, network, new_vm_name, cpus="default", 
             log.info("Max allowed expiry in minutes is " + str(vm_max_expiry_minutes))
             expiry_minutes = vm_max_expiry_minutes
 
+        log.info("Starting the timer for expiry of " + str(expiry_minutes) + " minutes.")
+        t = threading.Timer(interval=expiry_minutes * 60, function=release_servers,
+                            args=[new_vm_name, os_name, 1])
+        t.setName(new_vm_name + "__" + uuid)
+        t.start()
+
         # Save as doc in CB
         state = "available"
         username = new_vm_name
@@ -963,18 +972,22 @@ def delete_vm(session, vm_name):
         # delete from CB
         uuid = record["uuid"]
         doc_key = uuid
-        cbdoc = CBDoc()
-        doc_result = cbdoc.get_doc(doc_key)
-        if doc_result:
-            doc_value = doc_result.value
-            doc_value["state"] = 'deleted'
-            current_time = time.time()
-            doc_value["deleted_time"] = current_time
-            if doc_value["created_time"]:
-                doc_value["live_duration_secs"] = round(current_time - doc_value["created_time"])
-            doc_value["delete_duration_secs"] = delete_duration
-            cbdoc.save_dynvm_doc(doc_key, doc_value)
-            cbdoc.remove_from_static_pool(doc_value["ipaddr"])
+        delete_vm_from_db(doc_key, delete_duration)
+        
+
+def delete_vm_from_db(doc_key, delete_duration):
+    cbdoc = CBDoc()
+    doc_result = cbdoc.get_doc(doc_key)
+    if doc_result:
+        doc_value = doc_result.value
+        doc_value["state"] = 'deleted'
+        current_time = time.time()
+        doc_value["deleted_time"] = current_time
+        if doc_value["created_time"]:
+            doc_value["live_duration_secs"] = round(current_time - doc_value["created_time"])
+        doc_value["delete_duration_secs"] = delete_duration
+        cbdoc.save_dynvm_doc(doc_key, doc_value)
+        cbdoc.remove_from_static_pool(doc_value["ipaddr"])
 
 
 def read_vm_ip_address(session, a_vm):
@@ -1313,7 +1326,7 @@ class CBDoc:
     
     def get_expired(self):
         try:
-            return list(self.cb.n1ql_query("SELECT os, username FROM `QE-dynserver-pool` WHERE ipaddr != '' AND state = 'available' AND expired_time is not missing AND expired_time < {}".format(time.time())))
+            return list(self.cb.n1ql_query("SELECT os, username, META().id FROM `QE-dynserver-pool` WHERE ipaddr != '' AND state = 'available' AND expired_time is not missing AND expired_time < {}".format(time.time())))
         except Exception as e:
             log.error("Error getting expired vms: {}".format(str(e)))
             return []
@@ -1360,8 +1373,11 @@ def expire_vms():
         expired = cb_doc.get_expired()
         for vm in expired:
             try:
-                release_servers(vm["username"], vm["os"], 1)
-                log.info("deleted expired vm: {}".format(vm["username"]))
+                res = release_servers(vm["username"], vm["os"], 1)
+                if len(res) == 0:
+                    # vm record in db but vm already deleted, cleanup record
+                    delete_vm_from_db(vm["id"], 0)
+                log.info("deleted expired vm: {}".format(vm["username"]))                    
             except Exception:
                 pass
         time.sleep(60)
