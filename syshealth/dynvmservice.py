@@ -847,6 +847,12 @@ def create_vm(session, os_name, template, network, new_vm_name, cpus="default", 
             log.info("Max allowed expiry in minutes is " + str(vm_max_expiry_minutes))
             expiry_minutes = vm_max_expiry_minutes
 
+        log.info("Starting the timer for expiry of " + str(expiry_minutes) + " minutes.")
+        t = threading.Timer(interval=expiry_minutes * 60, function=release_servers,
+                            args=[new_vm_name, os_name, 1])
+        t.setName(new_vm_name + "__" + uuid)
+        t.start()
+
         # Save as doc in CB
         state = "available"
         username = new_vm_name
