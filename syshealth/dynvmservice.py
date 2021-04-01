@@ -1287,42 +1287,57 @@ class CBDoc:
             log.error('Connection Failed: %s ' % self.cb_server)
             log.error(e)
 
-    def get_doc(self, doc_key):
-        try:
-            return self.cb.get(doc_key)
-        except Exception as e:
-            log.error('Error while getting doc %s !' % doc_key)
-            log.error(e)
+    def get_doc(self, doc_key, retries=3):
+        while retries > 0:
+            try:
+                return self.cb.get(doc_key)
+            except Exception as e:
+                log.error('Error while getting doc %s !' % doc_key)
+                log.error(e)
+            time.sleep(5)
+            retries -= 1
 
-    def save_dynvm_doc(self, doc_key, doc_value):
-        try:
-            log.info(doc_value)
-            self.cb.upsert(doc_key, doc_value)
-            log.info("%s added/updated successfully" % doc_key)
-        except Exception as e:
-            log.error('Document with key: %s saving error' % doc_key)
-            log.error(e)
+    def save_dynvm_doc(self, doc_key, doc_value, retries=3):
+        while retries > 0:
+            try:
+                log.info(doc_value)
+                self.cb.upsert(doc_key, doc_value)
+                log.info("%s added/updated successfully" % doc_key)
+                break
+            except Exception as e:
+                log.error('Document with key: %s saving error' % doc_key)
+                log.error(e)
+            time.sleep(5)
+            retries -= 1
 
-    def remove_from_static_pool(self, ip):
-        try:
-            static_doc_value = self.static_cb.get(ip).value
-            self.static_cb.remove(ip)
-            log.info("{} removed from static pools: {}".format(ip, ",".join(static_doc_value["poolId"])))
-        except NotFoundError:
-            pass
-        except Exception as e:
-            log.error("Error removing {} from static pools".format(ip))
-            log.error(e)
+    def remove_from_static_pool(self, ip, retries=3):
+        while retries > 0:
+            try:
+                static_doc_value = self.static_cb.get(ip).value
+                self.static_cb.remove(ip)
+                log.info("{} removed from static pools: {}".format(ip, ",".join(static_doc_value["poolId"])))
+                break
+            except NotFoundError:
+                break
+            except Exception as e:
+                log.error("Error removing {} from static pools".format(ip))
+                log.error(e)
+            time.sleep(5)
+            retries -= 1
     
-    def add_to_static_pool(self, doc_value):
+    def add_to_static_pool(self, doc_value, retries=3):
         ip = doc_value["ipaddr"]
         pools_str = ",".join(doc_value["poolId"])
-        try:
-            self.static_cb.upsert(ip, doc_value)
-            log.info("{} added to static pools: {}".format(ip, pools_str))
-        except Exception as e:
-            log.error("Error adding {} to static pools: {}".format(ip, pools_str))
-            log.error(e)
+        while retries > 0:
+            try:
+                self.static_cb.upsert(ip, doc_value)
+                log.info("{} added to static pools: {}".format(ip, pools_str))
+                break
+            except Exception as e:
+                log.error("Error adding {} to static pools: {}".format(ip, pools_str))
+                log.error(e)
+            time.sleep(5)
+            retries -= 1
     
     def get_expired(self):
         try:
