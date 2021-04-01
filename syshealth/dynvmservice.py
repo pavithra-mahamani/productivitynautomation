@@ -337,6 +337,13 @@ def getservers_service(username):
             pass
         return "all vms couldn't be created successfully", 499
 
+    # remove error entries if all or none when vms are successful
+    if all_or_none:
+        for key in list(merged_vms_info.keys()):
+            if key.endswith("_error"):
+                log.info("Removing error {} from response as vms created successfully".format(merged_vms_info[key]))
+                del merged_vms_info[key]
+
     if output_format == 'detailed':
         return json.dumps(merged_vms_info, indent=2, sort_keys=True)
     else:
