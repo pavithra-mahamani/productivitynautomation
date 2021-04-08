@@ -618,6 +618,11 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue, already
                         curr_total_count = int(job['totalCount'])
                         curr_result = job["result"]
 
+                        # to reduce total time, don't rerun consistently aborted jobs even if the counts are different
+                        if prev_result == "ABORTED" and curr_result == "ABORTED":
+                            logger.debug("skipping {} (consistently aborted)".format(job["name"]))
+                            continue
+
                         if prev_fail_count == curr_fail_count and prev_total_count == curr_total_count and prev_result == curr_result:
                             logger.debug("skipping {} (not regression)".format(job["name"]))
                             continue
