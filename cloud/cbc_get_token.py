@@ -11,6 +11,18 @@ if len(sys.argv) < 3:
   print("\n {} API_METHOD API_PATH".format(sys.argv[0]))
   print("\nExample:\n {} GET /v2/clouds".format(sys.argv[0]))
   print("\nReference:\n https://docs.couchbase.com/cloud/public-api-guide/using-cloud-public-api.html \n")
+  sample="""
+  python3 cbc_get_token.py GET /v2/clouds
+  Headers to set: 
+  {'Authorization': 'Bearer SlfaC8oXlpIQeuMUW8urTva2NRU4sCFy:52O5rTowNxKFTKq7qLkGLlRp6EcGk4ZfuZpNuxQ4sKg=', 'Couchbase-Timestamp': '1618275211103'}
+  
+  Command:
+   curl -H 'Authorization:Bearer SlfaC8oXlpIQeuMUW8urTva2NRU4sCFy:52O5rTowNxKFTKq7qLkGLlRp6EcGk4ZfuZpNuxQ4sKg=' -H 'Couchbase-Timestamp:1618275211103' -X GET 'https://cloudapi.cloud.couchbase.com//v2/clouds'
+  
+  
+  {"cursor":{"pages":{"page":1,"last":1,"perPage":10,"totalItems":1},"hrefs":{"first":"http://cloudapi.cloud.couchbase.com/public/v2/clouds?page=1\u0026perPage=10","last":"http://cloudapi.cloud.couchbase.com/public/v2/clouds?page=1\u0026perPage=10"}},"data":[{"id":"6e85f18f-ef32-4ea9-8a5c-f1e705313f72","name":"QECloudTest","provider":"aws","region":"us-east-1","status":"ready","virtualNetworkCIDR":"10.21.0.0/16","virtualNetworkID":"vpc-089457bb2f3cac2d7"}]}
+  """
+  print("Sample I/O:\n {}".format(sample))
   exit(1)
 
 cbc_api_method = sys.argv[1]
