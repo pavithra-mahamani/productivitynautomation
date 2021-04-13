@@ -69,10 +69,11 @@ def showall_service(os=None):
     else:
         ignore_labels = False
 
-    count, _ = get_all_xen_hosts_count(os, labels, ignore_labels)
+    count, all_xen_hosts = get_all_xen_hosts_count(os, labels, ignore_labels)
     log.info("--> count: {}".format(count))
     all_vms = {}
-    for xen_host_ref in range(1, count + 1):
+    for xen_host in all_xen_hosts:
+        xen_host_ref = int(xen_host["name"][7:])
         log.info("Getting xen_host_ref=" + str(xen_host_ref))
         all_vms[xen_host_ref] = perform_service(xen_host_ref, service_name='listvms', os=os)
     return json.dumps(all_vms, indent=2, sort_keys=True)
@@ -1009,14 +1010,14 @@ def read_vm_ip_address(session, a_vm):
 
 
 def get_vm_existed_xenhost_ref(vm_name, count, os="centos"):
-    num_xen_hosts, xen_hosts = get_all_xen_hosts_count(os, ignore_labels=True)
+    _, xen_hosts = get_all_xen_hosts_count(os, ignore_labels=True)
 
     if count > 1:
         vm_name = vm_name + "1"
     is_found = False
     xen_host_index = 0
-    for index in range(0, num_xen_hosts):
-        xname = xen_hosts[index]['name']
+    for xen_host in xen_hosts:
+        xname = xen_host['name']
         log.debug(xname + ' --> index: ' + xname[7:])
         xen_host_index = int(xname[7:])
         xsession = get_xen_session(xen_host_index, os)
@@ -1037,13 +1038,13 @@ def get_all_available_count(os="centos", labels=None, ignore_labels=False):
     count = 0
     available_counts = []
     xen_hosts_available_refs = []
-    for index in range(0, num_xen_hosts):
-        xname = xen_hosts[index]['name']
+    for xen_host in xen_hosts:
+        xname = xen_host['name']
         log.info(xname +' --> index: ' + xname[7:])
         xen_host_index = int(xname[7:])
         try:
             xsession = get_xen_session(xen_host_index, os)
-            xcount = get_available_count(xsession, os, xen_hosts[index])
+            xcount = get_available_count(xsession, os, xen_host)
         except Exception as e:
             log.warning(str(e))
             continue
