@@ -4,12 +4,17 @@ import datetime
 import base64
 import hmac
 import hashlib
+import json
 
 
 if len(sys.argv) < 3:
-  print("Usage:\n export cbc_access_key=<your-access-key>\n export cbc_secret_key=<your-secret-key>")
-  print("\n {} API_METHOD API_PATH".format(sys.argv[0]))
-  print("\nExample:\n {} GET /v2/clouds".format(sys.argv[0]))
+  print("Couchbase Cloud API handy tool\nUsage:\n export cbc_access_key=<your-access-key>\n export cbc_secret_key=<your-secret-key>")
+  print("\n {} API_METHOD API_PATH [ARGS]".format(sys.argv[0]))
+  print("\nExamples:\n {} GET /v2/clouds".format(sys.argv[0]))
+  print("\n {} GET /v2/projects".format(sys.argv[0]))
+  print("\n {} GET /v2/clusters".format(sys.argv[0]))
+  print("\n {} POST /v2/projects project_name".format(sys.argv[0]))
+  print("\n {} POST /v2/clusters cloud_uuid project_uuid cluster_name".format(sys.argv[0]))
   print("\nReference:\n https://docs.couchbase.com/cloud/public-api-guide/using-cloud-public-api.html \n")
   sample="""
   python3 cbc_get_token.py GET /v2/clouds
@@ -45,7 +50,40 @@ cbc_api_request_headers = {
    'Couchbase-Timestamp' : str(cbc_api_now)
 }
 print("Headers to set: \n{}".format(cbc_api_request_headers))
-cmd='curl -H \'Authorization:{}\' -H \'Couchbase-Timestamp:{}\' -X {} \'https://cloudapi.cloud.couchbase.com/{}\''.format(cbc_api_request_headers['Authorization'], cbc_api_request_headers['Couchbase-Timestamp'], cbc_api_method, cbc_api_endpoint)
+
+if cbc_api_method == "POST": 
+   if "projects" in cbc_api_endpoint:
+      body_data = {"name": sys.argv[3]}
+   elif "clusters" in cbc_api_endpoint:
+      body_data = {
+	"cloudId": sys.argv[3],
+  	"projectId": sys.argv[4],
+  	"name": sys.argv[5],
+  	"servers": [
+    	{
+      		"services": [
+        	"data",
+        	"query",
+        	"index",
+        	"search"
+      		],
+      		"size": 3,
+      		"aws": {
+        		"ebsSizeGib": 1227,
+        		"instanceSize": "r5.xlarge"
+      		}
+    	}
+  	],
+  	"supportPackage": {
+    		"timezone": "PT",
+    		"type": "developerPro"
+  	}
+      }
+   post_data = ' -H "Content-Type:application/json" --data-raw \''+json.dumps(body_data)+'\''
+else:
+   post_data=""
+
+cmd='curl -H \'Authorization:{}\' -H \'Couchbase-Timestamp:{}\' -X {} {} \'https://cloudapi.cloud.couchbase.com/{}\''.format(cbc_api_request_headers['Authorization'], cbc_api_request_headers['Couchbase-Timestamp'], cbc_api_method, post_data, cbc_api_endpoint)
 print('\nCommand:\n {}\n'.format(cmd))
 os.system(cmd)
 print('\n')
