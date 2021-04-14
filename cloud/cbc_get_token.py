@@ -15,6 +15,8 @@ if len(sys.argv) < 3:
   print("\n {} GET /v2/clusters".format(sys.argv[0]))
   print("\n {} POST /v2/projects project_name".format(sys.argv[0]))
   print("\n {} POST /v2/clusters cloud_uuid project_uuid cluster_name".format(sys.argv[0]))
+  print("\n {} POST /v2/clusters/<cluster_uuid>/allowlist ip time".format(sys.argv[0]))
+  print("\n {} POST /v2/clusters/<cluster_uuid>/users admin_user_uuid dbuser_name dbuser_pwd".format(sys.argv[0]))
   print("\nReference:\n https://docs.couchbase.com/cloud/public-api-guide/using-cloud-public-api.html \n")
   sample="""
   python3 cbc_get_token.py GET /v2/clouds
@@ -52,9 +54,9 @@ cbc_api_request_headers = {
 print("Headers to set: \n{}".format(cbc_api_request_headers))
 
 if cbc_api_method == "POST": 
-   if "projects" in cbc_api_endpoint:
+   if cbc_api_endpoint.endswith("projects"):
       body_data = {"name": sys.argv[3]}
-   elif "clusters" in cbc_api_endpoint:
+   elif cbc_api_endpoint.endswith("clusters"):
       body_data = {
 	"cloudId": sys.argv[3],
   	"projectId": sys.argv[4],
@@ -79,6 +81,28 @@ if cbc_api_method == "POST":
     		"type": "developerPro"
   	}
       }
+   elif cbc_api_endpoint.endswith("allowlist"):
+      body_data = {
+    	"cidrBlock": sys.argv[3],
+    	"ruleType": "permanent",
+    	"comment": "myhomeip",
+    	"duration": sys.argv[4]
+      } 
+   elif cbc_api_endpoint.endswith("users"):
+      body_data = {
+    	"access": [
+        {
+            "name": "my dbuser",
+            "roles": [
+                "data_writer",
+                "data_reader"
+            ]
+        }
+    	],
+    	"userId": sys.argv[3],
+    	"username": sys.argv[4],
+    	"password": sys.argv[5]
+      } 
    post_data = ' -H "Content-Type:application/json" --data-raw \''+json.dumps(body_data)+'\''
 else:
    post_data=""
