@@ -9,13 +9,15 @@ CPUS="default"
 MEM="default"
 RESPONSE_FORMAT="detailed"
 
-if [ "${OS}" = "" ]; then
+if [ "${OS}" == "" ]; then
   OS="windows"
 fi
 if [ ! "${LABELS}" = "" ]; then
   LABELS_OPTION="&labels=${LABELS}"
 fi
-
+if [ "${EXPIRY}" == "" ]; then
+  EXPIRY="720"
+fi
 if [ "${OPERATION}" == "help" ] || [ "$1" == "help" ]; then
    echo "Usage: $0 OPERATION= VM_NAME_OR_PREFIX= OS= COUNT= EXPIRY= LABELS="
    echo "Examples:"
@@ -31,7 +33,7 @@ elif [ "${OPERATION}" = "getservers" ]; then
      MEM=$(( $MEM * 1000000000 ))
    fi
    echo curl -s -o ${VM_NAME_OR_PREFIX}.json "${SERVER_API_URL}/getservers/${VM_NAME_OR_PREFIX}?os=${OS}&count=${COUNT}&format=${RESPONSE_FORMAT}${XHOSTREF_OPTION}&cpus=${CPUS}&mem=${MEM}&expiresin=${EXPIRY}${LABELS_OPTION}"
-   curl -s -o ${VM_NAME_OR_PREFIX}.json "${SERVER_API_URL}/getservers/${VM_NAME_OR_PREFIX}?os=${OS}&count=${COUNT}&format=${RESPONSE_FORMAT}${XHOSTREF_OPTION}&cpus=${CPUS}&mem=${MEM}&expiresin=${EXPIRY}"
+   curl -s -o ${VM_NAME_OR_PREFIX}.json "${SERVER_API_URL}/getservers/${VM_NAME_OR_PREFIX}?os=${OS}&count=${COUNT}&format=${RESPONSE_FORMAT}${XHOSTREF_OPTION}&cpus=${CPUS}&mem=${MEM}&expiresin=${EXPIRY}${LABELS_OPTION}"
    cat ${VM_NAME_OR_PREFIX}.json
    python -m json.tool < ${VM_NAME_OR_PREFIX}.json >${VM_NAME_OR_PREFIX}_pretty.json
    VM_IP_ADDRESS="`cat ${VM_NAME_OR_PREFIX}_pretty.json |egrep ${VM_NAME_OR_PREFIX}|cut -f2 -d':'|xargs|sed 's/,//g'`"
