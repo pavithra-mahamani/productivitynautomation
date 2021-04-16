@@ -1083,11 +1083,11 @@ def get_available_count(session, os="centos", xen_host=None):
         'Host free cpus={},free memory={},total cpus={},total memory={}'.format(xen_cpu_count_free, xen_memory_free_gb, xen_cpu_count_total, xen_memory_total_gb))
     # TBD: Get the sizes dynamically from template if possible
     if os.startswith('win'):
-        required_cpus = 6
+        required_cpus = 12
         required_memory_gb = 6
         required_disk_gb = 71
     else:
-        required_cpus = 4
+        required_cpus = 8
         required_memory_gb = 4
         required_disk_gb = 35
 
