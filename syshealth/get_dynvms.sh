@@ -3,12 +3,14 @@
 # Description: Dynamic VMs lifecycle helper script
 #
 ####################################################
-SERVER_API_URL="http://172.23.104.180:5000"
 export $@
 CPUS="default"
 MEM="default"
 RESPONSE_FORMAT="detailed"
 
+if [ "${SERVER_API_URL}" == "" ]; then
+  SERVER_API_URL="http://172.23.104.180:5000"
+fi
 if [ "${OS}" == "" ]; then
   OS="windows"
 fi
@@ -65,7 +67,7 @@ fi
 echo ""
 if [ "${OPERATION}" != "help" ] && [ "$1" != "help" ]; then
   #echo curl -s "${SERVER_API_URL}/getavailablecount/${OS}${LABELS_OPTION}"
-  AVAILABLE_COUNT=`curl -s "${SERVER_API_URL}/getavailablecount/${OS}${LABELS_OPTION}"`
+  AVAILABLE_COUNT=`curl -s "${SERVER_API_URL}/getavailablecount/${OS}?${LABELS_OPTION}"`
   echo "OPERATION=${OPERATION},VM_NAME=${VM_NAME_OR_PREFIX},OS=${OS},COUNT=${COUNT},AVAILABLE=${AVAILABLE_COUNT}"
 fi
 echo "For the help, run: $0 help"
