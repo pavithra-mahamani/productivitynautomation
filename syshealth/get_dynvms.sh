@@ -4,8 +4,6 @@
 #
 ####################################################
 export $@
-CPUS="default"
-MEM="default"
 RESPONSE_FORMAT="detailed"
 
 if [ "${SERVER_API_URL}" == "" ]; then
@@ -19,6 +17,12 @@ if [ ! "${LABELS}" = "" ]; then
 fi
 if [ "${EXPIRY}" == "" ]; then
   EXPIRY="720"
+fi
+if [ "${CPUS}" == "" ]; then
+  CPUS="default"
+fi
+if [ "${MEM}" == "" ]; then
+  MEM="default"
 fi
 if [ "${OPERATION}" == "help" ] || [ "$1" == "help" ]; then
    echo "Usage: $0 OPERATION= VM_NAME_OR_PREFIX= OS= COUNT= EXPIRY= LABELS="
