@@ -159,11 +159,23 @@ def check_vm(os_name, host):
         return False
     return True
 
+def host_is_overprovisioned(xhostref, os_name, additional_capacity=0):
+    try:
+        provisioned_vms = len(perform_service(xhostref, "listvms", os_name))
+        xhost = get_xen_host(xhostref, os_name)
+        return provisioned_vms + additional_capacity > xhost["host.vms.max." + os_name]
+    except AttributeError:
+        return False
+
 
 def create_vms_single_host(checkvms: bool, xhostref: str, os_name: str, username: str, vm_count: int,
                                        cpus: int, maxmemory: int, expiry_minutes: int,
                                        output_format: str, start_suffix: int = 0, pools=None, networkid=None):
     global reserved_count
+
+    if host_is_overprovisioned(xhostref, os_name, vm_count):
+        raise Exception("Host is overprovisioned, skipping")
+
     vms_info = perform_service(xhostref, 'createvm', os_name, username, vm_count,
                                         cpus=cpus, maxmemory=maxmemory, expiry_minutes=expiry_minutes,
                                         output_format=output_format, start_suffix=start_suffix, pools=pools, networkid=networkid)
@@ -178,12 +190,18 @@ def create_vms_single_host(checkvms: bool, xhostref: str, os_name: str, username
     for [vm_name, ip] in vms_info.items():
         if vm_name.endswith("_error") or ip == "":
             continue
+        delete_vm = False
         if checkvms and not check_vm(os_name, ip):
             log.info("VM check failed for {}".format(ip))
+            delete_vm = True
+        if host_is_overprovisioned(xhostref, os_name):
+            log.info("Host {} is overprovisioned".format(xhostref))
+            delete_vm = True
+        if delete_vm:
             # need to increase reserved_count because it was 
             # decreased when the vm was created successfully
             reserved_count += 1
-            # delete vm because ssh check failed
+            # delete vm because ssh check failed or host overprovisioned
             try:
                 perform_service(xhostref, 'deletevm', os_name, vm_name, 1)
             except Exception:
@@ -481,14 +499,13 @@ def get_config(name):
 def get_all_xen_hosts_count(os=None, labels=None, ignore_labels=False):
     config = read_config()
     xen_host_ref_count = 0
-    xen_host_ref = 0
     all_xen_hosts = []
     log.info(config.sections())
     for section in config.sections():
         if section.startswith('xenhost'):
             try:
                 xen_host_ref_count += 1
-                xen_host_ref += 1
+                xen_host_ref  = int(section[7:])
                 xen_host = get_xen_values(config, xen_host_ref, os)
 
                 if ignore_labels:
@@ -543,6 +560,8 @@ def get_xen_values(config, xen_host_ref, os):
                 xen_host[os + ".template.network"] = config.get('xenhost' + str(xen_host_ref), os + '.template' + '.network')
             else:
                 xen_host[os + ".template.network"] = None
+            if config.has_option("xenhost" + str(xen_host_ref), "host.vms.max." + os):
+                xen_host["host.vms.max." + os] = int(config.get("xenhost" + str(xen_host_ref), "host.vms.max." + os))
     except Exception as e:
         log.info("--> check for template and other values in the .ini file!")
         log.info(e)
@@ -1045,6 +1064,15 @@ def get_all_available_count(os="centos", labels=None, ignore_labels=False):
         try:
             xsession = get_xen_session(xen_host_index, os)
             xcount = get_available_count(xsession, os, xen_host)
+            # Number of vms provisioned on the host
+            provisioned_vms, _, _ = get_vms_usage(xsession)
+            # Max number of vms that should be provisioned if set
+            max_vms = xen_host.get("host.vms.max." + os)
+            if max_vms is not None:
+                # Available count based on max configured, 0 if overprovisioned
+                available = max(max_vms - provisioned_vms, 0)
+                # Lowest count (max configured or resource constrained)
+                xcount = min(available, xcount)
         except Exception as e:
             log.warning(str(e))
             continue
