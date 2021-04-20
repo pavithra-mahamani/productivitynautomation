@@ -737,7 +737,7 @@ def create_vm(session, os_name, template, network, new_vm_name, cpus="default", 
         log.debug("  Selected template: {}".format(session.xenapi.VM.get_name_label(template_ref)))
 
         # Retries when 169.x address received
-        ipaddr_max_retries = 3
+        ipaddr_max_retries = 1
         retry_count = 1
         is_local_ip = True
         vm_ip_addr = ""
