@@ -703,11 +703,11 @@ def create_vm(session, os_name, template, network, new_vm_name, cpus="default", 
     try:
         log.info("\n--- Creating VM: " + new_vm_name + " using " + template)
         pifs = session.xenapi.PIF.get_all_records()
-        # log.debug(pifs)
+        log.debug(pifs)
         lowest = None
         if network:
             for pifRef in pifs.keys():
-                if network in pifRef:
+                if network in pifs[pifRef]['device']:
                     lowest = pifRef
                     log.debug("using custom network: {} {}".format(network, pifs[lowest]['device']))
                     break
@@ -756,7 +756,7 @@ def create_vm(session, os_name, template, network, new_vm_name, cpus="default", 
         log.debug("  Selected template: {}".format(session.xenapi.VM.get_name_label(template_ref)))
 
         # Retries when 169.x address received
-        ipaddr_max_retries = 1
+        ipaddr_max_retries = 3
         retry_count = 1
         is_local_ip = True
         vm_ip_addr = ""
