@@ -1077,7 +1077,7 @@ def get_available_count(session, os="centos", xen_host=None):
         psize, valloc, fsize = get_host_disks(session, 'SCSIid')
     else:
         psize, valloc, fsize = get_host_disks(session, xen_host['host.storage.name'])
-    xen_cpu_count_free, xen_cpu_count_total, xen_memory_free_gb, xen_memory_total_gb = \
+    xen_cpu_count_free, xen_memory_free_gb, xen_cpu_count_total, xen_memory_total_gb = \
         get_host_usage(session)
     log.info(
         'Host free cpus={},free memory={},total cpus={},total memory={}'.format(xen_cpu_count_free, xen_memory_free_gb, xen_cpu_count_total, xen_memory_total_gb))
@@ -1143,7 +1143,7 @@ def get_vms_usage(session):
 
 
 def get_host_details(session):
-    xen_cpu_count_free, xen_cpu_count_total, xen_memory_free_gb, xen_memory_total_gb = \
+    xen_cpu_count_free, xen_memory_free_gb, xen_cpu_count_total, xen_memory_total_gb = \
         get_host_usage(session)
     log.info("{},{},{},{}".format(xen_cpu_count_free, xen_memory_free_gb, xen_cpu_count_total,
                                   xen_memory_total_gb))
