@@ -131,8 +131,8 @@ def getavailable_count_service(os='centos'):
 
     count, available_counts, xen_hosts = get_all_available_count(os, labels, ignore_labels)
     log.info("{},{},{},{}".format(count, available_counts, xen_hosts, reserved_count))
-    if count >= reserved_count:
-        count -= reserved_count
+    # Subtract reserved_count and return 0 if negative
+    count = max(count - reserved_count, 0)
     log.info("Less reserved count: {},{},{},{}".format(count, available_counts, xen_hosts,
                                                  reserved_count))
     return str(count)
@@ -282,7 +282,9 @@ def getservers_service(username):
         log.info("-->  VMs on given xenhost" + xhostref)
         try:
             ips, vms_info = create_vms_single_host(checkvms, xhostref, os_name, username, vm_count, cpus_count, mem, exp, output_format, pools=pools, networkid=networkid)
+            reserved_count -= (vm_count - len(ips))
         except Exception as e:
+            reserved_count -= vm_count
             return str(e), 499
         else:
             if len(ips) != vm_count and all_or_none:
@@ -299,10 +301,12 @@ def getservers_service(username):
 
     # TBD consider cpus/mem later
     count, available_counts, xen_hosts_available_refs = get_all_available_count(os_name, labels, ignore_labels)
+    # Subtract reserved_count and return 0 if negative
+    count = max(count - (reserved_count - vm_count), 0)
     log.info("{}, {}".format(available_counts, xen_hosts_available_refs))
     if vm_count > count:
         reserved_count -= vm_count
-        return "Error: No capacity is available! " + str(available_counts)
+        return "Error: No capacity is available! {} reserved_count={}".format(str(available_counts), reserved_count)
     
     log.info("--> Distributing VMs among multiple xen hosts")
     need_vms = vm_count
