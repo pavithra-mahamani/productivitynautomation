@@ -919,6 +919,11 @@ def create_vm(session, os_name, template, network, new_vm_name, cpus="default", 
     except Exception as e:
         error = str(e)
         log.error(error)
+        # Clean up any partially created resources
+        try:
+            delete_vm(session, new_vm_name)
+        except Exception:
+            pass
 
     return vm_ip_addr, vm_os_name, error
 
