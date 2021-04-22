@@ -164,7 +164,7 @@ def host_is_overprovisioned(xhostref, os_name, additional_capacity=0):
         provisioned_vms = len(perform_service(xhostref, "listvms", os_name))
         xhost = get_xen_host(xhostref, os_name)
         return provisioned_vms + additional_capacity > xhost["host.vms.max." + os_name]
-    except AttributeError:
+    except KeyError:
         return False
 
 
