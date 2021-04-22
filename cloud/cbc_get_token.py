@@ -92,16 +92,14 @@ if cbc_api_method == "POST":
       body_data = {
     	"access": [
         {
-            "name": "my dbuser",
+            "name": "couchbasecloudbucket",
             "roles": [
-                "data_writer",
-                "data_reader"
+                "data_writer"
             ]
         }
     	],
-    	"userId": sys.argv[3],
-    	"username": sys.argv[4],
-    	"password": sys.argv[5]
+    	"username": sys.argv[3],
+    	"password": sys.argv[4]
       } 
    post_data = ' -H "Content-Type:application/json" --data-raw \''+json.dumps(body_data)+'\''
 else:
