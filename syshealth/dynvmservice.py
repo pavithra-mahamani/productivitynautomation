@@ -1111,7 +1111,7 @@ def get_available_count(session, os="centos", xen_host=None):
     log.info("required_cpus={},required_memory={}".format(required_cpus, required_memory_gb))
     cpus_count = int(xen_cpu_count_free / required_cpus)
     memory_count = int(xen_memory_free_gb / required_memory_gb)
-    #fsize = fsize - 0.1*fsize # TBD: Leaving buffer space as seen issue with xenhost
+    fsize = fsize - int(0.1*fsize) # TBD: Leaving buffer space as seen issue with xenhost
     log.info("Marking free disk size={}".format(fsize))
     disk_count = int((fsize / (1024 * 1024 * 1024)) / required_disk_gb)
     if disk_count > 0:
@@ -1238,7 +1238,8 @@ def get_host_disks(session, device_id):
                     log.info("storage_name:{}, storage_description={}".format(storage_name_label,
                                                                               storage_name_desc))
                     psize = session.xenapi.SR.get_physical_size(sr)
-                    valloc = session.xenapi.SR.get_virtual_allocation(sr)
+                    #valloc = session.xenapi.SR.get_virtual_allocation(sr)
+                    valloc = session.xenapi.SR.get_physical_utilisation(sr)
                     fsize = int(psize) - int(valloc)
                     log.info(psize)
                     log.info(valloc)
