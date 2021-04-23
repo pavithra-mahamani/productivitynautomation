@@ -168,17 +168,17 @@ def host_is_overprovisioned(xhostref, os_name, additional_capacity=0):
         return False
 
 
-def create_vms_single_host(checkvms: bool, xhostref: str, os_name: str, username: str, vm_count: int,
-                                       cpus: int, maxmemory: int, expiry_minutes: int,
-                                       output_format: str, start_suffix: int = 0, pools=None, networkid=None):
+def create_vms_single_host(checkvms, xhostref, os_name, vm_names,
+                                       cpus, maxmemory, expiry_minutes,
+                                       output_format, pools=None, networkid=None):
     global reserved_count
 
-    if host_is_overprovisioned(xhostref, os_name, vm_count):
+    if host_is_overprovisioned(xhostref, os_name, len(vm_names)):
         raise Exception("Host is overprovisioned, skipping")
 
-    vms_info = perform_service(xhostref, 'createvm', os_name, username, vm_count,
-                                        cpus=cpus, maxmemory=maxmemory, expiry_minutes=expiry_minutes,
-                                        output_format=output_format, start_suffix=start_suffix, pools=pools, networkid=networkid)
+    vms_info = perform_service(xhostref, 'createvm', os_name, vm_names,
+                                        cpus, maxmemory, expiry_minutes,
+                                        output_format, pools, networkid)
     if isinstance(vms_info, str):
         raise Exception(vms_info)
 
@@ -186,18 +186,24 @@ def create_vms_single_host(checkvms: bool, xhostref: str, os_name: str, username
     # success ips are where key does not end with _error and ip != ""
 
     success_ips = []
+    success_vm_names = []
 
     for [vm_name, ip] in vms_info.items():
         if vm_name.endswith("_error") or ip == "":
             continue
         delete_vm = False
+        deleted_reason = None
         if checkvms and not check_vm(os_name, ip):
-            log.info("VM check failed for {}".format(ip))
+            deleted_reason = "VM check failed for {}".format(ip)
+            log.info(deleted_reason)
             delete_vm = True
         if host_is_overprovisioned(xhostref, os_name):
-            log.info("Host {} is overprovisioned".format(xhostref))
+            deleted_reason = "Host {} is overprovisioned".format(xhostref)
+            log.info(deleted_reason)
             delete_vm = True
         if delete_vm:
+            vms_info[vm_name] = ""
+            vms_info[vm_name + "_error"] = deleted_reason
             # need to increase reserved_count because it was 
             # decreased when the vm was created successfully
             reserved_count += 1
@@ -209,8 +215,18 @@ def create_vms_single_host(checkvms: bool, xhostref: str, os_name: str, username
                 pass
             continue
         success_ips.append(ip)
+        success_vm_names.append(vm_name)
 
-    return success_ips, vms_info
+    return success_ips, success_vm_names, vms_info
+
+
+def generate_vm_names(name, count):
+    if count == 0:
+        return []
+    elif count == 1:
+        return [name]
+    else:
+        return [name + str(i) for i in range(1, count + 1)]
 
 
 # /getservers/username?count=number&os=centos&ver=6&expiresin=30&checkvms=true
@@ -277,11 +293,13 @@ def getservers_service(username):
         xhostref = request.args.get('xhostref')
     reserved_count += vm_count
 
+    vm_names = generate_vm_names(username, vm_count)
+
     # if xhostref is specified we do not move on to another host
     if xhostref:
         log.info("-->  VMs on given xenhost" + xhostref)
         try:
-            ips, vms_info = create_vms_single_host(checkvms, xhostref, os_name, username, vm_count, cpus_count, mem, exp, output_format, pools=pools, networkid=networkid)
+            ips, success_vm_names, vms_info = create_vms_single_host(checkvms, xhostref, os_name, vm_names, cpus_count, mem, exp, output_format, pools=pools, networkid=networkid)
             reserved_count -= (vm_count - len(ips))
         except Exception as e:
             reserved_count -= vm_count
@@ -309,11 +327,11 @@ def getservers_service(username):
         return "Error: No capacity is available! {} reserved_count={}".format(str(available_counts), reserved_count)
     
     log.info("--> Distributing VMs among multiple xen hosts")
-    need_vms = vm_count
     merged_vms_list = []
     merged_vms_info = {}
-    vm_name_suffix_index = 0
+    need_vm_names = set(vm_names)
     for index in range(0, len(available_counts)):
+        need_vms = len(need_vm_names)
         if need_vms == 0:
             break
         per_xen_host_vms = available_counts[index]
@@ -321,18 +339,9 @@ def getservers_service(username):
             free_xenhost_ref = int(xen_hosts_available_refs[index].split(':')[0])
             if need_vms <= per_xen_host_vms:
                 per_xen_host_vms = need_vms
-            log.info(
-                "Creating " + str(per_xen_host_vms) + " out of " + str(need_vms) + " VMs on "
-                                                                                    "xenhost"
-                + str(
-                    free_xenhost_ref))
-            if per_xen_host_vms == 1 and vm_count > 1: # this is to handle the name with suffix count when
-                # single vount is given
-                username1 = username + str(vm_name_suffix_index+1)
-            else:
-                username1 = username
+            log.info("Creating {} out of {} VMs on xenhost{}".format(per_xen_host_vms, need_vms, free_xenhost_ref))
             try:
-                per_xen_host_res, vms_info = create_vms_single_host(checkvms, free_xenhost_ref, os_name, username1, per_xen_host_vms, cpus_count, mem, exp, output_format, start_suffix=vm_name_suffix_index, pools=pools, networkid=networkid)
+                per_xen_host_res, success_vm_names, vms_info = create_vms_single_host(checkvms, free_xenhost_ref, os_name, list(need_vm_names)[:per_xen_host_vms], cpus_count, mem, exp, output_format, pools=pools, networkid=networkid)
             except Exception as e:
                 log.debug(str(e))
                 continue
@@ -341,10 +350,9 @@ def getservers_service(username):
                 for ip in per_xen_host_res:
                     merged_vms_list.append(ip)
                 log.info(per_xen_host_res)
-                # increase index by success amount (could be less than requested)
-                vm_name_suffix_index += len(per_xen_host_res)
-                # decrease need_vms by success amount (could be less than requested)
-                need_vms = need_vms - len(per_xen_host_res)
+                # Remove successful vms from set of names
+                for vm_name in success_vm_names:
+                    need_vm_names.remove(vm_name)
 
     reserved_count -= (vm_count-len(merged_vms_list))
 
@@ -355,7 +363,7 @@ def getservers_service(username):
     if (len(merged_vms_list) != vm_count) and all_or_none:
         log.warning("deleting all created vms due to failure")
         try:
-            release_servers(username, os_name, vm_name_suffix_index)
+            release_servers(username, os_name, vm_count)
         except Exception:
             pass
         return "all vms couldn't be created successfully", 499
@@ -374,16 +382,13 @@ def getservers_service(username):
 
 def release_servers(username, os_name, vm_count):
     delete_vms_res = []
-    for vm_index in range(vm_count):
-        if vm_count > 1:
-            vm_name = username + str(vm_index + 1)
-        else:
-            vm_name = username
+    vm_names = generate_vm_names(username, vm_count)
+    for vm_name in vm_names:
         while True:
             xen_host_ref = get_vm_existed_xenhost_ref(vm_name, 1, None)
             if xen_host_ref != 0:
                 log.info("VM to be deleted from xhost_ref=" + str(xen_host_ref))
-                delete_per_xen_res = perform_service(xen_host_ref, 'deletevm', os_name, vm_name, 1)
+                delete_per_xen_res = perform_service(xen_host_ref, 'deletevm', os_name, [vm_name])
                 for deleted_vm_res in delete_per_xen_res:
                     delete_vms_res.append(deleted_vm_res)
             else:
@@ -432,10 +437,10 @@ def setexpiry_service(username, expiresin):
     return json.dumps(updated_names)
 
 
-def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_prefix_names="",
-                    number_of_vms=1, cpus="default", maxmemory="default",
+def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_names=[],
+                    cpus="default", maxmemory="default",
                     expiry_minutes=MAX_EXPIRY_MINUTES, output_format="servermanager",
-                    start_suffix=0, pools=None, networkid=None):
+                    pools=None, networkid=None):
     xen_host = get_xen_host(xen_host_ref, os)
     if not xen_host:
         error = "Error: No XenHost available for the OS matching template!"
@@ -463,16 +468,16 @@ def perform_service(xen_host_ref=1, service_name='list_vms', os="centos", vm_pre
             network = networkid or xen_host["host.network.id"] or xen_host[os + ".template.network"]
             labels = xen_host["host.labels"]
             log.debug("Creating from {0} :{1}, cpus: {2}, memory: {3}".format(str(template),
-                                                                              vm_prefix_names, cpus,
+                                                                              str(vm_names), cpus,
                                                                               maxmemory))
-            new_vms, _ = create_vms(session, os, template, network, vm_prefix_names, number_of_vms,
-                                              cpus, maxmemory, expiry_minutes, start_suffix, pools, labels)
+            new_vms, _ = create_vms(session, os, template, network, vm_names,
+                                              cpus, maxmemory, expiry_minutes, pools, labels)
             log.info(new_vms)
             return new_vms
         elif service_name == 'deletevm':
-            return delete_vms(session, vm_prefix_names, number_of_vms)
+            return delete_vms(session, vm_names)
         elif service_name == 'listvm':
-            return list_given_vm_set_details(session, vm_prefix_names, number_of_vms)
+            return list_given_vm_set_details(session, vm_names)
         elif service_name == 'listvms':
             return list_vms(session)
         elif service_name == 'getavailablecount':
@@ -662,39 +667,21 @@ def list_vm_details(session, vm_name):
             + networkinfo + ", " + name_description)
 
 
-def create_vms(session, os, template, network, vm_prefix_names, number_of_vms=1, cpus="default",
-               maxmemory="default", expiry_minutes=MAX_EXPIRY_MINUTES, start_suffix=0, pools=None, labels=None):
+def create_vms(session, os, template, network, vm_names, cpus="default",
+               maxmemory="default", expiry_minutes=MAX_EXPIRY_MINUTES, pools=None, labels=None):
     global reserved_count
-    vm_names = vm_prefix_names.split(",")
-    index = 1
     new_vms_info = {}
     list_of_vms = []
-    for i in range(len(vm_names)):
-        if int(number_of_vms) > 1:
-            for k in range(int(number_of_vms)):
-                vm_name = vm_names[i] + str(start_suffix + 1)
-                vm_ip, vm_os, error = create_vm(session, os, template, network, vm_name, cpus, maxmemory,
-                                                expiry_minutes, pools, labels)
-                new_vms_info[vm_name] = vm_ip
-                list_of_vms.append(vm_ip)
-                reserved_count -= 1
-                if error:
-                    new_vms_info[vm_name + "_error"] = error
-                    list_of_vms.append(error)
-                    reserved_count += 1
-                start_suffix += 1
-                index += 1
-        else:
-            vm_ip, vm_os, error = create_vm(session, os, template, network, vm_names[i], cpus, maxmemory,
-                                            expiry_minutes, pools, labels)
-            new_vms_info[vm_names[i]] = vm_ip
-            list_of_vms.append(vm_ip)
-            reserved_count -= 1
-            if error:
-                new_vms_info[vm_names[i] + "_error"] = error
-                list_of_vms.append(error)
-                reserved_count += 1
-            index = index + 1
+    for vm_name in vm_names:
+        vm_ip, vm_os, error = create_vm(session, os, template, network, vm_name, cpus, maxmemory,
+                                        expiry_minutes, pools, labels)
+        new_vms_info[vm_name] = vm_ip
+        list_of_vms.append(vm_ip)
+        reserved_count -= 1
+        if error:
+            new_vms_info[vm_name + "_error"] = error
+            list_of_vms.append(error)
+            reserved_count += 1
     return new_vms_info, list_of_vms
 
 
@@ -967,20 +954,13 @@ def call_release_url(vm_name, os_name, uuid):
         log.info(e)
 
 
-def delete_vms(session, vm_prefix_names, number_of_vms=1):
-    log.info("Deleting VMs...{}".format(vm_prefix_names))
-    vm_names = vm_prefix_names.split(",")
+def delete_vms(session, vm_names):
+    log.info("Deleting VMs...{}".format(str(vm_names)))
 
     vm_info = {}
-    for i in range(len(vm_names)):
-        if int(number_of_vms) > 1:
-            for k in range(int(number_of_vms)):
-                delete_vm(session, vm_names[i] + str(k + 1))
-                vm_info[vm_names[i] + str(k + 1)] = "deleted"
-
-        else:
-            delete_vm(session, vm_names[i])
-            vm_info[vm_names[i]] = "deleted"
+    for vm_name in vm_names:
+        delete_vm(session, vm_name)
+        vm_info[vm_name] = "deleted"
 
     return vm_info  # return json.dumps(vm_info, indent=2, sort_keys=True)
 
@@ -1408,14 +1388,9 @@ class CBDoc:
             raise e
 
 
-def list_given_vm_set_details(session, list_vm_names, number_of_vms):
-    vm_names = list_vm_names.split(",")
-    for i in range(len(vm_names)):
-        if int(number_of_vms) > 1:
-            for k in range(int(number_of_vms)):
-                list_vm_details(session, vm_names[i] + str(k + 1))
-        else:
-            list_vm_details(session, vm_names[i])
+def list_given_vm_set_details(session, vm_names):
+    for vm_name in vm_names:
+        list_vm_details(session, vm_name)
 
 
 def parse_arguments():
