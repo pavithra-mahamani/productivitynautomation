@@ -571,6 +571,27 @@ def get_xen_values(config, xen_host_ref, os):
                 xen_host[os + ".template.network"] = None
             if config.has_option("xenhost" + str(xen_host_ref), "host.vms.max." + os):
                 xen_host["host.vms.max." + os] = int(config.get("xenhost" + str(xen_host_ref), "host.vms.max." + os))
+            if config.has_option("xenhost" + str(xen_host_ref),  os + ".vcpus"):
+                xen_host[os + ".vcpus"] = int(config.get("xenhost" + str(xen_host_ref), os + ".vcpus"))
+            else:
+                if os.startswith('win'):
+                    xen_host[os + ".vcpus"] = 12 #default vcpus 
+                else:
+                    xen_host[os + ".vcpus"] = 8
+            if config.has_option("xenhost" + str(xen_host_ref),  os + ".memory"):
+                xen_host[os + ".memory"] = int(config.get("xenhost" + str(xen_host_ref), os + ".memory"))
+            else:
+                if os.startswith('win'):
+                    xen_host[os + ".memory"] = 6 #default memory 
+                else:
+                    xen_host[os + ".memory"] = 4
+            if config.has_option("xenhost" + str(xen_host_ref),  os + ".disk"):
+                xen_host[os + ".disk"] = int(config.get("xenhost" + str(xen_host_ref), os + ".disk"))
+            else:
+                if os.startswith('win'):
+                    xen_host[os + ".disk"] = 71 #default disk 
+                else:
+                    xen_host[os + ".disk"] = 35
     except Exception as e:
         log.info("--> check for template and other values in the .ini file!")
         log.info(e)
@@ -1099,14 +1120,9 @@ def get_available_count(session, os="centos", xen_host=None):
     log.info(
         'Host free cpus={},free memory={},total cpus={},total memory={}'.format(xen_cpu_count_free, xen_memory_free_gb, xen_cpu_count_total, xen_memory_total_gb))
     # TBD: Get the sizes dynamically from template if possible
-    if os.startswith('win'):
-        required_cpus = 12
-        required_memory_gb = 6
-        required_disk_gb = 71
-    else:
-        required_cpus = 8
-        required_memory_gb = 4
-        required_disk_gb = 35
+    required_cpus = xen_host[os + ".vcpus"]
+    required_memory_gb = xen_host[os + ".memory"]
+    required_disk_gb = xen_host[os + ".disk"]
 
     log.info("required_cpus={},required_memory={}".format(required_cpus, required_memory_gb))
     cpus_count = int(xen_cpu_count_free / required_cpus)
