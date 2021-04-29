@@ -54,7 +54,7 @@ MAX_EXPIRY_MINUTES = 1440
 TIMEOUT_SECS = 600
 RELEASE_URL = 'http://127.0.0.1:5000/releaseservers/'
 
-reserved_count = 0
+reserved_count_by_label = {}
 
 @app.route('/showall/<string:os>')
 @app.route("/showall")
@@ -129,6 +129,7 @@ def getavailable_count_service(os='centos'):
         })
         return json.dumps(response)
 
+    reserved_count = get_reserved(labels)
     count, available_counts, xen_hosts = get_all_available_count(os, labels, ignore_labels)
     log.info("{},{},{},{}".format(count, available_counts, xen_hosts, reserved_count))
     # Subtract reserved_count and return 0 if negative
@@ -170,7 +171,7 @@ def host_is_overprovisioned(xhostref, os_name, additional_capacity=0):
 
 def create_vms_single_host(checkvms, xhostref, os_name, vm_names,
                                        cpus, maxmemory, expiry_minutes,
-                                       output_format, pools=None, networkid=None):
+                                       output_format, pools=None, networkid=None, labels=None):
     global reserved_count
 
     if host_is_overprovisioned(xhostref, os_name, len(vm_names)):
@@ -206,7 +207,7 @@ def create_vms_single_host(checkvms, xhostref, os_name, vm_names,
             vms_info[vm_name + "_error"] = deleted_reason
             # need to increase reserved_count because it was 
             # decreased when the vm was created successfully
-            reserved_count += 1
+            increase_reserved(1, labels)
             # delete vm because ssh check failed or host overprovisioned
             try:
                 perform_service(xhostref, 'deletevm', os_name, vm_name, 1)
@@ -229,10 +230,52 @@ def generate_vm_names(name, count):
         return [name + str(i) for i in range(1, count + 1)]
 
 
+def increase_reserved(count, labels):
+    global reserved_count_by_label
+    if labels:
+        for label in labels:
+            if label in reserved_count_by_label:
+                reserved_count_by_label[label] += count
+            else:
+                reserved_count_by_label[label] = count
+    else:
+        label = None
+        if label in reserved_count_by_label:
+            reserved_count_by_label[label] += count
+        else:
+            reserved_count_by_label[label] = count
+
+
+
+def decrease_reserved(count, labels):
+    global reserved_count_by_label
+    if labels:
+        for label in labels:
+            if label in reserved_count_by_label:
+                reserved_count_by_label[label] = max(0, reserved_count_by_label[label] - count)
+    else:
+        label = None
+        if label in reserved_count_by_label:
+            reserved_count_by_label[label] = max(0, reserved_count_by_label[label] - count)
+
+
+def get_reserved(labels):
+    reserved = 0
+    if labels:
+        for label in labels:
+            if label in reserved_count_by_label:
+                reserved = max(reserved, reserved_count_by_label[label])
+    else:
+        label = None
+        if label in reserved_count_by_label:
+            reserved = reserved_count_by_label[label]
+    return reserved
+
+
+
 # /getservers/username?count=number&os=centos&ver=6&expiresin=30&checkvms=true
 @app.route('/getservers/<string:username>')
 def getservers_service(username):
-    global reserved_count
     if request.args.get('count'):
         vm_count = int(request.args.get('count'))
     else:
@@ -291,7 +334,7 @@ def getservers_service(username):
     xhostref = None
     if request.args.get('xhostref'):
         xhostref = request.args.get('xhostref')
-    reserved_count += vm_count
+    increase_reserved(vm_count, labels)
 
     vm_names = generate_vm_names(username, vm_count)
 
@@ -299,10 +342,10 @@ def getservers_service(username):
     if xhostref:
         log.info("-->  VMs on given xenhost" + xhostref)
         try:
-            ips, success_vm_names, vms_info = create_vms_single_host(checkvms, xhostref, os_name, vm_names, cpus_count, mem, exp, output_format, pools=pools, networkid=networkid)
-            reserved_count -= (vm_count - len(ips))
+            ips, success_vm_names, vms_info = create_vms_single_host(checkvms, xhostref, os_name, vm_names, cpus_count, mem, exp, output_format, pools=pools, networkid=networkid, labels=labels)
+            decrease_reserved(vm_count - len(ips), labels)
         except Exception as e:
-            reserved_count -= vm_count
+            decrease_reserved(vm_count, labels)
             return str(e), 499
         else:
             if len(ips) != vm_count and all_or_none:
@@ -320,11 +363,11 @@ def getservers_service(username):
     # TBD consider cpus/mem later
     count, available_counts, xen_hosts_available_refs = get_all_available_count(os_name, labels, ignore_labels)
     # Subtract reserved_count and return 0 if negative
-    count = max(count - (reserved_count - vm_count), 0)
+    count = max(count - (get_reserved(labels) - vm_count), 0)
     log.info("{}, {}".format(available_counts, xen_hosts_available_refs))
     if vm_count > count:
-        reserved_count -= vm_count
-        return "Error: No capacity is available! {} reserved_count={}".format(str(available_counts), reserved_count)
+        decrease_reserved(vm_count, labels)
+        return "Error: No capacity is available! {} reserved_count={}".format(str(available_counts), get_reserved(labels))
     
     log.info("--> Distributing VMs among multiple xen hosts")
     merged_vms_list = []
@@ -341,7 +384,7 @@ def getservers_service(username):
                 per_xen_host_vms = need_vms
             log.info("Creating {} out of {} VMs on xenhost{}".format(per_xen_host_vms, need_vms, free_xenhost_ref))
             try:
-                per_xen_host_res, success_vm_names, vms_info = create_vms_single_host(checkvms, free_xenhost_ref, os_name, list(need_vm_names)[:per_xen_host_vms], cpus_count, mem, exp, output_format, pools=pools, networkid=networkid)
+                per_xen_host_res, success_vm_names, vms_info = create_vms_single_host(checkvms, free_xenhost_ref, os_name, list(need_vm_names)[:per_xen_host_vms], cpus_count, mem, exp, output_format, pools=pools, networkid=networkid, labels=labels)
             except Exception as e:
                 log.debug(str(e))
                 continue
@@ -354,11 +397,7 @@ def getservers_service(username):
                 for vm_name in success_vm_names:
                     need_vm_names.remove(vm_name)
 
-    reserved_count -= (vm_count-len(merged_vms_list))
-
-    if reserved_count < 0:
-        log.warning("Reserved count is < 0")
-        reserved_count = 0
+    decrease_reserved(vm_count - len(merged_vms_list), labels)
 
     if (len(merged_vms_list) != vm_count) and all_or_none:
         log.warning("deleting all created vms due to failure")
@@ -690,7 +729,6 @@ def list_vm_details(session, vm_name):
 
 def create_vms(session, os, template, network, vm_names, cpus="default",
                maxmemory="default", expiry_minutes=MAX_EXPIRY_MINUTES, pools=None, labels=None):
-    global reserved_count
     new_vms_info = {}
     list_of_vms = []
     for vm_name in vm_names:
@@ -698,11 +736,12 @@ def create_vms(session, os, template, network, vm_names, cpus="default",
                                         expiry_minutes, pools, labels)
         new_vms_info[vm_name] = vm_ip
         list_of_vms.append(vm_ip)
-        reserved_count -= 1
         if error:
             new_vms_info[vm_name + "_error"] = error
             list_of_vms.append(error)
-            reserved_count += 1
+        else:
+            decrease_reserved(1, labels)
+             
     return new_vms_info, list_of_vms
 
 
