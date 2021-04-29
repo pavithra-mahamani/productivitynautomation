@@ -1088,9 +1088,12 @@ def get_vm_existed_xenhost_ref(vm_name, count, os="centos"):
         xname = xen_host['name']
         log.debug(xname + ' --> index: ' + xname[7:])
         xen_host_index = int(xname[7:])
-        xsession = get_xen_session(xen_host_index, os)
-        vm = xsession.xenapi.VM.get_by_name_label(vm_name)
-        xsession.logout()
+        try:
+            xsession = get_xen_session(xen_host_index, os)
+            vm = xsession.xenapi.VM.get_by_name_label(vm_name)
+            xsession.logout()
+        except Exception:
+            continue
         if len(vm) > 0:
             log.info("Number of VMs found with name - " + vm_name + " : " + str(len(vm)))
             is_found = True
