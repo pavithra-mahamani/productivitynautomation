@@ -638,10 +638,29 @@ func getreruntotalbuildcycleduration(buildN string) int {
 						if jobNameRegex != nil && !jobNameRegex.MatchString(key2) {
 							continue
 						}
-						totalJobs++
 						//fmt.Println("\nJob/Suite:", key2, "Value2:", value2)
-						tests := make([]TestResult, 10)
-						rerunCount := copy(tests, value2)
+						tests := []TestResult{}
+						// skip deleted runs
+						for _, run := range value2 {
+							if !run.Deleted {
+								tests = append(tests, run)
+							}
+						}
+						rerunCount := len(tests)
+						if rerunCount == 0 {
+							continue
+						}
+						var bestRun TestResult = tests[0]
+						for i := range tests {
+							if !tests[i].OlderBuild {
+								bestRun = tests[i]
+								break
+							}
+						}
+						if bestRun.OlderBuild {
+							continue
+						}
+						totalJobs++
 						if rerunCount > 1 {
 							reranJobCount++
 							reranJobsList += fmt.Sprintf("\n\t%d. %s: %s -- %d ", reranJobCount, key1, key2, (rerunCount - 1))
@@ -651,13 +670,6 @@ func getreruntotalbuildcycleduration(buildN string) int {
 						}
 						for i := 0; i < len(tests); i++ {
 							totalGrandDuration += tests[i].Duration
-						}
-						var bestRun TestResult = tests[0]
-						for i := range tests {
-							if !tests[i].OlderBuild {
-								bestRun = tests[i]
-								break
-							}
 						}
 						totalDuration += bestRun.Duration
 						totalFailCount += bestRun.FailCount
