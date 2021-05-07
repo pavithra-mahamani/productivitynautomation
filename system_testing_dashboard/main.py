@@ -84,7 +84,11 @@ def getAction(actions, key, value=None):
 def get_launcher_ips(launcher_job_url):
     ips = set()
     read_ip = False
-    for line in requests.get(launcher_job_url + "consoleText", timeout=10).iter_lines(decode_unicode=True):
+    timeout = 5
+    end = time.time() + timeout
+    for line in requests.get(launcher_job_url + "consoleText", timeout=timeout).iter_lines(decode_unicode=True):
+        if time.time() > end:
+            break
         if read_ip:
             if line.startswith("ok: ["):
                 ips.add(line.replace("ok: [", "").replace("]", ""))
