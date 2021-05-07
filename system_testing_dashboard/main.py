@@ -141,9 +141,14 @@ def index():
             job_name += "_" + str(i)
         job_json = requests.get("http://qa.sc.couchbase.com/job/{}/api/json".format(job_name)).json()
         latest_build_json = requests.get(job_json["lastBuild"]["url"] + "/api/json").json()
-        launchers.append(Launcher(i, job_name, latest_build_json))
+        latest_launcher = Launcher(i, job_name, latest_build_json)
+        launchers.append(latest_launcher)
 
-        for build in job_json["builds"][1:4]:
+        history_builds = job_json["builds"][:3]
+        if latest_launcher.running:
+            history_builds = job_json["builds"][1:4]
+
+        for build in history_builds:
             build_json = requests.get(build["url"] + "/api/json").json()
             history.append(Launcher(i, job_name, build_json))
 
