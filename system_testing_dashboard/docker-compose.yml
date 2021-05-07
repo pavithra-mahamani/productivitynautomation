@@ -1,0 +1,7 @@
+version: "3"
+services:
+  system_test_dashboard:
+    build: .
+    ports:
+      - 8080:8080
+    restart: unless-stopped

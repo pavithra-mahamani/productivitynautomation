@@ -1,0 +1,110 @@
+<html>
+    <head>
+        <title>System Test Dashboard</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-wEmeIV1mKuiNpC+IOBjI7aAzPcEZeedi5yW5f2yOq55WWLwNGmvvx4Um1vskeMj0" crossorigin="anonymous">
+        <link href="{{ url_for('static', filename = 'css/style.css') }}" rel="stylesheet">
+    </head>
+    <body>
+        <div class="container">
+            <h1 id="title">System Test Dashboard</h1>
+            <h3>Reserved</h1>
+            <table class="table">
+                <thead>
+                <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Duration</th>
+                    <th scope="col">Reserved By</th>
+                    <th scope="col">Cluster</th>
+                    <th scope="col">Eagle Eye</th>
+                </tr>
+                </thead>
+                <tbody>
+                    {% for launcher in launchers | rejectattr('running', 'eq', False) %}
+                    <tr>
+                        <th scope="row">{{ launcher.number }}</th>
+                        <th scope="row">{{ launcher.running_for }}</th>
+                        <th scope="row">{{ launcher.user }}</th>
+                        <th scope="row"><a href="{{ launcher.job_url }}">{{ launcher.job_url }}</a></th>
+                        <th scope="row">
+                            {% if launcher.log_parser %} 
+                            <a href="{{ launcher.log_parser.url }}">{{ launcher.log_parser.url }}</a> 
+                            {% else %}
+                            <span class="badge bg-danger">No log parser found</span>
+                            {% endif %}
+                        </th>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <h3>Available</h1>
+            <table class="table">
+                <thead>
+                <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Latest Cluster</th>
+                    <th scope="col">Latest Eagle Eye</th>
+                    <th scope="col">Result</th>
+                    <th scope="col">Launch</th>
+                </tr>
+                </thead>
+                <tbody>
+                    {% for launcher in launchers | rejectattr('running', 'eq', True) %}
+                    <tr>
+                        <th scope="row">{{ launcher.number }}</th>
+                        <th scope="row"><a href="{{ launcher.job_url }}">{{ launcher.job_url }}</a></th>
+                        <th scope="row">
+                            {% if launcher.log_parser %} 
+                            <a href="{{ launcher.log_parser.url }}">{{ launcher.log_parser.url }}</a> 
+                            {% else %} 
+                            <span class="badge bg-danger">No log parser found</span>
+                            {% endif %}
+                        </th>
+                        <th>{{ launcher.result }}</th>
+                        <th scope="row"><a href="http://qa.sc.couchbase.com/job/{{ launcher.job_name }}/build?delay=0sec" target="_blank" class="btn btn-primary">Launch {{ launcher.number }}</button></th>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <h3>History</h1>
+            <table class="table">
+                <thead>
+                <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Cluster</th>
+                    <th scope="col">Eagle Eye</th>
+                    <th scope="col">Result</th>
+                </tr>
+                </thead>
+                <tbody>
+                    {% for launcher in history | rejectattr('running', 'eq', True) %}
+                    <tr>
+                        <th scope="row">{{ launcher.number }}</th>
+                        <th scope="row"><a href="{{ launcher.job_url }}">{{ launcher.job_url }}</a></th>
+                        <th scope="row">
+                            {% if launcher.log_parser %} 
+                            <a href="{{ launcher.log_parser.url }}">{{ launcher.log_parser.url }}</a> 
+                            {% else %} 
+                            <span class="badge bg-danger">No log parser found</span>
+                            {% endif %}
+                        </th>
+                        <th>{{ launcher.result }}</th>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% for launcher in launchers %}
+                <!-- <h1>Launcher {{ launcher.number }}</h1>
+                <p>Status: {% if launcher.running: %} Running for {{ launcher.running_for }} {% else %} Finished ({{ launcher.result }}) {% endif %}</p>
+                {% if launcher.running: %}
+                <p>User: {{ launcher.user }}</p>
+                {% endif %}
+                <p>Launcher: <a href="{{ launcher.job_url }}">{{ launcher.job_url }}</a></p>
+                {% if launcher.log_parser: %}
+                <p>Log Parser: <a href="{{ launcher.log_parser.url }}">{{ launcher.log_parser.url }}</a></p>
+                <p>Status: {% if launcher.log_parser.running: %} Running for {{ launcher.log_parser.running_for }} {% else %} Finished ({{ launcher.log_parser.result }}) {% endif %}</p>
+                {% endif %} -->
+            {% endfor %}
+        </div>
+    </body>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-p34f1UUtsS3wqzfto5wAAmdvj+osOnFyQFpp4Ua3gs/ZVWx6oOypYoCJhGGScy+8" crossorigin="anonymous"></script>
+</html>
