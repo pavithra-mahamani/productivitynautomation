@@ -86,8 +86,8 @@ def get_launcher_ips(launcher_job_url):
     read_ip = False
     timeout = 5
     end = time.time() + timeout
-    for [i, line] in enumerate(requests.get(launcher_job_url + "consoleText", timeout=timeout, stream=True).iter_lines(decode_unicode=True)):
-        if time.time() > end or i > 1000:
+    for line in enumerate(requests.get(launcher_job_url + "consoleText", timeout=timeout, stream=True).iter_lines(decode_unicode=True)):
+        if time.time() > end:
             break
         if read_ip:
             if line.startswith("ok: ["):
@@ -139,7 +139,7 @@ def index():
         latest_build_json = requests.get(job_json["lastBuild"]["url"] + "/api/json").json()
         launchers.append(Launcher(i, job_name, latest_build_json))
 
-        for build in job_json["builds"][1:7]:
+        for build in job_json["builds"][1:]:
             build_json = requests.get(build["url"] + "/api/json").json()
             history.append(Launcher(i, job_name, build_json))
 
