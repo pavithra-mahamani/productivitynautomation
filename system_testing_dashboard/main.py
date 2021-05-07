@@ -3,6 +3,9 @@ from flask import render_template
 import requests
 import time
 import datetime
+import requests_cache
+
+requests_cache.install_cache(expire_after=60)
 
 app = Flask("systen_testing_dashbord")
 
