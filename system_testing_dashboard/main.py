@@ -143,7 +143,7 @@ def index():
         latest_build_json = requests.get(job_json["lastBuild"]["url"] + "/api/json").json()
         launchers.append(Launcher(i, job_name, latest_build_json))
 
-        for build in job_json["builds"][1:]:
+        for build in job_json["builds"][1:4]:
             build_json = requests.get(build["url"] + "/api/json").json()
             history.append(Launcher(i, job_name, build_json))
 
