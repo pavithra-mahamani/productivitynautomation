@@ -48,15 +48,6 @@
                     {% for launcher in launchers | rejectattr('running', 'eq', True) %}
                     <tr>
                         <th scope="row">{{ launcher.number }}</th>
-                        <th scope="row"><a href="{{ launcher.job_url }}">{{ launcher.job_url }}</a></th>
-                        <th scope="row">
-                            {% if launcher.log_parser %} 
-                            <a href="{{ launcher.log_parser.url }}">{{ launcher.log_parser.url }}</a> 
-                            {% else %} 
-                            <span class="badge bg-danger">No log parser found</span>
-                            {% endif %}
-                        </th>
-                        <th>{{ launcher.result }}</th>
                         <th scope="row"><a href="http://qa.sc.couchbase.com/job/{{ launcher.job_name }}/build?delay=0sec" target="_blank" class="btn btn-primary">Launch {{ launcher.number }}</button></th>
                     </tr>
                     {% endfor %}
