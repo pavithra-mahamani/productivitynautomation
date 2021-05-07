@@ -5,7 +5,7 @@ import time
 import datetime
 import requests_cache
 
-requests_cache.install_cache(expire_after=60)
+requests_cache.install_cache(expire_after=60, backend="memory")
 
 app = Flask("systen_testing_dashbord")
 
@@ -89,16 +89,17 @@ def get_launcher_ips(launcher_job_url):
     read_ip = False
     timeout = 5
     end = time.time() + timeout
-    for line in requests.get(launcher_job_url + "consoleText", timeout=timeout, stream=True).iter_lines(decode_unicode=True):
-        if time.time() > end:
-            break
-        if read_ip:
-            if line.startswith("ok: ["):
-                ips.add(line.replace("ok: [", "").replace("]", ""))
-            else:
+    with requests_cache.disabled():
+        for line in requests.get(launcher_job_url + "consoleText", timeout=timeout, stream=True).iter_lines(decode_unicode=True):
+            if time.time() > end:
                 break
-        elif "TASK [Gathering Facts]" in line:
-            read_ip = True
+            if read_ip:
+                if line.startswith("ok: ["):
+                    ips.add(line.replace("ok: [", "").replace("]", ""))
+                else:
+                    break
+            elif "TASK [Gathering Facts]" in line:
+                read_ip = True
     return ips
 
 def log_parser_from_ips(ips):
