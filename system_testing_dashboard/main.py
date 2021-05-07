@@ -86,7 +86,7 @@ def get_launcher_ips(launcher_job_url):
     read_ip = False
     timeout = 5
     end = time.time() + timeout
-    for [i, line] in enumerate(requests.get(launcher_job_url + "consoleText", timeout=timeout).iter_lines(decode_unicode=True)):
+    for [i, line] in enumerate(requests.get(launcher_job_url + "consoleText", timeout=timeout, stream=True).iter_lines(decode_unicode=True)):
         if time.time() > end or i > 1000:
             break
         if read_ip:
