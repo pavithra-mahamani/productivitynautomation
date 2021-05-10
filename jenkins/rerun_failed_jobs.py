@@ -606,6 +606,10 @@ def filter_jobs(jobs, cluster: Cluster, server: Jenkins, options, queue, already
                         previous_job_runs = previous_job_runs[0]
                     else:
                         previous_job_runs = []
+
+                    if previous_job_runs is None:
+                        previous_job_runs = []
+
                     previous_job = next(filter(lambda run: run["olderBuild"] == False, previous_job_runs), None)
                     # if no previous job then this is either a new job or 
                     # that job wasn't run last time so don't filter
