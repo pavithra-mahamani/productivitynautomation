@@ -14,6 +14,34 @@ from datetime import timedelta
 from couchbase.auth import PasswordAuthenticator
 from couchbase.cluster import Cluster, ClusterOptions, ClusterTimeoutOptions
 
+
+def get_pool_data(servers):
+    servers_list = []
+    for server in servers.split(' '):
+        servers_list.append(server)
+    
+    query = "SELECT ipaddr, os, state, origin, poolId FROM `QE-server-pool` WHERE ipaddr in ['" + "','".join(servers_list) + "']"
+    pool_cb_host = os.environ.get('pool_cb_host')
+    if not pool_cb_host:
+        pool_cb_host = "172.23.104.162"
+    pool_cb_user = os.environ.get('pool_cb_user')
+    if not pool_cb_user:
+        pool_cb_user = "Administrator"
+    pool_cb_user_p = os.environ.get('pool_cb_password')
+    if not cb_user_p:
+        print("Error: pool_cb_password environment variable setting is missing!")
+        exit(1)
+    data = ''
+    try:
+        pool_cluster = Cluster("couchbase://"+pool_cb_host, ClusterOptions(PasswordAuthenticator(pool_cb_user, pool_cb_user_p),
+        timeout_options=ClusterTimeoutOptions(kv_timeout=timedelta(seconds=10))))
+        result = pool_cluster.query(query)
+        for row in result:
+            data += ("{}=({} {} {} {}) ".format(row['ipaddr'], row['state'], row['os'], row['poolId'], row['origin'])).replace(',',' ')
+    except:
+        print("exception:", sys.exc_info()[0])
+    return data
+
 if len(sys.argv) < 2:
     print("Usage: {} {}".format(sys.argv[0], "<cb_build> [xen_hosts_file] "))
     print("Environment: cb_password=, [cb_host=172.23.121.84, cb_user=Administrator, cb_bucket=greenboard]")
@@ -61,7 +89,7 @@ if xen_hosts_file:
             pass
     hosts_file.close()
 #print("Please wait while getting the aborts and failed tests list...")
-print("result,job_name,url,aws_url,servers,hosts(free vcpus/total vcpus/total vms)")
+print("result,job_name,url,aws_url,servers,hosts(free vcpus/total vcpus/total vms),serverpool_data")
 aborted_list = []
 failure_list = []
 for component in doc["os"]["CENTOS"]:
@@ -99,9 +127,9 @@ for component in doc["os"]["CENTOS"]:
             except:
                 pass
             if fresh_run["result"] == "FAILURE":
-                failure_list.append("{},{},{},{},{},{}".format(fresh_run["result"], job_name, url, aws_url, servers, xen_hosts))
+                failure_list.append("{},{},{},{},{},{},{}".format(fresh_run["result"], job_name, url, aws_url, servers, xen_hosts, get_pool_data(servers)))
             else:
-                aborted_list.append("{},{},{},{},{},{}".format(fresh_run["result"], job_name, url, aws_url, servers, xen_hosts))    
+                aborted_list.append("{},{},{},{},{},{},{}".format(fresh_run["result"], job_name, url, aws_url, servers, xen_hosts, get_pool_data(servers)))    
             index += 1
 
 for aborted in aborted_list:
