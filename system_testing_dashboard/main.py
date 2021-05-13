@@ -11,9 +11,10 @@ from couchbase.auth import PasswordAuthenticator
 from uuid import uuid4
 from datetime import datetime, timedelta
 import os
+import traceback
 
 CB_BUCKET = os.environ.get("CB_BUCKET") or "system_test_dashboard"
-CB_USERNAME = os.environ.get("CB_USERNAME") or "Adminstrator"
+CB_USERNAME = os.environ.get("CB_USERNAME") or "Administrator"
 CB_PASSWORD = os.environ.get("CB_PASSWORD") or "password"
 
 cluster = Cluster("couchbase://{}".format(os.environ["CB_SERVER"]), ClusterOptions(PasswordAuthenticator(CB_USERNAME, CB_PASSWORD), lockmode=LockMode.WAIT))
@@ -30,16 +31,7 @@ NUM_LAUNCHERS = 4
 LAUNCHER_TO_PARSER_CACHE = {}
 JENKINS_PREFIX = "http://qa.sc.couchbase.com/job/"
 
-data = {}
-
 class Reservation:
-    reserved_by = ""
-    purpose = ""
-    start = 0
-    end = 0
-    cluster = 0
-    id = ""
-
     def __init__(self, id, reserved_by, purpose, start, end, cluster):
         self.id = id
         self.reserved_by = reserved_by
@@ -47,20 +39,10 @@ class Reservation:
         self.start = start
         self.end = end
         self.cluster = cluster
+        self.duration = str(timedelta(seconds=self.end - self.start)).split(".")[0]
+        self.active = start <= time.time() and end >= time.time()
 
 class Launcher:
-    running = False
-    result = ""
-    build_num = 0
-    job_name = ""
-    number = 0
-    job_url = ""
-    short_job_url = ""
-    log_parser = None
-    running_for = ""
-    started = 0
-    reservation = None
-
     def __init__(self, number, name, build):
         self.number = number
         self.running = build["building"]
@@ -70,28 +52,19 @@ class Launcher:
         self.build_num = build["number"]
         self.job_url = build["url"]
         self.short_job_url = build["url"].replace(JENKINS_PREFIX, "")
-        # self.user = getAction(build["actions"], "causes")[0]["userName"]
         self.started = build["timestamp"] / 1000
-        if self.running:
-            self.running_for = get_running_for(build["timestamp"])
+        self.running_for = get_running_for(build["timestamp"]) if self.running else ""
         log_parser_build = get_log_parser_build(build["url"])
-        if log_parser_build:
-            self.log_parser = LogParser(log_parser_build)
+        self.log_parser = LogParser(log_parser_build) if log_parser_build else None
+        self.reservations = []
 
 class LogParser:
-    running = False
-    result = ""
-    url = ""
-    short_url = ""
-    running_for = ""
-
     def __init__(self, build) -> None:
         self.url = build["url"]
         self.short_url = build["url"].replace(JENKINS_PREFIX, "")
         self.result = build["result"]
         self.running = build["building"]
-        if self.running:
-            self.running_for = get_running_for(build["timestamp"])
+        self.running_for = get_running_for(build["timestamp"]) if self.running else ""
 
 def getAction(actions, key, value=None):
     if actions is None:
@@ -172,7 +145,7 @@ def get_running_for(started):
 
 def get_active_reservations():
     current_time = time.time()
-    reservations = list(bucket.query("select purpose, reserved_by, `start`, `end`, `cluster`, META().id from {0} where `start` <= {1} and `end` >= {1}".format(CB_BUCKET, current_time)))
+    reservations = list(bucket.query("select purpose, reserved_by, `start`, `end`, `cluster`, META().id from {0} where `end` >= {1} order by `start` asc".format(CB_BUCKET, current_time)))
     return [Reservation(reservation["id"], reservation["reserved_by"], reservation["purpose"], reservation["start"], reservation["end"], reservation["cluster"]) for reservation in reservations]
 
 def get_reservation_history():
@@ -207,10 +180,10 @@ def index():
     launchers = get_launchers()
     reservations = get_active_reservations()
     for reservation in reservations:
-        launchers[reservation.cluster - 1].reservation = reservation
+        launchers[reservation.cluster - 1].reservations.append(reservation)
     reservation_history = get_reservation_history()
 
-    return render_template('index.html', launchers=launchers, reservation_history=reservation_history)
+    return render_template('index.html', launchers=launchers, reservation_history=reservation_history, server_time=time.time())
 
 
 @app.route("/release/<string:id>")
@@ -229,11 +202,22 @@ def reserve():
         cluster = int(request.form['cluster'])
         duration = float(request.form['duration'])
         purpose = request.form['purpose']
+        start_date = request.form["startDate"]
+        start_time = request.form["startTime"]
         start = time.time()
+        custom_start = start_date
+        if custom_start != "":
+            if start_time == "":
+                custom_start += "00:00"
+            else:
+                custom_start += " " + start_time
+            start = datetime.strptime(custom_start, "%Y-%m-%d %H:%M").timestamp()
         end = start + (duration * 60 * 60)
         id = str(uuid4())
 
-        existing_reservations = list(bucket.query("select raw count(*) from {} where `end` > {} and `cluster` = {}".format(CB_BUCKET, start, cluster)))[0] > 0
+        # overlaps if start or end is within another reservation or start is before and end is after another reservation
+        overlap = "(({0} >= `start` and {0} <= `end`) or ({1} >= `start` and {1} <= `end`) or ({0} < `start` and {1} > `end`))".format(start, end)
+        existing_reservations = list(bucket.query("select raw count(*) from {} where {} and `cluster` = {}".format(CB_BUCKET, overlap, cluster)))[0] > 0
         if existing_reservations:
             raise Exception("Existing reservation")
 
@@ -248,6 +232,7 @@ def reserve():
         collection.insert(id, doc)
     except Exception as e:
         flash("Couldn't reserve cluster: {}".format(e))
+        traceback.print_exc()
     return redirect("/")
 
 
