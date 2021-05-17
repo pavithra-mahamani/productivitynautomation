@@ -42,7 +42,7 @@ cat failed_xenhosts*.csv |cut -f2 -d',' |sort|uniq -c|sort -r|xargs -n2|egrep "^
 # comm -12 failed_ips.csv failed_ips_5071.csv | comm -12 - failed_ips_5017.csv | comm -12 - failed_ips_4960.csv
 echo "----- Common IPs list ---"
 cat summary_common_failed_ips.txt
-eecho "----- Total count: `cat summary_common_failed_ips.txt |wc -l`"
+echo "----- Total count: `cat summary_common_failed_ips.txt |wc -l`"
 cd $CUR_DIR
 echo "NOTE: See the generated files under $WORK_DIR/ directory.  `ls $WORK_DIR |xargs`"
 echo '------'
