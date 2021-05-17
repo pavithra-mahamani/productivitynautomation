@@ -19,6 +19,7 @@ def main(session,host, csvout, username, password):
 
 def get_host_summary(session, host, csvout, username, password):
     global grandvms
+    host_cpu_usage = get_host_stats_cpu_usage(host, username, password)
     host_physical_cpu_count = get_physical_cpuinfo(host, username, password)
     host_dom0_vcpus = get_control_domain_vcpus(host, username, password)
     host_records = session.xenapi.host.get_all_records()
@@ -77,11 +78,11 @@ def get_host_summary(session, host, csvout, username, password):
             #networkinfo = ','.join([str(elem) for elem in metrics['networks'].values()])
             
 
-            vm_data = "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(host, host_ip, host_label, host_product_manufacturer, 
+            vm_data = "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(host, host_ip, host_label, host_product_manufacturer, 
                     host_product_name, host_xen_version, patch_count, host_physical_cpu_count, 
                     host_physical_cpu_socket_count, xen_cpu_count_total, xen_cpu_count_free, 
                     xen_memory_total_gb, xen_memory_free_gb, vm_count, name, power_state, vcpus, memory_static_max, ipAddr0, 
-                    os_version_distro, os_version_name, os_version_uname)
+                    os_version_distro, os_version_name, os_version_uname, host_cpu_usage)
             print("{}".format(vm_data))
             csvout.write("\n{}".format(vm_data))
             #if vm_summary:
@@ -106,7 +107,13 @@ def get_physical_cpuinfo(host, username, password):
     if pcpus:
         pcpus = pcpus.rstrip()
     return pcpus
-     
+
+def get_host_stats_cpu_usage(host, username, password):
+    host_cpu_usage = ssh_command(host, username, password,"rrd2csv -n host_rrd cpu_avg&  sleep 2; pkill rrd2csv")
+    if host_cpu_usage:
+        host_cpu_usage = host_cpu_usage.rstrip()
+        host_cpu_usage = host_cpu_usage.split('\n')[-1].replace(',',' ')
+    return host_cpu_usage
 
 def ssh_command(host, username, password, cmd):
     ssh_output = ''
@@ -300,12 +307,12 @@ if __name__ == "__main__":
     print("-----------------------------------------------------------")
     print("host,host_ip,host_label,host_manufacturer,host_product_name,host_xen_version,host_patch_count,host_cpu_count,host_cpu_socket_count,xen_vcpu_count_total,xen_vcpu_count_free," 
             "xen_memory_total_gb,xen_memory_free_gb,vm_count,vm_name,vm_state,vm_vcpus,vm_memory_gb,vm_networkinfo,"
-            "os_version_distro,os_version_naame,os_version_uname")
+            "os_version_distro,os_version_naame,os_version_uname,host_cpu_avg")
     print("-----------------------------------------------------------")
     csvout = open("xen_hosts_info.csv", "w")
     csvout.write("host,host_ip,host_label,host_manufacturer,host_product_name,host_xen_version,host_patch_count,host_cpu_count,host_cpu_socket_count,xen_vcpu_count_total,xen_vcpu_count_free," 
             "xen_memory_total_gb,xen_memory_free_gb,vm_count,vm_name,vm_state,vm_vcpus,vm_memory_gb,vm_networkinfo,"
-            "os_version_distro,os_version_naame,os_version_uname")
+            "os_version_distro,os_version_naame,os_version_uname,host_cpu_avg")
             
     for host in hosts:
         url = "http://"+host
