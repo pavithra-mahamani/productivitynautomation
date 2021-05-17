@@ -208,7 +208,7 @@ def reserve():
         custom_start = start_date
         if custom_start != "":
             if start_time == "":
-                custom_start += "00:00"
+                custom_start += " 00:00"
             else:
                 custom_start += " " + start_time
             start = datetime.strptime(custom_start, "%Y-%m-%d %H:%M").timestamp()
