@@ -199,9 +199,17 @@ def release(id):
 def reserve():
     try:
         user = request.form['name']
+        if user == "":
+            raise ValueError("Name must not be empty")
         cluster = int(request.form['cluster'])
+        if cluster not in range(1, NUM_LAUNCHERS + 1):
+            raise ValueError("Invalid cluster")
         duration = float(request.form['duration'])
+        if duration <= 0:
+            raise ValueError("Duration must must > 0")
         purpose = request.form['purpose']
+        if purpose == "":
+            raise ValueError("Purpose must not be empty")
         start_date = request.form["startDate"]
         start_time = request.form["startTime"]
         start = time.time()
