@@ -34,9 +34,6 @@
                     <tr>
                         <td>
                             Launcher {{ launcher.number }}
-                            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#reserve{{ launcher.number }}">
-                                Reserve
-                            </button>
                             {% if launcher.running %}
                             <button type="button" class="btn btn-danger btn-sm">Stop</button>
                             {% elif launcher.reservations and launcher.reservations[0].active %}
@@ -50,8 +47,8 @@
                                     <tr>
                                         <th scope="col">Purpose</td>
                                         <th scope="col">Reserved By</td>
-                                        <th scope="col">Reservation Start</td>
-                                        <th scope="col">Reservation Duration</td>
+                                        <th scope="col">Start</td>
+                                        <th scope="col">Duration</td>
                                         <th scope="col">Manage</td>
                                     </tr>
                                 </thead>
@@ -71,6 +68,9 @@
                             {% else %}
                             No reservations
                             {% endif %}
+                            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#reserve{{ launcher.number }}">
+                                Reserve
+                            </button>
                         </td>
                         {% if launcher.running %}
                         <td>Running</td>
