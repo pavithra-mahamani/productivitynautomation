@@ -118,7 +118,7 @@
                         <td>{{ reservation.reserved_by }}</td>
                         <td>{{ reservation.start|timestamp }}</td>
                         <td>{{ reservation.end|timestamp }}</td>
-                        <td>{% if reservation.live_duration %} {{ reservation.live_start_time|timestamp }} {% endif %}</td>
+                        <td>{% if reservation.live_start_time %} {{ reservation.live_start_time|timestamp }} {% endif %}</td>
                         <td>{% if reservation.live_duration %} {{ reservation.live_duration }} {% endif %}</td>
                         <td><a href="{{ reservation.cluster_url }}">{{ reservation.cluster_short_url }}</a></td>
                         <td><a href="{{ reservation.eagle_eye_url }}">{{ reservation.eagle_eye_short_url }}</a></td>
