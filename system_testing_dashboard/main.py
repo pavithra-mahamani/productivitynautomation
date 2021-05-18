@@ -42,9 +42,9 @@ class Reservation:
         self.duration = str(timedelta(seconds=self.end - self.start)).split(".")[0]
         self.active = start <= time.time() and end >= time.time()
         self.cluster_url = cluster_url
-        self.cluster_short_url = self.cluster_url.replace(JENKINS_PREFIX, "")
+        self.cluster_short_url = self.cluster_url.replace(JENKINS_PREFIX, "") if self.cluster_url else ""
         self.eagle_eye_url = eagle_eye_url
-        self.eagle_eye_short_url = self.eagle_eye_url.replace(JENKINS_PREFIX, "")
+        self.eagle_eye_short_url = self.eagle_eye_url.replace(JENKINS_PREFIX, "") if self.eagle_eye_url else ""
         self.live_start_time = live_start_time
         self.live_duration = str(timedelta(seconds=live_duration/1000)).split(".")[0] if live_duration else None
 
