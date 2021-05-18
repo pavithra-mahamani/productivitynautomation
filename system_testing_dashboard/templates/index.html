@@ -19,123 +19,79 @@
             <h3>Clusters</h3>
             <table class="table">
                 <thead>
-                <tr>
-                    <th scope="col">Launcher</th>
-                    <th scope="col">Purpose</th>
-                    <th scope="col">Reserved By</th>
-                    <th scope="col">Reservation Start</th>
-                    <th scope="col">Reservation Duration</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Live Start Time</th>
-                    <th scope="col">Live Duration</th>
-                    <th scope="col">Live Cluster</th>
-                    <th scope="col">Live Eagle Eye</th>
-                </tr>
+                    <tr>
+                        <th scope="col">Launcher</th>
+                        <th scope="col">Reservations</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Live Start Time</th>
+                        <th scope="col">Live Duration</th>
+                        <th scope="col">Live Cluster</th>
+                        <th scope="col">Live Eagle Eye</th>
+                    </tr>
                 </thead>
                 <tbody>
                     {% for launcher in launchers %}
-                    {% if launcher.running %}
                     <tr>
-                        <th scope="row">
+                        <td>
                             Launcher {{ launcher.number }}
                             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#reserve{{ launcher.number }}">
                                 Reserve
                             </button>
+                            {% if launcher.running %}
                             <button type="button" class="btn btn-danger btn-sm">Stop</button>
-                        </th>
-                        {% if launcher.reservations %}
-                        <th scope="row">
-                            {% for reservation in launcher.reservations %}
-                            {{ reservation.purpose }}
-                            {% endfor %}
-                        </th>
-                        <th scope="row">
-                            {% for reservation in launcher.reservations %}
-                            {{ reservation.reserved_by }}
-                            {% endfor %}
-                        </th>
-                        <th scope="row">
-                            {% for reservation in launcher.reservations %}
-                            {{ reservation.start|timestamp }}
-                            {% endfor %}
-                        </th>
-                        <th scope="row">
-                            {% for reservation in launcher.reservations %}
-                            {{ reservation.duration }}
-                            {% endfor %}
-                        </th>
-                        {% else %}
-                        <th scope="row"></th>
-                        <th scope="row"></th>
-                        <th scope="row"></th>
-                        <th scope="row"></th>
-                        {% endif %}
-                        <th scope="row">Running</th>
-                        <th scope="row">{{ launcher.started|timestamp }}</th>
-                        <th scope="row">{{ launcher.running_for }}</th>
-                        <th scope="row"><a href="{{ launcher.job_url }}">{{ launcher.short_job_url }}</a></th>
-                        <th scope="row">
+                            {% elif launcher.reservations and launcher.reservations[0].active %}
+                            <a href="http://qa.sc.couchbase.com/job/{{ launcher.job_name }}/build?delay=0sec" target="_blank" class="btn btn-success btn-sm">Launch</a>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if launcher.reservations %}
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Purpose</td>
+                                        <th scope="col">Reserved By</td>
+                                        <th scope="col">Reservation Start</td>
+                                        <th scope="col">Reservation Duration</td>
+                                        <th scope="col">Manage</td>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    
+                                    {% for reservation in launcher.reservations %}
+                                    <tr>
+                                        <td>{{ reservation.purpose }}</td>
+                                        <td>{{ reservation.reserved_by }}</td>
+                                        <td>{{ reservation.start|timestamp }}</td>
+                                        <td>{{ reservation.duration }}</td>
+                                        <td><a href="/release/{{ reservation.id }}" class="btn btn-warning btn-sm">Release</button></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            {% else %}
+                            No reservations
+                            {% endif %}
+                        </td>
+                        {% if launcher.running %}
+                        <td>Running</td>
+                        <td>{{ launcher.started|timestamp }}</td>
+                        <td>{{ launcher.running_for }}</td>
+                        <td><a href="{{ launcher.job_url }}">{{ launcher.short_job_url }}</a></td>
+                        <td>
                             {% if launcher.log_parser %}
                             <a href="{{ launcher.log_parser.url }}">{{ launcher.log_parser.short_url }}</a> 
                             {% else %}
                             <span class="badge bg-danger">No log parser found</span>
                             {% endif %}
-                        </th>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <th scope="row">
-                            Launcher {{ launcher.number }}
-                            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#reserve{{ launcher.number }}">
-                                Reserve
-                            </button>
-                            {% if launcher.reservations and launcher.reservations[0].active %}
-                            <a href="http://qa.sc.couchbase.com/job/{{ launcher.job_name }}/build?delay=0sec" target="_blank" class="btn btn-success btn-sm">Launch</a>
-                            <a href="/release/{{ launcher.reservations[0].id }}" class="btn btn-warning btn-sm">Release</button>
-                            {% endif %}
-                        </th>
-                        {% if launcher.reservations %}
-                        <th scope="row">
-                            <ul>
-                                {% for reservation in launcher.reservations %}
-                                <li>{{ reservation.purpose }}</li>
-                                {% endfor %}
-                            </ul>
-                        </th>
-                        <th scope="row">
-                            <ul>
-                                {% for reservation in launcher.reservations %}
-                                <li>{{ reservation.reserved_by }}</li>
-                                {% endfor %}
-                            </ul>
-                        </th>
-                        <th scope="row">
-                            <ul>
-                                {% for reservation in launcher.reservations %}
-                                <li>{{ reservation.start|timestamp }}</li>
-                                {% endfor %}
-                            </ul>
-                        </th>
-                        <th scope="row">
-                            <ul>
-                                {% for reservation in launcher.reservations %}
-                                <li>{{ reservation.duration }}</li>
-                                {% endfor %}
-                            </ul>
-                        </th>
+                        </td>
                         {% else %}
-                        <th scope="row"></th>
-                        <th scope="row"></th>
-                        <th scope="row"></th>
-                        <th scope="row"></th>
+                        <td>Idle</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
                         {% endif %}
-                        <th scope="row">Idle</th>
-                        <th scope="row"></th>
-                        <th scope="row"></th>
-                        <th scope="row"></th>
-                        <th scope="row"></th>
                     </tr>
-                    {% endif %}
                     {% endfor %}
                 </tbody>
             </table>
@@ -148,16 +104,24 @@
                     <th scope="col">Reserved By</th>
                     <th scope="col">Reservation Start</th>
                     <th scope="col">Reservation End</th>
+                    <th scope="col">Live Start Time</th>
+                    <th scope="col">Live Duration</th>
+                    <th scope="col">Live Cluster</th>
+                    <th scope="col">Live Eagle Eye</th>
                 </tr>
                 </thead>
                 <tbody>
                     {% for reservation in reservation_history %}
                     <tr>
-                        <th scope="row">Launcher {{ reservation.cluster }}</th>
-                        <th scope="row">{{ reservation.purpose }}</th>
-                        <th scope="row">{{ reservation.reserved_by }}</th>
-                        <th scope="row">{{ reservation.start|timestamp }}</th>
-                        <th scope="row">{{ reservation.end|timestamp }}</th>
+                        <td>Launcher {{ reservation.cluster }}</td>
+                        <td>{{ reservation.purpose }}</td>
+                        <td>{{ reservation.reserved_by }}</td>
+                        <td>{{ reservation.start|timestamp }}</td>
+                        <td>{{ reservation.end|timestamp }}</td>
+                        <td>{{ reservation.live_start_time|timestamp }}</td>
+                        <td>{% if reservation.live_duration %} {{ reservation.live_duration }} {% endif %}</td>
+                        <td><a href="{{ reservation.cluster_url }}">{{ reservation.cluster_short_url }}</a></td>
+                        <td><a href="{{ reservation.eagle_eye_url }}">{{ reservation.eagle_eye_short_url }}</a></td>
                     </tr>
                     {% endfor %}
                 </tbody>
