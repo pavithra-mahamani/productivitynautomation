@@ -59,10 +59,10 @@
                         <td>Running</td>
                         <td>{{ launcher.started|timestamp }}</td>
                         <td>{{ launcher.running_for }}</td>
-                        <td><a href="{{ launcher.job_url }}">{{ launcher.short_job_url }}</a></td>
+                        <td><a href="{{ launcher.job_url }}" target="_blank">{{ launcher.short_job_url }}</a></td>
                         <td>
                             {% if launcher.log_parser %}
-                            <a href="{{ launcher.log_parser.url }}">{{ launcher.log_parser.short_url }}</a> 
+                            <a href="{{ launcher.log_parser.url }}" target="_blank">{{ launcher.log_parser.short_url }}</a> 
                             {% else %}
                             <span class="badge bg-danger">No log parser found</span>
                             {% endif %}
@@ -120,8 +120,8 @@
                         <td>{{ reservation.end|timestamp }}</td>
                         <td>{% if reservation.live_start_time %} {{ reservation.live_start_time|timestamp }} {% endif %}</td>
                         <td>{% if reservation.live_duration %} {{ reservation.live_duration }} {% endif %}</td>
-                        <td><a href="{{ reservation.cluster_url }}">{{ reservation.cluster_short_url }}</a></td>
-                        <td><a href="{{ reservation.eagle_eye_url }}">{{ reservation.eagle_eye_short_url }}</a></td>
+                        <td><a href="{{ reservation.cluster_url }}" target="_blank">{{ reservation.cluster_short_url }}</a></td>
+                        <td><a href="{{ reservation.eagle_eye_url }}" target="_blank">{{ reservation.eagle_eye_short_url }}</a></td>
                     </tr>
                     {% endfor %}
                 </tbody>
