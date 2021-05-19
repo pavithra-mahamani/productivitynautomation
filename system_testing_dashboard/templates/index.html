@@ -21,11 +21,11 @@
                 <thead>
                     <tr>
                         <th scope="col">Launcher</th>
+                        <th scope="col"></td>
                         <th scope="col">Purpose</td>
                         <th scope="col">Reserved By</td>
                         <th scope="col">Reservation Start</td>
                         <th scope="col">Reservation Duration</td>
-                        <th scope="col">Manage Reservation</td>
                         <th scope="col">Status</th>
                         <th scope="col">Live Start Time</th>
                         <th scope="col">Live Duration</th>
@@ -39,15 +39,15 @@
                         <td>
                             Launcher {{ launcher.number }}
                             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#reserve{{ launcher.number }}">Reserve</button>
-                            <a href="http://qa.sc.couchbase.com/job/{{ launcher.job_name }}/build?delay=0sec" target="_blank" class="btn btn-success btn-sm {{ 'disabled' if launcher.running or not launcher.reservations or not launcher.reservations[0].active }}">Launch</a>
+                            <a href="http://qa.sc.couchbase.com/job/{{ launcher.job_name }}/build?delay=0sec" target="_blank" class="btn btn-success btn-sm {{ 'disabled' if launcher.running or not launcher.reservations or not launcher.reservations[0].active }}">Start</a>
                             <a href="/stop/{{ launcher.number }}" class="btn btn-danger btn-sm {{ 'disabled' if not launcher.running }}">Stop</button>
                         </td>
                         {% if launcher.reservations and launcher.reservations[0].active %}
+                        <td><a href="/release/{{ launcher.reservations[0].id }}" class="btn btn-warning btn-sm {{ 'disabled' if launcher.running }}">Release</button></td>
                         <td>{{ launcher.reservations[0].purpose }}</td>
                         <td>{{ launcher.reservations[0].reserved_by }}</td>
                         <td>{{ launcher.reservations[0].start|timestamp }}</td>
                         <td>{{ launcher.reservations[0].duration }}</td>
-                        <td><a href="/release/{{ launcher.reservations[0].id }}" class="btn btn-warning btn-sm {{ 'disabled' if launcher.running }}">Release</button></td>
                         {% else %}
                         <td></td>
                         <td></td>
@@ -79,11 +79,11 @@
                     {% for reservation in launcher.reservations | rejectattr('active', 'eq', True) %}
                     <tr>
                         <td></td>
+                        <td><a href="/release/{{ reservation.id }}" class="btn btn-warning btn-sm">Release</button></td>
                         <td>{{ reservation.purpose }}</td>
                         <td>{{ reservation.reserved_by }}</td>
                         <td>{{ reservation.start|timestamp }}</td>
                         <td>{{ reservation.duration }}</td>
-                        <td><a href="/release/{{ reservation.id }}" class="btn btn-warning btn-sm">Release</button></td>
                         <td></td>
                         <td></td>
                         <td></td>

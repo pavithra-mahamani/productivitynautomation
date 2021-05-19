@@ -367,8 +367,7 @@ def stop(launcher):
     url = "{}{}/{}/stop".format(JENKINS_PREFIX, job_name, build_id)
     # TODO: Get downstream log parser and abort
     auth = get_auth(url)
-    print(url)
-    # requests.post(url, auth=auth)
+    requests.post(url, auth=auth)
     return redirect("/")
 
 
