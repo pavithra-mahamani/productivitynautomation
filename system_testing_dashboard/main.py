@@ -12,6 +12,8 @@ from uuid import uuid4
 from datetime import datetime, timedelta
 import os
 import traceback
+from configparser import ConfigParser
+from requests.auth import HTTPBasicAuth
 
 CB_BUCKET = os.environ.get("CB_BUCKET") or "system_test_dashboard"
 CB_USERNAME = os.environ.get("CB_USERNAME") or "Administrator"
@@ -145,6 +147,24 @@ def log_parser_from_ips(ips):
     return log_parser
 
 
+def log_parser_from_upstream(upstream):
+    """
+    Search through the latest log parser jobs to find one where the upstream job matches
+    """
+    log_parser = None
+    job_json = requests.get(JENKINS_PREFIX + "system_test_log_parser_downstream_job_test/api/json").json()
+    for build in job_json["builds"]:
+        json = requests.get(build["url"] + "api/json").json()
+        causes = getAction(json["actions"], "causes")
+        upstream_build_id = getAction(causes, "upstreamBuild")
+        upstream_project = getAction(causes, "upstreamProject")
+        upstream_url = "{}{}/{}/".format(JENKINS_PREFIX, upstream_project, upstream_build_id)
+        if upstream_url == upstream:
+            log_parser = json
+            break
+    return log_parser
+
+
 def get_log_parser_build(launcher_job_url):
     """
     Get the log parser associated with a launcher
@@ -152,11 +172,13 @@ def get_log_parser_build(launcher_job_url):
     if launcher_job_url in LAUNCHER_TO_PARSER_CACHE:
         return requests.get(LAUNCHER_TO_PARSER_CACHE[launcher_job_url] + "api/json").json()
 
-    ips = get_launcher_ips(launcher_job_url)
-    if ips:
-        log_parser = log_parser_from_ips(ips)
-        if log_parser:
-            LAUNCHER_TO_PARSER_CACHE[launcher_job_url] = log_parser["url"]
+    log_parser = log_parser_from_upstream(launcher_job_url)
+    if log_parser is None:
+        ips = get_launcher_ips(launcher_job_url)
+        if ips:
+            log_parser = log_parser_from_ips(ips)
+    if log_parser:
+        LAUNCHER_TO_PARSER_CACHE[launcher_job_url] = log_parser["url"]
         return log_parser
 
     return None
@@ -211,13 +233,23 @@ def add_cluster_duration_to_reservation(reservation):
         pass
 
 
+def launcher_name(number):
+    """
+    Calculate the launcher job name based on number
+    """
+    if number == 4:
+        return "component_systest_launcher_4-with-logger-test"
+    job_name = "component_systest_launcher"
+    if number > 1:
+        job_name += "_" + str(number)
+    return job_name
+
+
 def get_launchers():
     launchers = []
     for i in range(1, NUM_LAUNCHERS + 1):
-        job_name = "component_systest_launcher"
-        if i > 1:
-            job_name += "_" + str(i)
-        job_json = requests.get("http://qa.sc.couchbase.com/job/{}/api/json".format(job_name)).json()
+        job_name = launcher_name(i)
+        job_json = requests.get("{}{}/api/json".format(JENKINS_PREFIX, job_name)).json()
         latest_build_json = requests.get(job_json["lastBuild"]["url"] + "/api/json").json()
         latest_launcher = Launcher(i, job_name, latest_build_json)
         launchers.append(latest_launcher)
@@ -235,8 +267,7 @@ def index():
     reservations = get_active_reservations()
     for reservation in reservations:
         launcher = launchers[reservation.cluster - 1]
-        if reservation.active and launcher.running and reservation.cluster_url is None:
-            reservation.cluster_url = launcher.job_url
+        if reservation.active and launcher.running and (reservation.cluster_url is None or reservation.eagle_eye_url is None):
             associate_job_with_reservation(launcher, reservation)
         launchers[reservation.cluster - 1].reservations.append(reservation)
     reservation_history = get_reservation_history()
