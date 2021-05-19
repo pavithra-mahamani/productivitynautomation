@@ -308,5 +308,37 @@ def reserve():
         traceback.print_exc()
     return redirect("/")
 
+credentials = ConfigParser()
+credentials.read("credentials.ini")
+
+def get_auth(server):
+    auth = None
+    for url in credentials.sections():
+        if server.startswith(url):
+            try:
+                username = credentials.get(url, "username")
+                password = credentials.get(url, "password")
+            except ConfigParser.NoOptionError:
+                pass
+            else:
+                auth = HTTPBasicAuth(username, password)
+                break
+    return auth
+
+
+@app.route("/stop/<int:launcher>")
+def stop(launcher):
+    if launcher < 1 or launcher > NUM_LAUNCHERS:
+        raise Exception("Unknown launcher")
+    job_name = launcher_name(launcher)
+    job_json = requests.get("{}{}/api/json".format(JENKINS_PREFIX, job_name)).json()
+    build_id = job_json["lastBuild"]["number"]
+    url = "{}{}/{}/stop".format(JENKINS_PREFIX, job_name, build_id)
+    # TODO: Get downstream log parser and abort
+    auth = get_auth(url)
+    print(url)
+    # requests.post(url, auth=auth)
+    return redirect("/")
+
 
 app.run("0.0.0.0", 8080, debug=True)

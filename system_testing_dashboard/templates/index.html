@@ -40,7 +40,7 @@
                             Launcher {{ launcher.number }}
                             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#reserve{{ launcher.number }}">Reserve</button>
                             <a href="http://qa.sc.couchbase.com/job/{{ launcher.job_name }}/build?delay=0sec" target="_blank" class="btn btn-success btn-sm {{ 'disabled' if launcher.running or not launcher.reservations or not launcher.reservations[0].active }}">Launch</a>
-                            <button type="button" class="btn btn-danger btn-sm {{ 'disabled' if not launcher.running }}">Stop</button>
+                            <a href="/stop/{{ launcher.number }}" class="btn btn-danger btn-sm {{ 'disabled' if not launcher.running }}">Stop</button>
                         </td>
                         {% if launcher.reservations and launcher.reservations[0].active %}
                         <td>{{ launcher.reservations[0].purpose }}</td>
