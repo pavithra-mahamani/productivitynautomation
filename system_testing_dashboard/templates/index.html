@@ -21,16 +21,18 @@
                 <thead>
                     <tr>
                         <th scope="col">Launcher</th>
-                        <th scope="col"></td>
-                        <th scope="col">Purpose</td>
-                        <th scope="col">Reserved By</td>
-                        <th scope="col">Reservation Start</td>
-                        <th scope="col">Reservation Duration</td>
+                        <th scope="col"></th>
+                        <th scope="col">Purpose</th>
+                        <th scope="col">Reserved By</th>
+                        <th scope="col">Reservation Start</th>
+                        <th scope="col">Reservation Duration</th>
+                        <th scope="col">Version</th>
                         <th scope="col">Status</th>
                         <th scope="col">Live Start Time</th>
                         <th scope="col">Live Duration</th>
                         <th scope="col">Live Cluster</th>
                         <th scope="col">Live Eagle Eye</th>
+                        <th scope="col">Parmeters</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -56,6 +58,7 @@
                         <td></td>
                         {% endif %}
                         {% if launcher.running %}
+                        <td>{{ launcher.parameters['version_number'] }}</td>
                         <td>Running</td>
                         <td>{{ launcher.started|timestamp }}</td>
                         <td>{{ launcher.running_for }}</td>
@@ -67,8 +70,11 @@
                             <span class="badge bg-danger">No log parser found</span>
                             {% endif %}
                         </td>
+                        <td><button type="button" class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#launcherParams{{ launcher.number }}">Parmeters</button></td>
                         {% else %}
+                        <td></td>
                         <td>Idle</td>
+                        <td></td>
                         <td></td>
                         <td></td>
                         <td></td>
@@ -99,29 +105,35 @@
             <table class="table align-middle">
                 <thead>
                 <tr>
+                    <th scope="col"></th>
                     <th scope="col">Launcher</th>
                     <th scope="col">Purpose</th>
                     <th scope="col">Reserved By</th>
                     <th scope="col">Reservation Start</th>
                     <th scope="col">Reservation End</th>
+                    <th scope="col">Version</th>
                     <th scope="col">Live Start Time</th>
                     <th scope="col">Live Duration</th>
                     <th scope="col">Live Cluster</th>
                     <th scope="col">Live Eagle Eye</th>
+                    <th scope="col">Parameters</th>
                 </tr>
                 </thead>
                 <tbody>
                     {% for reservation in reservation_history %}
                     <tr>
+                        <td><a href="/deleteReservation/{{ reservation.id }}" class="btn btn-danger btn-sm">X</td>
                         <td>Launcher {{ reservation.cluster }}</td>
                         <td>{{ reservation.purpose }}</td>
                         <td>{{ reservation.reserved_by }}</td>
                         <td>{{ reservation.start|timestamp }}</td>
                         <td>{{ reservation.end|timestamp }}</td>
+                        <td>{{ reservation.parameters['version_number'] if reservation.parameters }}</td>
                         <td>{% if reservation.live_start_time %} {{ reservation.live_start_time|timestamp }} {% endif %}</td>
                         <td>{% if reservation.live_duration %} {{ reservation.live_duration }} {% endif %}</td>
                         <td><a href="{{ reservation.cluster_url }}" target="_blank">{{ reservation.cluster_short_url }}</a></td>
                         <td><a href="{{ reservation.eagle_eye_url }}" target="_blank">{{ reservation.eagle_eye_short_url }}</a></td>
+                        <td>{% if reservation.parameters %}<button type="button" class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#reservationParams{{ reservation.id }}">Parmeters</button>{% endif %}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -160,6 +172,68 @@
                 </div>
                 </div>
             </div>
+            {% endfor %}
+            {% for launcher in launchers %}
+            <div class="modal fade" id="launcherParams{{ launcher.number }}" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Launcher {{ launcher.number }} Parmeters</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <table class="table align-middle">
+                                <thead>
+                                <tr>
+                                    <th scope="col">Key</th>
+                                    <th scope="col">Value</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                    {% for key, value in launcher.parameters.items() %}
+                                    <tr>
+                                        <td>{{ key }}</td>
+                                        <td>{{ value }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            {% for reservation in reservation_history %}
+            {% if reservation.parameters %}
+            <div class="modal fade" id="reservationParams{{ reservation.id }}" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Launcher {{ reservation.cluster }} Parmeters</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <table class="table align-middle">
+                                <thead>
+                                <tr>
+                                    <th scope="col">Key</th>
+                                    <th scope="col">Value</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                    {% for key, value in reservation.parameters.items() %}
+                                    <tr>
+                                        <td>{{ key }}</td>
+                                        <td>{{ value }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
             {% endfor %}
         </div>
     </body>

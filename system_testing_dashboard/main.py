@@ -9,7 +9,7 @@ from flask import request
 from couchbase.cluster import Cluster, ClusterOptions
 from couchbase.auth import PasswordAuthenticator
 from uuid import uuid4
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
 import traceback
 from configparser import ConfigParser
@@ -19,7 +19,8 @@ CB_BUCKET = os.environ.get("CB_BUCKET") or "system_test_dashboard"
 CB_USERNAME = os.environ.get("CB_USERNAME") or "Administrator"
 CB_PASSWORD = os.environ.get("CB_PASSWORD") or "password"
 
-cluster = Cluster("couchbase://{}".format(os.environ["CB_SERVER"]), ClusterOptions(PasswordAuthenticator(CB_USERNAME, CB_PASSWORD), lockmode=LockMode.WAIT))
+cluster = Cluster("couchbase://{}".format(os.environ["CB_SERVER"]), ClusterOptions(
+    PasswordAuthenticator(CB_USERNAME, CB_PASSWORD), lockmode=LockMode.WAIT))
 bucket = cluster.bucket(CB_BUCKET)
 collection = bucket.default_collection()
 
@@ -33,22 +34,28 @@ NUM_LAUNCHERS = 4
 LAUNCHER_TO_PARSER_CACHE = {}
 JENKINS_PREFIX = "http://qa.sc.couchbase.com/job/"
 
+
 class Reservation:
-    def __init__(self, id, reserved_by, purpose, start, end, cluster, cluster_url, eagle_eye_url, live_start_time, live_duration):
+    def __init__(self, id, reserved_by, purpose, start, end, cluster, cluster_url, eagle_eye_url, live_start_time, live_duration, parameters):
         self.id = id
         self.reserved_by = reserved_by
         self.purpose = purpose
         self.start = start
         self.end = end
         self.cluster = cluster
-        self.duration = str(timedelta(seconds=self.end - self.start)).split(".")[0]
+        self.duration = format_duration(self.end - self.start)
         self.active = start <= time.time() and end >= time.time()
         self.cluster_url = cluster_url
-        self.cluster_short_url = self.cluster_url.replace(JENKINS_PREFIX, "") if self.cluster_url else ""
+        self.cluster_short_url = self.cluster_url.replace(
+            JENKINS_PREFIX, "") if self.cluster_url else ""
         self.eagle_eye_url = eagle_eye_url
-        self.eagle_eye_short_url = self.eagle_eye_url.replace(JENKINS_PREFIX, "") if self.eagle_eye_url else ""
+        self.eagle_eye_short_url = self.eagle_eye_url.replace(
+            JENKINS_PREFIX, "") if self.eagle_eye_url else ""
         self.live_start_time = live_start_time
-        self.live_duration = str(timedelta(seconds=live_duration/1000)).split(".")[0] if live_duration else None
+        self.live_duration = format_duration(
+            live_duration/1000) if live_duration else None
+        self.parameters = parameters
+
 
 class Launcher:
     def __init__(self, number, name, build):
@@ -61,10 +68,15 @@ class Launcher:
         self.job_url = build["url"]
         self.short_job_url = build["url"].replace(JENKINS_PREFIX, "")
         self.started = build["timestamp"] / 1000
-        self.running_for = get_running_for(build["timestamp"]) if self.running else ""
+        self.running_for = get_running_for(
+            build["timestamp"]) if self.running else ""
         log_parser_build = get_log_parser_build(build["url"])
-        self.log_parser = LogParser(log_parser_build) if log_parser_build else None
+        self.log_parser = LogParser(
+            log_parser_build) if log_parser_build else None
         self.reservations = []
+        self.parameters = parameters_to_dict(
+            getAction(build["actions"], "parameters"))
+
 
 class LogParser:
     def __init__(self, build) -> None:
@@ -72,7 +84,15 @@ class LogParser:
         self.short_url = build["url"].replace(JENKINS_PREFIX, "")
         self.result = build["result"]
         self.running = build["building"]
-        self.running_for = get_running_for(build["timestamp"]) if self.running else ""
+        self.running_for = get_running_for(
+            build["timestamp"]) if self.running else ""
+
+
+def parameters_to_dict(parameters):
+    ret = {}
+    for parameter in parameters:
+        ret[parameter["name"]] = parameter["value"]
+    return ret
 
 
 def getAction(actions, key, value=None):
@@ -136,7 +156,8 @@ def log_parser_from_ips(ips):
     Search through the latest log parser jobs to find one where the cluster_node parameter matches an ip in ips
     """
     log_parser = None
-    job_json = requests.get(JENKINS_PREFIX + "system_test_log_parser/api/json").json()
+    job_json = requests.get(
+        JENKINS_PREFIX + "system_test_log_parser/api/json").json()
     for build in job_json["builds"]:
         json = requests.get(build["url"] + "api/json").json()
         parameters = getAction(json["actions"], "parameters")
@@ -152,13 +173,15 @@ def log_parser_from_upstream(upstream):
     Search through the latest log parser jobs to find one where the upstream job matches
     """
     log_parser = None
-    job_json = requests.get(JENKINS_PREFIX + "system_test_log_parser_downstream_job_test/api/json").json()
+    job_json = requests.get(
+        JENKINS_PREFIX + "system_test_log_parser_downstream_job_test/api/json").json()
     for build in job_json["builds"]:
         json = requests.get(build["url"] + "api/json").json()
         causes = getAction(json["actions"], "causes")
         upstream_build_id = getAction(causes, "upstreamBuild")
         upstream_project = getAction(causes, "upstreamProject")
-        upstream_url = "{}{}/{}/".format(JENKINS_PREFIX, upstream_project, upstream_build_id)
+        upstream_url = "{}{}/{}/".format(JENKINS_PREFIX,
+                                         upstream_project, upstream_build_id)
         if upstream_url == upstream:
             log_parser = json
             break
@@ -188,24 +211,30 @@ def get_running_for(started):
     """
     Convert 
     """
-    return str(timedelta(seconds=time.time() - started / 1000)).split(".")[0]
+    return format_duration(time.time() - started / 1000)
+
+
+def format_duration(seconds):
+    return str(round(seconds / (60 * 60))) + " hrs"
 
 
 def get_active_reservations():
     current_time = time.time()
-    reservations = list(bucket.query("select purpose, reserved_by, `start`, `end`, `cluster`, META().id, cluster_url, eagle_eye_url, live_start_time, live_duration from {0} where `end` >= {1} order by `start` asc".format(CB_BUCKET, current_time)))
-    return [Reservation(reservation["id"], reservation["reserved_by"], reservation["purpose"], reservation["start"], reservation["end"], reservation["cluster"], reservation["cluster_url"], reservation["eagle_eye_url"], reservation["live_start_time"], reservation["live_duration"]) for reservation in reservations]
+    reservations = list(bucket.query(
+        "select purpose, reserved_by, `start`, `end`, `cluster`, META().id, cluster_url, eagle_eye_url, live_start_time, live_duration, parameters from {0} where `end` >= {1} order by `start` asc".format(CB_BUCKET, current_time)))
+    return [Reservation(reservation["id"], reservation["reserved_by"], reservation["purpose"], reservation["start"], reservation["end"], reservation["cluster"], reservation["cluster_url"], reservation["eagle_eye_url"], reservation["live_start_time"], reservation["live_duration"], reservation["parameters"]) for reservation in reservations]
 
 
 def get_reservation_history():
     current_time = time.time()
-    reservations = list(bucket.query("select purpose, reserved_by, `start`, `end`, `cluster`, META().id, cluster_url, eagle_eye_url, live_start_time, live_duration from {} where `start` < `end` and `end` < {} order by `end` desc".format(CB_BUCKET, current_time)))
-    return [Reservation(reservation["id"], reservation["reserved_by"], reservation["purpose"], reservation["start"], reservation["end"], reservation["cluster"], reservation["cluster_url"], reservation["eagle_eye_url"], reservation["live_start_time"], reservation["live_duration"]) for reservation in reservations]
+    reservations = list(bucket.query("select purpose, reserved_by, `start`, `end`, `cluster`, META().id, cluster_url, eagle_eye_url, live_start_time, live_duration, parameters from {} where `start` < `end` and `end` < {} order by `end` desc".format(CB_BUCKET, current_time)))
+    return [Reservation(reservation["id"], reservation["reserved_by"], reservation["purpose"], reservation["start"], reservation["end"], reservation["cluster"], reservation["cluster_url"], reservation["eagle_eye_url"], reservation["live_start_time"], reservation["live_duration"], reservation["parameters"]) for reservation in reservations]
 
 
 def release_reservation(id):
     current_time = time.time()
-    bucket.query("update {} set `end` = {} where META().id = '{}'".format(CB_BUCKET, current_time, id)).execute()
+    bucket.query("update {} set `end` = {} where META().id = '{}'".format(
+        CB_BUCKET, current_time, id)).execute()
 
 
 def associate_job_with_reservation(launcher, reservation):
@@ -213,6 +242,7 @@ def associate_job_with_reservation(launcher, reservation):
         doc = bucket.get(reservation.id).value
         doc["cluster_url"] = launcher.job_url
         doc["live_start_time"] = launcher.started
+        doc["parameters"] = launcher.parameters
         if launcher.log_parser:
             doc["eagle_eye_url"] = launcher.log_parser.url
         collection.upsert(reservation.id, doc)
@@ -227,7 +257,7 @@ def add_cluster_duration_to_reservation(reservation):
         res = requests.get(reservation.cluster_url + "api/json").json()
         if not res["building"] and res["duration"] > 0:
             doc["live_duration"] = res["duration"]
-        collection.upsert(reservation.id, doc)
+            collection.upsert(reservation.id, doc)
     except Exception:
         # Try again next time
         pass
@@ -249,8 +279,10 @@ def get_launchers():
     launchers = []
     for i in range(1, NUM_LAUNCHERS + 1):
         job_name = launcher_name(i)
-        job_json = requests.get("{}{}/api/json".format(JENKINS_PREFIX, job_name)).json()
-        latest_build_json = requests.get(job_json["lastBuild"]["url"] + "/api/json").json()
+        job_json = requests.get(
+            "{}{}/api/json".format(JENKINS_PREFIX, job_name)).json()
+        latest_build_json = requests.get(
+            job_json["lastBuild"]["url"] + "/api/json").json()
         latest_launcher = Launcher(i, job_name, latest_build_json)
         launchers.append(latest_launcher)
     return launchers
@@ -311,13 +343,16 @@ def reserve():
                 custom_start += " 00:00"
             else:
                 custom_start += " " + start_time
-            start = datetime.strptime(custom_start, "%Y-%m-%d %H:%M").timestamp()
+            start = datetime.strptime(
+                custom_start, "%Y-%m-%d %H:%M").timestamp()
         end = start + (duration * 60 * 60)
         id = str(uuid4())
 
         # overlaps if start or end is within another reservation or start is before and end is after another reservation
-        overlap = "(({0} >= `start` and {0} <= `end`) or ({1} >= `start` and {1} <= `end`) or ({0} < `start` and {1} > `end`))".format(start, end)
-        existing_reservations = list(bucket.query("select raw count(*) from {} where `start` < `end` and {} and `cluster` = {}".format(CB_BUCKET, overlap, cluster)))[0] > 0
+        overlap = "(({0} >= `start` and {0} <= `end`) or ({1} >= `start` and {1} <= `end`) or ({0} < `start` and {1} > `end`))".format(
+            start, end)
+        existing_reservations = list(bucket.query(
+            "select raw count(*) from {} where `start` < `end` and {} and `cluster` = {}".format(CB_BUCKET, overlap, cluster)))[0] > 0
         if existing_reservations:
             raise Exception("Existing reservation")
 
@@ -330,7 +365,8 @@ def reserve():
             "cluster_url": None,
             "eagle_eye_url": None,
             "live_start_time": None,
-            "live_duration": None
+            "live_duration": None,
+            "parameters": None
         }
 
         collection.insert(id, doc)
@@ -339,8 +375,16 @@ def reserve():
         traceback.print_exc()
     return redirect("/")
 
+
+@app.route("/deleteReservation/<string:id>")
+def delete_reservation(id):
+    collection.remove(id)
+    return redirect("/")
+
+
 credentials = ConfigParser()
 credentials.read("credentials.ini")
+
 
 def get_auth(server):
     auth = None
@@ -362,7 +406,8 @@ def stop(launcher):
     if launcher < 1 or launcher > NUM_LAUNCHERS:
         raise Exception("Unknown launcher")
     job_name = launcher_name(launcher)
-    job_json = requests.get("{}{}/api/json".format(JENKINS_PREFIX, job_name)).json()
+    job_json = requests.get(
+        "{}{}/api/json".format(JENKINS_PREFIX, job_name)).json()
     build_id = job_json["lastBuild"]["number"]
     url = "{}{}/{}/stop".format(JENKINS_PREFIX, job_name, build_id)
     # TODO: Get downstream log parser and abort
