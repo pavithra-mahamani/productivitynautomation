@@ -275,6 +275,26 @@ def launcher_name(number):
     return job_name
 
 
+def create_launch_history(launchers):
+    for launcher in launchers:
+        if not launcher.running or (launcher.reservations and launcher.reservations[0].active):
+            continue
+        existing = list(bucket.query(
+            "select raw count(*) from {} where cluster_url = '{}'".format(CB_BUCKET, launcher.job_url)))[0] > 0
+        if existing:
+            continue
+        doc = {
+            "launcher": launcher.number,
+            "parameters": launcher.parameters,
+            "live_start_time": launcher.started,
+            "cluster_url": launcher.job_url,
+            "eagle_eye_url": launcher.log_parser.url if launcher.log_parser else None,
+            "type": "launcher"
+        }
+        id = "launcher_{}_{}".format(launcher.number, launcher.build_num)
+        collection.insert(id, doc)
+
+
 def get_launchers():
     launchers = []
     for i in range(1, NUM_LAUNCHERS + 1):
@@ -286,6 +306,17 @@ def get_launchers():
         latest_launcher = Launcher(i, job_name, latest_build_json)
         launchers.append(latest_launcher)
     return launchers
+
+
+def create_reservation_from_launcher(launcher):
+    end = launcher["live_start_time"] + int(launcher["parameters"]["duration"])
+    return Reservation(launcher["id"], "", "", launcher["live_start_time"], end, launcher["launcher"], launcher["cluster_url"], launcher["eagle_eye_url"], launcher["live_start_time"], None, launcher["parameters"])
+
+
+def get_launcher_history():
+    launchers = list(bucket.query(
+        "select launcher, parameters, live_start_time, cluster_url, eagle_eye_url, META().id from {} where `type` = 'launcher'".format(CB_BUCKET)))
+    return [create_reservation_from_launcher(launcher) for launcher in launchers]
 
 
 @app.template_filter("timestamp")
@@ -302,7 +333,21 @@ def index():
         if reservation.active and launcher.running and (reservation.cluster_url is None or reservation.eagle_eye_url is None):
             associate_job_with_reservation(launcher, reservation)
         launchers[reservation.cluster - 1].reservations.append(reservation)
+
+    launcher_history = get_launcher_history()
+    create_launch_history(launchers)
+
+    # delete launcher history if now a reservation associated
+    for historic_launcher in launcher_history:
+        if historic_launcher.end > time.time():
+            launcher = launchers[historic_launcher.cluster - 1]
+            for reservation in launcher.reservations:
+                if reservation.active and reservation.cluster_url == historic_launcher.cluster_url:
+                    collection.remove(historic_launcher.id)
+
     reservation_history = get_reservation_history()
+    reservation_history.extend(launcher_history)
+    reservation_history.sort(key=lambda r: r.end, reverse=True)
     for reservation in reservation_history:
         if reservation.cluster_url and reservation.live_duration is None:
             add_cluster_duration_to_reservation(reservation)
@@ -376,8 +421,8 @@ def reserve():
     return redirect("/")
 
 
-@app.route("/deleteReservation/<string:id>")
-def delete_reservation(id):
+@app.route("/deleteHistory/<string:id>")
+def delete_history(id):
     collection.remove(id)
     return redirect("/")
 
