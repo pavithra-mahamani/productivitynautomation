@@ -37,7 +37,7 @@ JENKINS_PREFIX = "http://qa.sc.couchbase.com/job/"
 def fetch_launchers():
     global LAUNCHERS
     try:
-        bucket.get("launchers").value
+        LAUNCHERS = bucket.get("launchers").value
     except Exception:
         LAUNCHERS = []
 
