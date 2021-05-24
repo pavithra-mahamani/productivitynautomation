@@ -422,7 +422,7 @@ def reserve():
         overlap = "(({0} >= `start` and {0} <= `end`) or ({1} >= `start` and {1} <= `end`) or ({0} < `start` and {1} > `end`))".format(
             start, end)
         existing_reservations = list(bucket.query(
-            "select raw count(*) from {} where `start` < `end` and {} and `cluster` = {}".format(CB_BUCKET, overlap, cluster)))[0] > 0
+            "select raw count(*) from {} where `start` < `end` and {} and `cluster` = '{}'".format(CB_BUCKET, overlap, cluster)))[0] > 0
         if existing_reservations:
             raise Exception("Existing reservation")
 
