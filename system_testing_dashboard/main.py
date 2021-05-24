@@ -24,8 +24,6 @@ cluster = Cluster("couchbase://{}".format(os.environ["CB_SERVER"]), ClusterOptio
 bucket = cluster.bucket(CB_BUCKET)
 collection = bucket.default_collection()
 
-LAUNCHERS = bucket.get("launchers").value
-
 requests_cache.install_cache(expire_after=60, backend="memory")
 
 app = Flask("systen_testing_dashbord")
@@ -34,6 +32,17 @@ app.secret_key = b'\xe0\xac#\x06\xe3\xc5\x19\xd6\xfd\xaf+e\xb9\xd0\xb0\x1f'
 
 LAUNCHER_TO_PARSER_CACHE = {}
 JENKINS_PREFIX = "http://qa.sc.couchbase.com/job/"
+
+
+def fetch_launchers():
+    global LAUNCHERS
+    try:
+        bucket.get("launchers").value
+    except Exception:
+        LAUNCHERS = []
+
+
+fetch_launchers()
 
 
 class Reservation:
@@ -312,8 +321,7 @@ def create_launch_history(launchers):
 
 
 def get_launchers():
-    global LAUNCHERS
-    LAUNCHERS = bucket.get("launchers").value
+    fetch_launchers()
     launchers = {}
     for job_name in LAUNCHERS:
         job_json = requests.get(
