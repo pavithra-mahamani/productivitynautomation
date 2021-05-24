@@ -1,6 +1,6 @@
 from couchbase.options import LockMode
 from flask import Flask
-from flask import render_template, redirect, flash
+from flask import render_template, redirect, flash, make_response
 import requests
 import time
 import datetime
@@ -61,6 +61,8 @@ class Reservation:
         self.eagle_eye_url = eagle_eye_url
         self.eagle_eye_short_url = self.eagle_eye_url.replace(
             JENKINS_PREFIX, "") if self.eagle_eye_url else ""
+        self.eagle_eye_build_id = self.eagle_eye_short_url.strip(
+            "/").split("/")[-1] if self.eagle_eye_short_url else ""
         self.live_start_time = live_start_time
         self.live_duration = format_duration(
             live_duration/1000) if live_duration else None
@@ -491,6 +493,19 @@ def stop(job_name):
     auth = get_auth(url)
     requests.post(url, auth=auth)
     return redirect("/")
+
+
+@app.route("/log_parser_results/<int:build_id>")
+def log_parser(build_id):
+    log_parser_results = bucket.get(
+        "log_parser_results_{}".format(build_id), quiet=True)
+    if log_parser_results.value is None:
+        response = "No results found"
+    else:
+        response = "\n".join(log_parser_results.value)
+    response = make_response(response, 200)
+    response.mimetype = "text/plain"
+    return response
 
 
 app.run("0.0.0.0", 8080, debug=True)

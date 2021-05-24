@@ -33,6 +33,7 @@
                         <th scope="col">Live Cluster</th>
                         <th scope="col">Live Eagle Eye</th>
                         <th scope="col">Parmeters</th>
+                        <th scope="col">Eagle Eye Results</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -71,6 +72,7 @@
                             {% endif %}
                         </td>
                         <td><button type="button" class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#launcherParams{{ launcher.job_name }}">Parmeters</button></td>
+                        <td>{% if launcher.log_parser %} <a href="/log_parser_results/{{ launcher.log_parser.build_id }}">log_parser_results/{{ launcher.log_parser.build_id }}</a> {% endif %}</td>
                         {% else %}
                         <td></td>
                         <td>Idle</td>
@@ -117,6 +119,7 @@
                     <th scope="col">Live Cluster</th>
                     <th scope="col">Live Eagle Eye</th>
                     <th scope="col">Parameters</th>
+                    <th scope="col">Eagle Eye Results</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -134,6 +137,7 @@
                         <td><a href="{{ reservation.cluster_url }}" target="_blank">{{ reservation.cluster_short_url }}</a></td>
                         <td><a href="{{ reservation.eagle_eye_url }}" target="_blank">{{ reservation.eagle_eye_short_url }}</a></td>
                         <td>{% if reservation.parameters %}<button type="button" class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#reservationParams{{ reservation.id }}">Parmeters</button>{% endif %}</td>
+                        <td>{% if reservation.eagle_eye_build_id %} <a href="/log_parser_results/{{ reservation.eagle_eye_build_id }}">log_parser_results/{{ reservation.eagle_eye_build_id }}</a> {% endif %}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
