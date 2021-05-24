@@ -39,10 +39,10 @@
                     {% for launcher in launchers %}
                     <tr class="{{ 'table-success' if launcher.running }}">
                         <td>
-                            Launcher {{ launcher.number }}
-                            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#reserve{{ launcher.number }}">Reserve</button>
+                            {{ launcher.job_name }}
+                            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#reserve{{ launcher.job_name }}">Reserve</button>
                             <a href="http://qa.sc.couchbase.com/job/{{ launcher.job_name }}/build?delay=0sec" target="_blank" class="btn btn-success btn-sm {{ 'disabled' if launcher.running or not launcher.reservations or not launcher.reservations[0].active }}">Start</a>
-                            <a href="/stop/{{ launcher.number }}" class="btn btn-danger btn-sm {{ 'disabled' if not launcher.running }}">Stop</button>
+                            <a href="/stop/{{ launcher.job_name }}" class="btn btn-danger btn-sm {{ 'disabled' if not launcher.running }}">Stop</button>
                         </td>
                         {% if launcher.reservations and launcher.reservations[0].active %}
                         <td><a href="/release/{{ launcher.reservations[0].id }}" class="btn btn-warning btn-sm {{ 'disabled' if launcher.running }}">Release</button></td>
@@ -70,7 +70,7 @@
                             <span class="badge bg-danger">No log parser found</span>
                             {% endif %}
                         </td>
-                        <td><button type="button" class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#launcherParams{{ launcher.number }}">Parmeters</button></td>
+                        <td><button type="button" class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#launcherParams{{ launcher.job_name }}">Parmeters</button></td>
                         {% else %}
                         <td></td>
                         <td>Idle</td>
@@ -123,7 +123,7 @@
                     {% for reservation in reservation_history %}
                     <tr>
                         <td><a href="/deleteHistory/{{ reservation.id }}" class="btn btn-danger btn-sm">X</td>
-                        <td>Launcher {{ reservation.cluster }}</td>
+                        <td>{{ reservation.cluster }}</td>
                         <td>{{ reservation.purpose }}</td>
                         <td>{{ reservation.reserved_by }}</td>
                         <td>{{ reservation.start|timestamp }}</td>
@@ -139,11 +139,11 @@
                 </tbody>
             </table>
             {% for launcher in launchers %}
-            <div class="modal fade" id="reserve{{ launcher.number }}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+            <div class="modal fade" id="reserve{{ launcher.job_name }}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
                 <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
-                    <h5 class="modal-title" id="exampleModalLabel">Reserve Cluster {{ launcher.number }}</h5>
+                    <h5 class="modal-title" id="exampleModalLabel">Reserve {{ launcher.job_name }}</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
@@ -156,7 +156,7 @@
                                 <label for="purpose" class="form-label">Purpose</label>
                                 <input required type="text" class="form-control" name="purpose" id="purpose">
                             </div>
-                            <input type="hidden" value="{{ launcher.number }}" class="form-control" name="cluster" id="cluster">
+                            <input type="hidden" value="{{ launcher.job_name }}" class="form-control" name="cluster" id="cluster">
                             <div class="mb-3">
                                 <label for="startDate" class="form-label">Start (empty for now) [server time: {{ server_time|timestamp }}]</label>
                                 <input type="date" class="form-control" name="startDate" id="startDate">
@@ -174,11 +174,11 @@
             </div>
             {% endfor %}
             {% for launcher in launchers %}
-            <div class="modal fade" id="launcherParams{{ launcher.number }}" tabindex="-1">
+            <div class="modal fade" id="launcherParams{{ launcher.job_name }}" tabindex="-1">
                 <div class="modal-dialog">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">Launcher {{ launcher.number }} Parmeters</h5>
+                            <h5 class="modal-title">{{ launcher.job_name }} Parmeters</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
@@ -209,7 +209,7 @@
                 <div class="modal-dialog">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">Launcher {{ reservation.cluster }} Parmeters</h5>
+                            <h5 class="modal-title">{{ reservation.cluster }} Parmeters</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">

@@ -24,13 +24,14 @@ cluster = Cluster("couchbase://{}".format(os.environ["CB_SERVER"]), ClusterOptio
 bucket = cluster.bucket(CB_BUCKET)
 collection = bucket.default_collection()
 
+LAUNCHERS = bucket.get("launchers").value
+
 requests_cache.install_cache(expire_after=60, backend="memory")
 
 app = Flask("systen_testing_dashbord")
 
 app.secret_key = b'\xe0\xac#\x06\xe3\xc5\x19\xd6\xfd\xaf+e\xb9\xd0\xb0\x1f'
 
-NUM_LAUNCHERS = 4
 LAUNCHER_TO_PARSER_CACHE = {}
 JENKINS_PREFIX = "http://qa.sc.couchbase.com/job/"
 
@@ -58,8 +59,7 @@ class Reservation:
 
 
 class Launcher:
-    def __init__(self, number, name, build):
-        self.number = number
+    def __init__(self, name, build):
         self.running = build["building"]
         if not self.running:
             self.result = build["result"]
@@ -227,7 +227,7 @@ def get_active_reservations():
 
 def get_reservation_history():
     current_time = time.time()
-    reservations = list(bucket.query("select purpose, reserved_by, `start`, `end`, `cluster`, META().id, cluster_url, eagle_eye_url, live_start_time, live_duration, parameters from {} where `start` < `end` and `end` < {} order by `end` desc".format(CB_BUCKET, current_time)))
+    reservations = list(bucket.query("select purpose, reserved_by, `start`, `end`, `cluster`, META().id, cluster_url, eagle_eye_url, live_start_time, live_duration, parameters from {} where not deleted and `start` < `end` and `end` < {} order by `end` desc".format(CB_BUCKET, current_time)))
     return [Reservation(reservation["id"], reservation["reserved_by"], reservation["purpose"], reservation["start"], reservation["end"], reservation["cluster"], reservation["cluster_url"], reservation["eagle_eye_url"], reservation["live_start_time"], reservation["live_duration"], reservation["parameters"]) for reservation in reservations]
 
 
@@ -275,36 +275,53 @@ def launcher_name(number):
     return job_name
 
 
+def is_install_finished(launcher_job_url):
+    timeout = 5
+    end = time.time() + timeout
+    with requests_cache.disabled():
+        for line in requests.get(launcher_job_url + "consoleText", timeout=timeout, stream=True).iter_lines(decode_unicode=True):
+            if time.time() > end:
+                break
+            if line.startswith("+ ./sequoia -client"):
+                return True
+    return False
+
+
 def create_launch_history(launchers):
-    for launcher in launchers:
+    for launcher in launchers.values():
         if not launcher.running or (launcher.reservations and launcher.reservations[0].active):
             continue
         existing = list(bucket.query(
             "select raw count(*) from {} where cluster_url = '{}'".format(CB_BUCKET, launcher.job_url)))[0] > 0
         if existing:
             continue
+        install_finished = is_install_finished(launcher.job_url)
+        if not install_finished:
+            continue
         doc = {
-            "launcher": launcher.number,
+            "launcher": launcher.job_name,
             "parameters": launcher.parameters,
             "live_start_time": launcher.started,
             "cluster_url": launcher.job_url,
             "eagle_eye_url": launcher.log_parser.url if launcher.log_parser else None,
-            "type": "launcher"
+            "type": "launcher",
+            "deleted": False
         }
-        id = "launcher_{}_{}".format(launcher.number, launcher.build_num)
+        id = "launcher_{}_{}".format(launcher.job_name, launcher.build_num)
         collection.insert(id, doc)
 
 
 def get_launchers():
-    launchers = []
-    for i in range(1, NUM_LAUNCHERS + 1):
-        job_name = launcher_name(i)
+    global LAUNCHERS
+    LAUNCHERS = bucket.get("launchers").value
+    launchers = {}
+    for job_name in LAUNCHERS:
         job_json = requests.get(
             "{}{}/api/json".format(JENKINS_PREFIX, job_name)).json()
         latest_build_json = requests.get(
             job_json["lastBuild"]["url"] + "/api/json").json()
-        latest_launcher = Launcher(i, job_name, latest_build_json)
-        launchers.append(latest_launcher)
+        latest_launcher = Launcher(job_name, latest_build_json)
+        launchers[job_name] = latest_launcher
     return launchers
 
 
@@ -315,7 +332,7 @@ def create_reservation_from_launcher(launcher):
 
 def get_launcher_history():
     launchers = list(bucket.query(
-        "select launcher, parameters, live_start_time, cluster_url, eagle_eye_url, META().id from {} where `type` = 'launcher'".format(CB_BUCKET)))
+        "select launcher, parameters, live_start_time, cluster_url, eagle_eye_url, META().id from {} where not deleted and `type` = 'launcher'".format(CB_BUCKET)))
     return [create_reservation_from_launcher(launcher) for launcher in launchers]
 
 
@@ -329,10 +346,10 @@ def index():
     launchers = get_launchers()
     reservations = get_active_reservations()
     for reservation in reservations:
-        launcher = launchers[reservation.cluster - 1]
+        launcher = launchers[reservation.cluster]
         if reservation.active and launcher.running and (reservation.cluster_url is None or reservation.eagle_eye_url is None):
             associate_job_with_reservation(launcher, reservation)
-        launchers[reservation.cluster - 1].reservations.append(reservation)
+        launcher.reservations.append(reservation)
 
     launcher_history = get_launcher_history()
     create_launch_history(launchers)
@@ -340,7 +357,7 @@ def index():
     # delete launcher history if now a reservation associated
     for historic_launcher in launcher_history:
         if historic_launcher.end > time.time():
-            launcher = launchers[historic_launcher.cluster - 1]
+            launcher = launchers[historic_launcher.cluster]
             for reservation in launcher.reservations:
                 if reservation.active and reservation.cluster_url == historic_launcher.cluster_url:
                     collection.remove(historic_launcher.id)
@@ -352,7 +369,7 @@ def index():
         if reservation.cluster_url and reservation.live_duration is None:
             add_cluster_duration_to_reservation(reservation)
 
-    return render_template('index.html', launchers=launchers, reservation_history=reservation_history, server_time=time.time())
+    return render_template('index.html', launchers=list(launchers.values()), reservation_history=reservation_history, server_time=time.time())
 
 
 @app.route("/release/<string:id>")
@@ -370,8 +387,8 @@ def reserve():
         user = request.form['name']
         if user == "":
             raise ValueError("Name must not be empty")
-        cluster = int(request.form['cluster'])
-        if cluster not in range(1, NUM_LAUNCHERS + 1):
+        cluster = request.form['cluster']
+        if cluster not in LAUNCHERS:
             raise ValueError("Invalid cluster")
         duration = float(request.form['duration'])
         if duration <= 0:
@@ -411,7 +428,8 @@ def reserve():
             "eagle_eye_url": None,
             "live_start_time": None,
             "live_duration": None,
-            "parameters": None
+            "parameters": None,
+            "deleted": False
         }
 
         collection.insert(id, doc)
@@ -423,7 +441,8 @@ def reserve():
 
 @app.route("/deleteHistory/<string:id>")
 def delete_history(id):
-    collection.remove(id)
+    bucket.query("update {} set deleted = true where META().id = '{}'".format(
+        CB_BUCKET, id)).execute()
     return redirect("/")
 
 
@@ -446,11 +465,10 @@ def get_auth(server):
     return auth
 
 
-@app.route("/stop/<int:launcher>")
-def stop(launcher):
-    if launcher < 1 or launcher > NUM_LAUNCHERS:
+@app.route("/stop/<string:job_name>")
+def stop(job_name):
+    if job_name not in LAUNCHERS:
         raise Exception("Unknown launcher")
-    job_name = launcher_name(launcher)
     job_json = requests.get(
         "{}{}/api/json".format(JENKINS_PREFIX, job_name)).json()
     build_id = job_json["lastBuild"]["number"]
