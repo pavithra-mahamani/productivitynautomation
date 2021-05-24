@@ -77,6 +77,11 @@ class Launcher:
         self.job_url = build["url"]
         self.short_job_url = build["url"].replace(JENKINS_PREFIX, "")
         self.started = build["timestamp"] / 1000
+        try:
+            self.started_by = getAction(build["actions"], "causes")[
+                0]["userName"]
+        except Exception:
+            self.started_by = ""
         self.running_for = get_running_for(
             build["timestamp"]) if self.running else ""
         log_parser_build = get_log_parser_build(build["url"])
@@ -314,7 +319,8 @@ def create_launch_history(launchers):
             "cluster_url": launcher.job_url,
             "eagle_eye_url": launcher.log_parser.url if launcher.log_parser else None,
             "type": "launcher",
-            "deleted": False
+            "deleted": False,
+            "started_by": launcher.started_by
         }
         id = "launcher_{}_{}".format(launcher.job_name, launcher.build_num)
         collection.insert(id, doc)
@@ -335,12 +341,12 @@ def get_launchers():
 
 def create_reservation_from_launcher(launcher):
     end = launcher["live_start_time"] + int(launcher["parameters"]["duration"])
-    return Reservation(launcher["id"], "", "", launcher["live_start_time"], end, launcher["launcher"], launcher["cluster_url"], launcher["eagle_eye_url"], launcher["live_start_time"], None, launcher["parameters"])
+    return Reservation(launcher["id"], launcher["started_by"], "", launcher["live_start_time"], end, launcher["launcher"], launcher["cluster_url"], launcher["eagle_eye_url"], launcher["live_start_time"], None, launcher["parameters"])
 
 
 def get_launcher_history():
     launchers = list(bucket.query(
-        "select launcher, parameters, live_start_time, cluster_url, eagle_eye_url, META().id from {} where not deleted and `type` = 'launcher'".format(CB_BUCKET)))
+        "select launcher, parameters, live_start_time, cluster_url, eagle_eye_url, started_by, META().id from {} where not deleted and `type` = 'launcher'".format(CB_BUCKET)))
     return [create_reservation_from_launcher(launcher) for launcher in launchers]
 
 
@@ -364,7 +370,7 @@ def index():
 
     # delete launcher history if now a reservation associated
     for historic_launcher in launcher_history:
-        if historic_launcher.end > time.time():
+        if historic_launcher.end > time.time() and historic_launcher.cluster in launchers:
             launcher = launchers[historic_launcher.cluster]
             for reservation in launcher.reservations:
                 if reservation.active and reservation.cluster_url == historic_launcher.cluster_url:
