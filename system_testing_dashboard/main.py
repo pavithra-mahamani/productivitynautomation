@@ -102,6 +102,7 @@ class LogParser:
         self.running = build["building"]
         self.running_for = get_running_for(
             build["timestamp"]) if self.running else ""
+        self.build_id = build["number"]
 
 
 def parameters_to_dict(parameters):
