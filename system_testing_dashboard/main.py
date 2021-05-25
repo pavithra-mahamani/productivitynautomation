@@ -323,7 +323,8 @@ def create_launch_history(launchers):
             "eagle_eye_url": launcher.log_parser.url if launcher.log_parser else None,
             "type": "launcher",
             "deleted": False,
-            "started_by": launcher.started_by
+            "started_by": launcher.started_by,
+            "live_duration": None
         }
         id = "launcher_{}_{}".format(launcher.job_name, launcher.build_num)
         collection.insert(id, doc)
@@ -344,12 +345,12 @@ def get_launchers():
 
 def create_reservation_from_launcher(launcher):
     end = launcher["live_start_time"] + int(launcher["parameters"]["duration"])
-    return Reservation(launcher["id"], launcher["started_by"], "", launcher["live_start_time"], end, launcher["launcher"], launcher["cluster_url"], launcher["eagle_eye_url"], launcher["live_start_time"], None, launcher["parameters"])
+    return Reservation(launcher["id"], launcher["started_by"], "", launcher["live_start_time"], end, launcher["launcher"], launcher["cluster_url"], launcher["eagle_eye_url"], launcher["live_start_time"], launcher["live_duration"], launcher["parameters"])
 
 
 def get_launcher_history():
     launchers = list(bucket.query(
-        "select launcher, parameters, live_start_time, cluster_url, eagle_eye_url, started_by, META().id from {} where not deleted and `type` = 'launcher'".format(CB_BUCKET)))
+        "select launcher, parameters, live_start_time, cluster_url, eagle_eye_url, started_by, live_duration, META().id from {} where not deleted and `type` = 'launcher'".format(CB_BUCKET)))
     return [create_reservation_from_launcher(launcher) for launcher in launchers]
 
 
@@ -489,10 +490,15 @@ def stop(job_name):
     job_json = requests.get(
         "{}{}/api/json".format(JENKINS_PREFIX, job_name)).json()
     build_id = job_json["lastBuild"]["number"]
-    url = "{}{}/{}/stop".format(JENKINS_PREFIX, job_name, build_id)
-    # TODO: Get downstream log parser and abort
-    auth = get_auth(url)
-    requests.post(url, auth=auth)
+    launcher_job_url = "{}{}/{}/".format(JENKINS_PREFIX, job_name, build_id)
+    log_parser_job = get_log_parser_build(launcher_job_url)
+    if log_parser_job is not None:
+        log_parser_stop_url = log_parser_job["url"] + "stop"
+        auth = get_auth(log_parser_stop_url)
+        requests.post(log_parser_stop_url, auth=auth)
+    launcher_stop_url = launcher_job_url + "stop"
+    auth = get_auth(launcher_stop_url)
+    requests.post(launcher_stop_url, auth=auth)
     return redirect("/")
 
 

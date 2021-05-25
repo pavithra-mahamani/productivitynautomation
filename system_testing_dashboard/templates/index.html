@@ -179,7 +179,7 @@
             {% endfor %}
             {% for launcher in launchers %}
             <div class="modal fade" id="launcherParams{{ launcher.job_name }}" tabindex="-1">
-                <div class="modal-dialog">
+                <div class="modal-dialog modal-lg">
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title">{{ launcher.job_name }} Parmeters</h5>
@@ -210,7 +210,7 @@
             {% for reservation in reservation_history %}
             {% if reservation.parameters %}
             <div class="modal fade" id="reservationParams{{ reservation.id }}" tabindex="-1">
-                <div class="modal-dialog">
+                <div class="modal-dialog modal-lg">
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title">{{ reservation.cluster }} Parmeters</h5>
