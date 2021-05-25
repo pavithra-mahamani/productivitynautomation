@@ -1,0 +1,246 @@
+<html>
+    <head>
+        <title>System Test Dashboard</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-wEmeIV1mKuiNpC+IOBjI7aAzPcEZeedi5yW5f2yOq55WWLwNGmvvx4Um1vskeMj0" crossorigin="anonymous">
+        <link href="{{ url_for('static', filename = 'css/style.css') }}" rel="stylesheet">
+    </head>
+    <body>
+        <div class="container-fluid">
+            <h1 id="title">System Test Dashboard</h1>
+            {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-danger" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+            {% endwith %}
+            <h3>Clusters</h3>
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th scope="col">Launcher</th>
+                        <th scope="col"></th>
+                        <th scope="col">Purpose</th>
+                        <th scope="col">Reserved By</th>
+                        <th scope="col">Reservation Start</th>
+                        <th scope="col">Reservation Duration</th>
+                        <th scope="col">Version</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Live Start Time</th>
+                        <th scope="col">Live Duration</th>
+                        <th scope="col">Live Cluster</th>
+                        <th scope="col">Live Eagle Eye</th>
+                        <th scope="col">Parmeters</th>
+                        <th scope="col">Eagle Eye Results</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for launcher in launchers %}
+                    <tr class="{{ 'table-success' if launcher.running }}">
+                        <td>
+                            {{ launcher.job_name }}
+                            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#reserve{{ launcher.job_name }}">Reserve</button>
+                            <a href="http://qa.sc.couchbase.com/job/{{ launcher.job_name }}/build?delay=0sec" target="_blank" class="btn btn-success btn-sm {{ 'disabled' if launcher.running or not launcher.reservations or not launcher.reservations[0].active }}">Start</a>
+                            <a href="/stop/{{ launcher.job_name }}" class="btn btn-danger btn-sm {{ 'disabled' if not launcher.running }}">Stop</button>
+                        </td>
+                        {% if launcher.reservations and launcher.reservations[0].active %}
+                        <td><a href="/release/{{ launcher.reservations[0].id }}" class="btn btn-warning btn-sm {{ 'disabled' if launcher.running }}">Release</button></td>
+                        <td>{{ launcher.reservations[0].purpose }}</td>
+                        <td>{{ launcher.reservations[0].reserved_by }}</td>
+                        <td>{{ launcher.reservations[0].start|timestamp }}</td>
+                        <td>{{ launcher.reservations[0].duration }}</td>
+                        {% else %}
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        {% endif %}
+                        {% if launcher.running %}
+                        <td>{{ launcher.parameters['version_number'] }}</td>
+                        <td>Running</td>
+                        <td>{{ launcher.started|timestamp }}</td>
+                        <td>{{ launcher.running_for }}</td>
+                        <td><a href="{{ launcher.job_url }}" target="_blank">{{ launcher.short_job_url }}</a></td>
+                        <td>
+                            {% if launcher.log_parser %}
+                            <a href="{{ launcher.log_parser.url }}" target="_blank">{{ launcher.log_parser.short_url }}</a> 
+                            {% else %}
+                            <span class="badge bg-danger">No log parser found</span>
+                            {% endif %}
+                        </td>
+                        <td><button type="button" class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#launcherParams{{ launcher.job_name }}">Parmeters</button></td>
+                        <td>{% if launcher.log_parser %} <a href="/log_parser_results/{{ launcher.log_parser.build_id }}">log_parser_results/{{ launcher.log_parser.build_id }}</a> {% endif %}</td>
+                        {% else %}
+                        <td></td>
+                        <td>Idle</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        {% endif %}
+                    </tr>
+                    {% if launcher.reservations %}
+                    {% for reservation in launcher.reservations | rejectattr('active', 'eq', True) %}
+                    <tr>
+                        <td></td>
+                        <td><a href="/release/{{ reservation.id }}" class="btn btn-warning btn-sm">Release</button></td>
+                        <td>{{ reservation.purpose }}</td>
+                        <td>{{ reservation.reserved_by }}</td>
+                        <td>{{ reservation.start|timestamp }}</td>
+                        <td>{{ reservation.duration }}</td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                    {% endfor %}
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+            <h3>History</h3>
+            <table class="table align-middle">
+                <thead>
+                <tr>
+                    <th scope="col"></th>
+                    <th scope="col">Launcher</th>
+                    <th scope="col">Purpose</th>
+                    <th scope="col">Reserved By</th>
+                    <th scope="col">Reservation Start</th>
+                    <th scope="col">Reservation End</th>
+                    <th scope="col">Version</th>
+                    <th scope="col">Live Start Time</th>
+                    <th scope="col">Live Duration</th>
+                    <th scope="col">Live Cluster</th>
+                    <th scope="col">Live Eagle Eye</th>
+                    <th scope="col">Parameters</th>
+                    <th scope="col">Eagle Eye Results</th>
+                </tr>
+                </thead>
+                <tbody>
+                    {% for reservation in reservation_history %}
+                    <tr>
+                        <td><a href="/deleteHistory/{{ reservation.id }}" class="btn btn-danger btn-sm">X</td>
+                        <td>{{ reservation.cluster }}</td>
+                        <td>{{ reservation.purpose }}</td>
+                        <td>{{ reservation.reserved_by }}</td>
+                        <td>{{ reservation.start|timestamp }}</td>
+                        <td>{{ reservation.end|timestamp }}</td>
+                        <td>{{ reservation.parameters['version_number'] if reservation.parameters }}</td>
+                        <td>{% if reservation.live_start_time %} {{ reservation.live_start_time|timestamp }} {% endif %}</td>
+                        <td>{% if reservation.live_duration %} {{ reservation.live_duration }} {% endif %}</td>
+                        <td><a href="{{ reservation.cluster_url }}" target="_blank">{{ reservation.cluster_short_url }}</a></td>
+                        <td><a href="{{ reservation.eagle_eye_url }}" target="_blank">{{ reservation.eagle_eye_short_url }}</a></td>
+                        <td>{% if reservation.parameters %}<button type="button" class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#reservationParams{{ reservation.id }}">Parmeters</button>{% endif %}</td>
+                        <td>{% if reservation.eagle_eye_build_id %} <a href="/log_parser_results/{{ reservation.eagle_eye_build_id }}">log_parser_results/{{ reservation.eagle_eye_build_id }}</a> {% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% for launcher in launchers %}
+            <div class="modal fade" id="reserve{{ launcher.job_name }}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">Reserve {{ launcher.job_name }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form action="/reserve" method="POST" autocomplete="off">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">Name</label>
+                                <input required type="text" class="form-control" name="name" id="name">
+                            </div>
+                            <div class="mb-3">
+                                <label for="purpose" class="form-label">Purpose</label>
+                                <input required type="text" class="form-control" name="purpose" id="purpose">
+                            </div>
+                            <input type="hidden" value="{{ launcher.job_name }}" class="form-control" name="cluster" id="cluster">
+                            <div class="mb-3">
+                                <label for="startDate" class="form-label">Start (empty for now) [server time: {{ server_time|timestamp }}]</label>
+                                <input type="date" class="form-control" name="startDate" id="startDate">
+                                <input type="time" class="form-control" name="startTime" id="startTime">
+                            </div>
+                            <div class="mb-3">
+                                <label for="duration" class="form-label">Duration (hours)</label>
+                                <input required type="number" min="0" step="any" class="form-control" name="duration" id="duration">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Reserve</button>
+                        </form>
+                    </div>
+                </div>
+                </div>
+            </div>
+            {% endfor %}
+            {% for launcher in launchers %}
+            <div class="modal fade" id="launcherParams{{ launcher.job_name }}" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">{{ launcher.job_name }} Parmeters</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <table class="table align-middle">
+                                <thead>
+                                <tr>
+                                    <th scope="col">Key</th>
+                                    <th scope="col">Value</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                    {% for key, value in launcher.parameters.items() %}
+                                    <tr>
+                                        <td>{{ key }}</td>
+                                        <td>{{ value }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            {% for reservation in reservation_history %}
+            {% if reservation.parameters %}
+            <div class="modal fade" id="reservationParams{{ reservation.id }}" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">{{ reservation.cluster }} Parmeters</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <table class="table align-middle">
+                                <thead>
+                                <tr>
+                                    <th scope="col">Key</th>
+                                    <th scope="col">Value</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                    {% for key, value in reservation.parameters.items() %}
+                                    <tr>
+                                        <td>{{ key }}</td>
+                                        <td>{{ value }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </body>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-p34f1UUtsS3wqzfto5wAAmdvj+osOnFyQFpp4Ua3gs/ZVWx6oOypYoCJhGGScy+8" crossorigin="anonymous"></script>
+    <script>document.cookie = `timezoneOffset=${new Date().getTimezoneOffset()}; SameSite=Strict`</script>
+</html>

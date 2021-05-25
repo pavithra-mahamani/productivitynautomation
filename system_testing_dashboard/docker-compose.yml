@@ -1,0 +1,19 @@
+version: "3"
+services:
+  couchbase:
+    image: couchbase:6.6.2
+    ports:
+      - "8091-8094:8091-8094"
+      - "11210:11210"
+    volumes: 
+      - "./cb_data:/opt/couchbase/var"
+  system_test_dashboard:
+    build: .
+    ports:
+      - 8080:8080
+    environment: 
+      - "CB_SERVER=couchbase"
+      - "CB_USERNAME=Administrator"
+      - "CB_PASSWORD=password"
+      - "CB_BUCKET=system_test_dashboard"
+    restart: unless-stopped
