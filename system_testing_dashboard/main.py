@@ -191,7 +191,7 @@ def log_parser_from_upstream(upstream):
     """
     log_parser = None
     job_json = requests.get(
-        JENKINS_PREFIX + "system_test_log_parser_downstream_job_test/api/json").json()
+        JENKINS_PREFIX + "system_test_log_parse/api/json").json()
     for build in job_json["builds"]:
         json = requests.get(build["url"] + "api/json").json()
         causes = getAction(json["actions"], "causes")
@@ -278,18 +278,6 @@ def add_cluster_duration_to_reservation(reservation):
     except Exception:
         # Try again next time
         pass
-
-
-def launcher_name(number):
-    """
-    Calculate the launcher job name based on number
-    """
-    if number == 4:
-        return "component_systest_launcher_4-with-logger-test"
-    job_name = "component_systest_launcher"
-    if number > 1:
-        job_name += "_" + str(number)
-    return job_name
 
 
 def is_install_finished(launcher_job_url):
