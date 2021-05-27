@@ -380,7 +380,7 @@ def index():
     reservation_history, reservation_history_count = get_reservation_history(
         limit)
     reservation_history.extend(launcher_history)
-    reservation_history.sort(key=lambda r: r.end, reverse=True)
+    reservation_history.sort(key=lambda r: r.start, reverse=True)
     for reservation in reservation_history:
         if reservation.cluster_url and reservation.live_duration is None:
             add_cluster_duration_to_reservation(reservation)
