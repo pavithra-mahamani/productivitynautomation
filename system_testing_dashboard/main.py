@@ -191,7 +191,7 @@ def log_parser_from_upstream(upstream):
     """
     log_parser = None
     job_json = requests.get(
-        JENKINS_PREFIX + "system_test_log_parse/api/json").json()
+        JENKINS_PREFIX + "system_test_log_parser/api/json").json()
     for build in job_json["builds"]:
         json = requests.get(build["url"] + "api/json").json()
         causes = getAction(json["actions"], "causes")
@@ -242,10 +242,15 @@ def get_active_reservations():
     return [Reservation(reservation["id"], reservation["reserved_by"], reservation["purpose"], reservation["start"], reservation["end"], reservation["cluster"], reservation["cluster_url"], reservation["eagle_eye_url"], reservation["live_start_time"], reservation["live_duration"], reservation["parameters"]) for reservation in reservations]
 
 
-def get_reservation_history():
+def get_reservation_history(limit=100):
     current_time = time.time()
-    reservations = list(bucket.query("select purpose, reserved_by, `start`, `end`, `cluster`, META().id, cluster_url, eagle_eye_url, live_start_time, live_duration, parameters from {} where not deleted and `start` < `end` and `end` < {} order by `end` desc".format(CB_BUCKET, current_time)))
-    return [Reservation(reservation["id"], reservation["reserved_by"], reservation["purpose"], reservation["start"], reservation["end"], reservation["cluster"], reservation["cluster_url"], reservation["eagle_eye_url"], reservation["live_start_time"], reservation["live_duration"], reservation["parameters"]) for reservation in reservations]
+    where = "not deleted and `start` < `end` and `end` < {}".format(
+        current_time)
+    count = list(bucket.query(
+        "select raw count(*) from {} where {}".format(CB_BUCKET, where)))[0]
+    reservations = list(bucket.query(
+        "select purpose, reserved_by, `start`, `end`, `cluster`, META().id, cluster_url, eagle_eye_url, live_start_time, live_duration, parameters from {} where {} order by `start` desc limit {}".format(CB_BUCKET, where, limit)))
+    return [Reservation(reservation["id"], reservation["reserved_by"], reservation["purpose"], reservation["start"], reservation["end"], reservation["cluster"], reservation["cluster_url"], reservation["eagle_eye_url"], reservation["live_start_time"], reservation["live_duration"], reservation["parameters"]) for reservation in reservations], count
 
 
 def release_reservation(id):
@@ -336,10 +341,13 @@ def create_reservation_from_launcher(launcher):
     return Reservation(launcher["id"], launcher["started_by"], "", launcher["live_start_time"], end, launcher["launcher"], launcher["cluster_url"], launcher["eagle_eye_url"], launcher["live_start_time"], launcher["live_duration"], launcher["parameters"])
 
 
-def get_launcher_history():
+def get_launcher_history(limit=100):
+    where = "not deleted and `type` = 'launcher'"
+    count = list(bucket.query(
+        "select raw count(*) from {} where {}".format(CB_BUCKET, where)))[0]
     launchers = list(bucket.query(
-        "select launcher, parameters, live_start_time, cluster_url, eagle_eye_url, started_by, live_duration, META().id from {} where not deleted and `type` = 'launcher'".format(CB_BUCKET)))
-    return [create_reservation_from_launcher(launcher) for launcher in launchers]
+        "select launcher, parameters, live_start_time, cluster_url, eagle_eye_url, started_by, live_duration, META().id from {} where {} limit {}".format(CB_BUCKET, where, limit)))
+    return [create_reservation_from_launcher(launcher) for launcher in launchers], count
 
 
 @app.template_filter("timestamp")
@@ -349,6 +357,7 @@ def format_timestamp(timestamp):
 
 @app.route("/")
 def index():
+    limit = request.args.get("limit", type=int) or 100
     launchers = get_launchers()
     reservations = get_active_reservations()
     for reservation in reservations:
@@ -357,7 +366,7 @@ def index():
             associate_job_with_reservation(launcher, reservation)
         launcher.reservations.append(reservation)
 
-    launcher_history = get_launcher_history()
+    launcher_history, launcher_history_count = get_launcher_history(limit)
     create_launch_history(launchers)
 
     # delete launcher history if now a reservation associated
@@ -368,14 +377,15 @@ def index():
                 if reservation.active and reservation.cluster_url == historic_launcher.cluster_url:
                     collection.remove(historic_launcher.id)
 
-    reservation_history = get_reservation_history()
+    reservation_history, reservation_history_count = get_reservation_history(
+        limit)
     reservation_history.extend(launcher_history)
     reservation_history.sort(key=lambda r: r.end, reverse=True)
     for reservation in reservation_history:
         if reservation.cluster_url and reservation.live_duration is None:
             add_cluster_duration_to_reservation(reservation)
 
-    return render_template('index.html', launchers=list(launchers.values()), reservation_history=reservation_history, server_time=time.time())
+    return render_template('index.html', launchers=list(launchers.values()), reservation_history=reservation_history[0:limit], server_time=time.time(), history_limit=limit, show_more=limit < launcher_history_count+reservation_history_count)
 
 
 @app.route("/release/<string:id>")
