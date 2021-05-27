@@ -142,6 +142,7 @@
                     {% endfor %}
                 </tbody>
             </table>
+            {% if show_more %}<a class="btn btn-primary" href="/?limit={{ history_limit + 100 }}">Show more</a>{% endif %}
             {% for launcher in launchers %}
             <div class="modal fade" id="reserve{{ launcher.job_name }}" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
                 <div class="modal-dialog">
@@ -242,5 +243,4 @@
         </div>
     </body>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-p34f1UUtsS3wqzfto5wAAmdvj+osOnFyQFpp4Ua3gs/ZVWx6oOypYoCJhGGScy+8" crossorigin="anonymous"></script>
-    <script>document.cookie = `timezoneOffset=${new Date().getTimezoneOffset()}; SameSite=Strict`</script>
 </html>
