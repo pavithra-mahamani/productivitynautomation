@@ -63,7 +63,11 @@ if not cb_user_p:
 cb_bucket = os.environ.get('cb_bucket')
 if not cb_bucket:
     cb_bucket = "greenboard"
-
+is_include_unstable = os.environ.get('is_include_unstable')
+if not is_include_unstable:
+    print("No result=UNSTABLE jobs included while getting the IPs list")
+    is_include_unstable = False
+    
 #print("Connecting to the greenboard couchbase nosql...")
 cluster = Cluster("couchbase://"+cb_host, ClusterOptions(PasswordAuthenticator(cb_user, cb_user_p),
         timeout_options=ClusterTimeoutOptions(kv_timeout=timedelta(seconds=10))))
@@ -73,6 +77,7 @@ index = 0
 success_count = 0
 failure_count = 0
 aborted_count = 0
+unstable_count = 0
 unknown_count = 0
 xen_hosts_map = {}
 if xen_hosts_file:
@@ -92,6 +97,7 @@ if xen_hosts_file:
 print("result,job_name,url,aws_url,servers,hosts(free vcpus/total vcpus/total vms),serverpool_data")
 aborted_list = []
 failure_list = []
+unstable_list = []
 for component in doc["os"]["CENTOS"]:
     for job_name in doc["os"]["CENTOS"][component]:
         runs = doc["os"]["CENTOS"][component][job_name]
@@ -102,9 +108,11 @@ for component in doc["os"]["CENTOS"]:
             failure_count += 1    
         elif fresh_run["result"] == "ABORTED":
             aborted_count += 1
+        elif fresh_run["result"] == "UNSTABLE":
+            unstable_count += 1
         else:
             unknown_count += 1    
-        if fresh_run["result"] == "FAILURE" or fresh_run["result"] == "ABORTED":
+        if fresh_run["result"] == "FAILURE" or fresh_run["result"] == "ABORTED" or (fresh_run["result"] == "UNSTABLE" and is_include_unstable):
             url = fresh_run["url"] + str(fresh_run["build_id"]) + "/consoleText"
             executor = fresh_run["url"].split('/')[-2] 
             aws_url = "http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/" + cb_build + "/jenkins_logs/" + executor + "/"+ str(fresh_run["build_id"])
@@ -128,13 +136,17 @@ for component in doc["os"]["CENTOS"]:
                 pass
             if fresh_run["result"] == "FAILURE":
                 failure_list.append("{},{},{},{},{},{},{}".format(fresh_run["result"], job_name, url, aws_url, servers, xen_hosts, get_pool_data(servers)))
-            else:
+            elif fresh_run["result"] == "ABORTED":
                 aborted_list.append("{},{},{},{},{},{},{}".format(fresh_run["result"], job_name, url, aws_url, servers, xen_hosts, get_pool_data(servers)))    
+            else:
+                unstable_list.append("{},{},{},{},{},{},{}".format(fresh_run["result"], job_name, url, aws_url, servers, xen_hosts, get_pool_data(servers))) 
             index += 1
 
 for aborted in aborted_list:
     print(aborted)
 for failure in failure_list:
     print(failure)
-print("{},{},{},{},{}".format(aborted_count, failure_count, unknown_count,success_count,
+for unstable in unstable_list:
+    print(unstable)
+print("{},{},{},{},{},{}".format(aborted_count, failure_count, unstable_count, unknown_count,success_count,
     (aborted_count+failure_count+unknown_count+success_count)))
