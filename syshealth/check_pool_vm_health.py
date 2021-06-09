@@ -45,7 +45,7 @@ def get_pool_data(pools):
         ssh_ok = 0
         index = 0
         csvout = open("pool_vm_health_info.csv", "w")
-        print("ipaddr,ssh_status,ssh_error,os,pool_state,pool_ids,cpus,memory_total(kB),memory_free(kB),memory_available(kB),disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins")
+        print("ipaddr,ssh_status(ok=1,not_ok=0),ssh_error,os,pool_state,pool_ids,cpus,memory_total(kB),memory_free(kB),memory_available(kB),disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins")
         csvout.write("ipaddr,ssh_status,ssh_error,os,pool_state,pool_ids,cpus,memory_total(kB),memory_free(kB),memory_available(kB),disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins")
         for row in result:
             index += 1
@@ -96,6 +96,8 @@ def check_vm(os_name, host):
         uptime = get_uptime(client)
         systime = get_system_time(client)
         cpu_load = get_cpu_users_load_avg(client)
+        if len(meminfo.split(','))<3:
+            meminfo += ','
         client.close()
     except Exception as e:
         meminfo = ',,'
@@ -111,7 +113,7 @@ def get_meminfo(ssh_client):
     return ssh_command(ssh_client,"cat /proc/meminfo |egrep Mem |cut -f2- -d':'|sed 's/ //g'|xargs|sed 's/ /,/g'|sed 's/kB//g'")
 
 def get_diskinfo(ssh_client):
-    return ssh_command(ssh_client,"df -ml --output=size,used,avail,pcent / |tail -1 |sed 's/ \+/,/g'|cut -f2- -d','")
+    return ssh_command(ssh_client,"df -ml --output=size,used,avail,pcent / |tail -1 |sed 's/ \+/,/g'|cut -f2- -d','|sed 's/%//g'")
 
 def get_system_time(ssh_client):
     return ssh_command(ssh_client, "TZ='America/Los_Angeles' date '+%Y-%m-%d %H:%M:%S'")
