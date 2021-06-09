@@ -45,20 +45,22 @@ def get_pool_data(pools):
         ssh_ok = 0
         index = 0
         csvout = open("pool_vm_health_info.csv", "w")
-        print("ipaddr,ssh_status,ssh_error,os,pool_state,pool_ids,cpus,memory_total,memory_free,memory_available,disk_size,disk_used,disk_avail,disk_use%")
-        csvout.write("ipaddr,ssh_status,ssh_error,os,pool_state,pool_ids,cpus,memory_total,memory_free,memory_available,disk_size,disk_used,disk_avail,disk_use%")
+        print("ipaddr,ssh_status,ssh_error,os,pool_state,pool_ids,cpus,memory_total(kB),memory_free(kB),memory_available(kB),disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins")
+        csvout.write("ipaddr,ssh_status,ssh_error,os,pool_state,pool_ids,cpus,memory_total(kB),memory_free(kB),memory_available(kB),disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins")
         for row in result:
             index += 1
             try:
-                ssh_status, ssh_error, cpus, meminfo, diskinfo = check_vm(row['os'],row['ipaddr'])
+                ssh_status, ssh_error, cpus, meminfo, diskinfo, uptime, systime, cpu_load = check_vm(row['os'],row['ipaddr'])
                 if ssh_status == 'ssh_failed':
+                    ssh_state=0
                     ssh_failed += 1
                 else:
+                    ssh_state=1
                     ssh_ok += 1
-                print("{},{},{},{},{},{},{},{},{},{}".format(index, row['ipaddr'], ssh_status, ssh_error, row['os'], \
-                    row['state'],  '+'.join("{}".format(p) for p in row['poolId']), cpus, meminfo, diskinfo))
-                csvout.write("\n{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_status, ssh_error, row['os'], \
-                    row['state'],  '+'.join("{}".format(p) for p in row['poolId']), cpus, meminfo, diskinfo))
+                print("{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, row['ipaddr'], ssh_status, ssh_error, row['os'], \
+                    row['state'],  '+'.join("{}".format(p) for p in row['poolId']), cpus, meminfo, diskinfo, uptime, systime, cpu_load))
+                csvout.write("\n{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, row['os'], \
+                    row['state'],  '+'.join("{}".format(p) for p in row['poolId']), cpus, meminfo, diskinfo, uptime, systime, cpu_load))
                 csvout.flush()
             except Exception as ex:
                 print(ex)
@@ -91,21 +93,34 @@ def check_vm(os_name, host):
         cpus = get_cpuinfo(client)
         meminfo = get_meminfo(client)
         diskinfo = get_diskinfo(client)
+        uptime = get_uptime(client)
+        systime = get_system_time(client)
+        cpu_load = get_cpu_users_load_avg(client)
         client.close()
     except Exception as e:
         meminfo = ',,'
         diskinfo = ',,,'
-        return 'ssh_failed', str(e).replace(',',' '), '', meminfo, diskinfo
-    return 'ssh_ok', '', cpus, meminfo, diskinfo
+        cpu_load = ',,,'
+        return 'ssh_failed', str(e).replace(',',' '), '', meminfo, diskinfo,'','',cpu_load
+    return 'ssh_ok', '', cpus, meminfo, diskinfo, uptime, systime, cpu_load
 
 def get_cpuinfo(ssh_client):
     return ssh_command(ssh_client,"cat /proc/cpuinfo  |egrep processor |wc -l")
 
 def get_meminfo(ssh_client):
-    return ssh_command(ssh_client,"cat /proc/meminfo |egrep Mem |cut -f2- -d':'|sed 's/ //g'|xargs|sed 's/ /,/g'")
+    return ssh_command(ssh_client,"cat /proc/meminfo |egrep Mem |cut -f2- -d':'|sed 's/ //g'|xargs|sed 's/ /,/g'|sed 's/kB//g'")
 
 def get_diskinfo(ssh_client):
-    return ssh_command(ssh_client,"df -hl --output=size,used,avail,pcent / |tail -1 |sed 's/ \+/,/g'|cut -f2- -d','")
+    return ssh_command(ssh_client,"df -ml --output=size,used,avail,pcent / |tail -1 |sed 's/ \+/,/g'|cut -f2- -d','")
+
+def get_system_time(ssh_client):
+    return ssh_command(ssh_client, "TZ='America/Los_Angeles' date '+%Y-%m-%d %H:%M:%S'")
+
+def get_uptime(ssh_client):
+    return ssh_command(ssh_client, "uptime -s")
+
+def get_cpu_users_load_avg(ssh_client):
+    return ssh_command(ssh_client, "uptime |cut -f3- -d','|sed 's/load average://g'|sed 's/ \+//g'|sed 's/users,/,/g'|sed 's/user,/,/g'")
 
 def ssh_command(ssh_client, cmd):
     ssh_output = ''
