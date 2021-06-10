@@ -45,22 +45,26 @@ def get_pool_data(pools):
         ssh_ok = 0
         index = 0
         csvout = open("pool_vm_health_info.csv", "w")
-        print("ipaddr,ssh_status(ok=1,not_ok=0),ssh_error,os,pool_state,pool_ids,cpus,memory_total(kB),memory_free(kB),memory_available(kB),disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins")
-        csvout.write("ipaddr,ssh_status,ssh_error,os,pool_state,pool_ids,cpus,memory_total(kB),memory_free(kB),memory_available(kB),disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins")
+        print("ipaddr,ssh_status,ssh_error,os,pool_state,pool_ids,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
+                "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," + \
+                "total_processes,couchbase_process,couchbase_version,couchbase_services")
+        csvout.write("ipaddr,ssh_status,ssh_error,os,pool_state,pool_ids,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
+                "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," \
+                "total_processes,couchbase_process,couchbase_version,couchbase_services")
         for row in result:
             index += 1
             try:
-                ssh_status, ssh_error, cpus, meminfo, diskinfo, uptime, systime, cpu_load = check_vm(row['os'],row['ipaddr'])
+                ssh_status, ssh_error, cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc, cb_proc, cb_version, cb_serv = check_vm(row['os'],row['ipaddr'])
                 if ssh_status == 'ssh_failed':
                     ssh_state=0
                     ssh_failed += 1
                 else:
                     ssh_state=1
                     ssh_ok += 1
-                print("{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, row['ipaddr'], ssh_status, ssh_error, row['os'], \
-                    row['state'],  '+'.join("{}".format(p) for p in row['poolId']), cpus, meminfo, diskinfo, uptime, systime, cpu_load))
-                csvout.write("\n{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, row['os'], \
-                    row['state'],  '+'.join("{}".format(p) for p in row['poolId']), cpus, meminfo, diskinfo, uptime, systime, cpu_load))
+                print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, row['ipaddr'], ssh_status, ssh_error, row['os'], \
+                    row['state'],  '+'.join("{}".format(p) for p in row['poolId']), cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc, cb_proc, cb_version, cb_serv))
+                csvout.write("\n{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, row['os'], \
+                    row['state'],  '+'.join("{}".format(p) for p in row['poolId']), cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc, cb_proc, cb_version, cb_serv))
                 csvout.flush()
             except Exception as ex:
                 print(ex)
@@ -96,17 +100,30 @@ def check_vm(os_name, host):
         uptime = get_uptime(client)
         systime = get_system_time(client)
         cpu_load = get_cpu_users_load_avg(client)
+        cpu_total_processes = get_total_processes(client)
+        cb_processes = get_cb_processes(client)
+        cb_running_serv = get_cb_running_services(client)
+        cb_version = get_cb_version(client)
+
         while len(meminfo.split(','))<3:
             meminfo += ','
+        mem_total = meminfo.split(',')[0]
+        mem_free = meminfo.split(',')[1]
+        if mem_free and mem_total:
+            meminfo += ","+ str(round(((int(mem_total)-int(mem_free))/int(mem_total))*100))
         while len(cpu_load.split(','))<4:
             cpu_load += ','
+        #while len(cb_running_serv.split(','))<7:
+        #    cb_running_serv += ','
+    
         client.close()
     except Exception as e:
-        meminfo = ',,'
+        meminfo = ',,,'
         diskinfo = ',,,'
         cpu_load = ',,,'
-        return 'ssh_failed', str(e).replace(',',' '), '', meminfo, diskinfo,'','',cpu_load
-    return 'ssh_ok', '', cpus, meminfo, diskinfo, uptime, systime, cpu_load
+        cb_running_serv=','
+        return 'ssh_failed', str(e).replace(',',' '), '', meminfo, diskinfo,'','',cpu_load, '', '', '',cb_running_serv
+    return 'ssh_ok', '', cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_total_processes, cb_processes, cb_version, cb_running_serv
 
 def get_cpuinfo(ssh_client):
     return ssh_command(ssh_client,"cat /proc/cpuinfo  |egrep processor |wc -l")
@@ -125,6 +142,36 @@ def get_uptime(ssh_client):
 
 def get_cpu_users_load_avg(ssh_client):
     return ssh_command(ssh_client, "uptime |rev|cut -f1-4 -d','|rev|sed 's/load average://g'|sed 's/ \+//g'|sed 's/users,/,/g'|sed 's/user,/,/g'")
+
+def get_total_processes(ssh_client):
+    return ssh_command(ssh_client, "ps aux | egrep -v COMMAND | wc -l")
+
+def get_cb_processes(ssh_client):
+    return ssh_command(ssh_client, "ps -o comm `pgrep -f couchbase` |egrep -v COMMAND |wc -l")
+
+def get_cb_running_services(ssh_client):
+    cb_processes = ssh_command(ssh_client, "ps -o comm `pgrep -f couchbase`|egrep -v COMMAND | xargs")
+    cb_services = []
+    for proc in cb_processes.split(' '):
+        if proc == 'memcached':
+            cb_services.append('data(kv)')
+        elif proc == 'indexer':
+            cb_services.append('index')
+        elif proc == 'cbq-engine':
+            cb_services.append('query(n1ql)')
+        elif proc == 'cbft':
+            cb_services.append('search(fts)')
+        elif proc == 'cbas':
+            cb_services.append('analytics(cbas)')
+        elif proc == 'eventing-produc':
+            cb_services.append('eventing')
+        elif proc == 'goxdcr':
+            cb_services.append('xdcr')
+    cb_services.sort()
+    return ' '.join(cb_services)
+        
+def get_cb_version(ssh_client):
+    return ssh_command(ssh_client, "if [ -f /opt/couchbase/VERSION.txt ]; then cat /opt/couchbase/VERSION.txt; fi")
 
 def ssh_command(ssh_client, cmd):
     ssh_output = ''
