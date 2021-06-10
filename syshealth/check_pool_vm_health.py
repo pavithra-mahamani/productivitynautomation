@@ -96,8 +96,10 @@ def check_vm(os_name, host):
         uptime = get_uptime(client)
         systime = get_system_time(client)
         cpu_load = get_cpu_users_load_avg(client)
-        if len(meminfo.split(','))<3:
+        while len(meminfo.split(','))<3:
             meminfo += ','
+        while len(cpu_load.split(','))<4:
+            cpu_load += ','
         client.close()
     except Exception as e:
         meminfo = ',,'
@@ -122,7 +124,7 @@ def get_uptime(ssh_client):
     return ssh_command(ssh_client, "uptime -s")
 
 def get_cpu_users_load_avg(ssh_client):
-    return ssh_command(ssh_client, "uptime |cut -f3- -d','|sed 's/load average://g'|sed 's/ \+//g'|sed 's/users,/,/g'|sed 's/user,/,/g'")
+    return ssh_command(ssh_client, "uptime |rev|cut -f1-4 -d','|rev|sed 's/load average://g'|sed 's/ \+//g'|sed 's/users,/,/g'|sed 's/user,/,/g'")
 
 def ssh_command(ssh_client, cmd):
     ssh_output = ''
