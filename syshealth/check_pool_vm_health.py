@@ -123,9 +123,9 @@ def check_vm(os_name, host):
         while len(meminfo.split(','))<3:
             meminfo += ','
         mem_total = meminfo.split(',')[0]
-        mem_free = meminfo.split(',')[1]
-        if mem_free and mem_total:
-            meminfo += ","+ str(round(((int(mem_total)-int(mem_free))/int(mem_total))*100))
+        mem_avail = meminfo.split(',')[2]
+        if mem_avail and mem_total:
+            meminfo += ","+ str(round(((int(mem_total)-int(mem_avail))/int(mem_total))*100))
         while len(cpu_load.split(','))<4:
             cpu_load += ','
         cb_serv_data = 0
@@ -156,9 +156,8 @@ def check_vm(os_name, host):
         meminfo = ',,,'
         diskinfo = ',,,'
         cpu_load = ',,,'
-        cb_running_serv=','
         cb_ind_serv = ',,,,,,'
-        return 'ssh_failed', str(e).replace(',',' '), '', meminfo, diskinfo,'','',cpu_load, '', '', '',cb_running_serv, cb_ind_serv
+        return 'ssh_failed', str(e).replace(',',' '), '', meminfo, diskinfo,'','',cpu_load, '', '', '','', cb_ind_serv
     return 'ssh_ok', '', cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_total_processes, cb_processes, cb_version, cb_running_serv, cb_ind_serv
 
 def get_cpuinfo(ssh_client):
