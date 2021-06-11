@@ -614,7 +614,7 @@ def query():
             else:
                 if "row_limit" in extra_data:
                     row_limit = int(extra_data["row_limit"])
-                    datapoint["rows"] = datapoint["rows"][:row_limit]
+                    datapoints["rows"] = datapoints["rows"][:row_limit]
                 data.append(datapoints)
 
         return jsonify(data)
