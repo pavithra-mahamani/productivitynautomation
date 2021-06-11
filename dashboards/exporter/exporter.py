@@ -44,7 +44,7 @@ def collect_csv(metrics, options):
     csvfile = requests.get(csvs[options["csv"]]).text.splitlines()
     reader = DictReader(csvfile)
     for row in reader:
-        if options["column"] not in row:
+        if options["column"] not in row or row["options"]["column"] is None:
             continue
         if len(options["labels"]) > 0:
             labels = get_labels(row, options)
