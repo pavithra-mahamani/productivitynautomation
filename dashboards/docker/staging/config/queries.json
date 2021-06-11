@@ -213,6 +213,13 @@
       "description": "CPU load average (5mins)",
       "column": "cpu_load_avg_5mins",
       "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_ssh_status",
+      "csv": "vm_health",
+      "description": "SSH Status",
+      "column": "ssh_status",
+      "labels": ["ipaddr"]
     }
   ]
 }
