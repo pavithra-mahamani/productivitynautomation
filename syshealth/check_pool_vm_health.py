@@ -22,7 +22,7 @@ def get_pool_data(pools):
     for pool in pools.split(','):
         pools_list.append(pool)
     
-    query = "SELECT ipaddr, os, state, origin, poolId FROM `QE-server-pool` WHERE poolId in [" \
+    query = "SELECT ipaddr, os, state, origin, poolId, username FROM `QE-server-pool` WHERE poolId in [" \
                 + ', '.join('"{0}"'.format(p) for p in pools_list) + "] or " \
                 + ' or '.join('"{0}" in poolId'.format(p) for p in pools_list)
     pool_cb_host = os.environ.get('pool_cb_host')
@@ -45,12 +45,12 @@ def get_pool_data(pools):
         ssh_ok = 0
         index = 0
         csvout = open("pool_vm_health_info.csv", "w")
-        print("ipaddr,ssh_status,ssh_error,os,pool_state,pool_ids,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
+        print("ipaddr,ssh_status,ssh_error,os,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," + \
-                "total_processes,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,xdcr_status")
-        csvout.write("ipaddr,ssh_status,ssh_error,os,pool_state,pool_ids,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
+                "total_processes,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status")
+        csvout.write("ipaddr,ssh_status,ssh_error,os,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," \
-                "total_processes,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,xdcr_status")
+                "total_processes,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status")
         for row in result:
             index += 1
             try:
@@ -61,20 +61,35 @@ def get_pool_data(pools):
                 else:
                     ssh_state=1
                     ssh_ok += 1
-                print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, row['ipaddr'], ssh_status, ssh_error, row['os'], \
-                    row['state'],  '+'.join("{}".format(p) for p in row['poolId']), cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc, cb_proc, cb_version, cb_serv, cb_ind_serv))
-                csvout.write("\n{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, row['os'], \
-                    row['state'],  '+'.join("{}".format(p) for p in row['poolId']), cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc, cb_proc, cb_version, cb_serv, cb_ind_serv))
+                print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, row['ipaddr'], ssh_status, ssh_error, row['os'], \
+                    row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc, cb_proc, cb_version, cb_serv, cb_ind_serv))
+                csvout.write("\n{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, row['os'], \
+                    row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc, cb_proc, cb_version, cb_serv, cb_ind_serv))
                 csvout.flush()
             except Exception as ex:
                 print(ex)
                 pass
             count +=1
-        print("ssh_ok={},ssh_failed={},total={}".format(ssh_ok, ssh_failed,count))
+        booked_count = get_pool_state_count(pool_cluster, pools_list, 'booked')
+        avail_count = get_pool_state_count(pool_cluster, pools_list, 'available')
+        using_count = booked_count + avail_count
+        print("ssh_ok={},ssh_failed={},total={},booked={},avail={},using={}".format(ssh_ok, ssh_failed,count, booked_count, avail_count, using_count))
         csvout.close()
-    except:
-        print("exception:", sys.exc_info()[0])
-    
+    except Exception as fex :
+        print(fex)
+        #print("exception:", sys.exc_info()[0])
+
+def get_pool_state_count(pool_cluster, pools_list, pool_state):
+    query = "SELECT count(*) as count FROM `QE-server-pool` WHERE state='" + pool_state + "' and (poolId in [" \
+                + ', '.join('"{0}"'.format(p) for p in pools_list) + "] or " \
+                + ' or '.join('"{0}" in poolId'.format(p) for p in pools_list) \
+                + ')'
+    count = 0
+    result = pool_cluster.query(query)
+    for row in result:
+        count = row['count']
+    return count
+
 def check_vm(os_name, host):
     config = os.environ
     if '[' in host:
