@@ -1,6 +1,7 @@
-version: "3"
+version: "2"
 services:
   dashboard:
+    restart: unless-stopped
     build: ../../
     ports:
       - 5001:5000
@@ -10,21 +11,26 @@ services:
       - ./config/targets.json:/app/targets.json
 
   grafana:
-    image: grafana/grafana
+    image: grafana/grafana:8.0.1
+    restart: unless-stopped
     volumes:
       - ./config/grafana:/var/lib/grafana
     environment:
-      GF_INSTALL_PLUGINS: simpod-json-datasource
+      GF_INSTALL_PLUGINS: "simpod-json-datasource,marcusolsson-csv-datasource,ae3e-plotly-panel"
       GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: "ae3e-plotly-panel"
     ports:
       - 4000:3000
 
   prometheus:
+    restart: unless-stopped
     image: prom/prometheus
     volumes:
-      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./config/prometheus:/etc/prometheus
 
   exporter:
+    restart: unless-stopped
     build: ../../exporter
     volumes:
       - ./config/queries.json:/app/queries.json
+    mem_limit: 100M

@@ -11,6 +11,7 @@ import requests
 import sys
 import json
 import csv
+import traceback
 
 TARGETS_FILE = "targets.json"
 
@@ -52,6 +53,8 @@ def add_cluster(host: str, username: str, password: str):
                                      ClusterOptions(
                                          PasswordAuthenticator(username, password)),
                                      lockmode=LockMode.WAIT)
+    except Exception:
+        pass
     finally:
         clusters_lock.release()
 
@@ -166,34 +169,52 @@ def import_():
     try:
 
         req = request.json
-        data = req['data']
-        grafana = req['grafana']
-        overwrite = req['overwrite'] if 'overwrite' in req else False
+        data = req.get("data")
+        grafana = req.get('grafana')
+        overwrite = req.get("overwrite") or False
+        folder = req.get("folder")
 
-        add_targets(data)
+        if not data and not grafana:
+            raise Exception("no data or grafana dashboard supplied")
 
-        # we use the name to determine unique dashboards
-        grafana.pop('uid')
-        grafana.pop('id')
+        if data:
+            add_targets(data)
+            if not grafana:
+                return {
+                    "result": "data added"
+                }
+        
+        if grafana:
+            # we use the name to determine unique dashboards
+            grafana.pop('uid', "")
+            grafana.pop('id', "")
 
-        res = {
-            "dashboard": grafana,
-            "overwrite": overwrite
-        }
-
-        grafana_response = requests.post(
-            grafana_connection_string + "/api/dashboards/db", json=res).json()
-
-        if grafana_response['status'] == "success":
-            return {
-                'result': grafana_response['url'],
+            res = {
+                "dashboard": grafana,
+                "overwrite": overwrite,
             }
-        else:
-            return {
-                "error": grafana_response['message']
-            }
+
+            if folder:
+                try:
+                    id = requests.get("{}/api/folders/{}".format(grafana_connection_string, folder)).json()["id"]
+                except Exception:
+                    raise Exception("couldn't get folder")
+                res["folderId"] = id
+
+            grafana_response = requests.post(
+                grafana_connection_string + "/api/dashboards/db", json=res).json()
+
+            if grafana_response['status'] == "success":
+                return {
+                    'result': grafana_response['url'],
+                }
+            else:
+                return {
+                    "error": grafana_response['message']
+                }
 
     except Exception as e:
+        traceback.print_exc()
         return {"error": str(e)}, 500
 
 
@@ -600,8 +621,6 @@ if __name__ == "__main__":
         print(
             'USAGE: python dashboard.py [GRAFANA_URL] (e.g. http://admin:password@127.0.0.1:3000)')
     else:
-        update_thread = UpdateThread()
+        update_thread = UpdateThread(daemon=True)
         update_thread.start()
         app.run(host="0.0.0.0")
-        update_thread.terminate()
-        update_thread.join()

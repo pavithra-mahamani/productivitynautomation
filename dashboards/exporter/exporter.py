@@ -1,11 +1,10 @@
-from prometheus_client.core import GaugeMetricFamily, CounterMetricFamily, REGISTRY
-import time
-from prometheus_client import start_http_server, Counter, Gauge, Summary, Histogram
 from couchbase.cluster import Cluster, ClusterOptions
 from couchbase.auth import PasswordAuthenticator
-from couchbase.options import LockMode
 import logging
 import json
+from flask import Flask, Response
+from csv import DictReader
+import requests
 
 log = logging.getLogger("exporter")
 logging.basicConfig(
@@ -16,60 +15,74 @@ with open("queries.json") as json_file:
 
 log.info("Loaded queries.json")
 
-log.info("Connecting to clusters")
-
-clusters = {}
-for [cluster_name, options] in settings['clusters'].items():
-    if cluster_name not in clusters:
-        clusters[cluster_name] = Cluster('couchbase://'+options['host'],
-                                         ClusterOptions(
-            PasswordAuthenticator(options['username'], options['password'])),
-            lockmode=LockMode.WAIT)
-        log.info("Connected to %s", options['host'])
-
-log.info("Connected to clusters")
+csvs = settings.get("csvs") or {}
 
 
-class CouchbaseQueryCollector():
-    def __init__(self, cluster, name, description, query, value_key, labels=[]):
-        self.cluster = cluster
-        self.query = query
-        self.name = name
-        self.description = description
-        self.labels = labels
-        self.value_key = value_key
+app = Flask(__name__)
 
-    def collect(self):
-        log.debug("Collecting metrics for %s", self.name)
+for options in settings['queries'] + settings["columns"]:
+    log.info("Registered metrics collection for {}".format(options['name']))
 
-        g = GaugeMetricFamily(
-            self.name, self.description, labels=self.labels)
 
+def get_labels(row, options):
+    return ["{}=\"{}\"".format(label, row[label]) for label in options["labels"]]
+
+
+def collect_cb(clusters, metrics, options):
+    rows = clusters[options["cluster"]].query(options["query"]).rows()
+    for row in rows:
+        if len(options["labels"]) > 0:
+            labels = get_labels(row, options)
+            metrics.append("{}{{{}}} {}".format(
+                options["name"], ",".join(labels), row[options["value_key"]]))
+        else:
+            metrics.append("{} {}".format(
+                options["name"], row[options["value_key"]]))
+
+
+def collect_csv(metrics, options):
+    csvfile = requests.get(csvs[options["csv"]]).text.splitlines()
+    reader = DictReader(csvfile)
+    for row in reader:
+        if options["column"] not in row:
+            continue
+        if len(options["labels"]) > 0:
+            labels = get_labels(row, options)
+            metrics.append("{}{{{}}} {}".format(
+                options["name"], ",".join(labels), row[options["column"]]))
+        else:
+            metrics.append("{} {}".format(
+                options["name"], row[options["column"]]))
+
+
+@app.route("/metrics")
+def metrics():
+    metrics = []
+    clusters = {}
+    for [cluster_name, options] in settings['clusters'].items():
+        if cluster_name not in clusters:
+            try:
+                clusters[cluster_name] = Cluster('couchbase://'+options['host'],
+                                                ClusterOptions(
+                    PasswordAuthenticator(options['username'], options['password'])))
+            except Exception as e:
+                log.warning("Couldn't connect to cluster {}".format(e))
+            log.debug("Connected to {}".format(options['host']))
+    for options in settings["queries"] + settings["columns"]:
+        log.debug("Collecting metrics for {}".format(options["name"]))
         try:
-            rows = clusters[self.cluster].query(self.query).rows()
-
-            for row in rows:
-                g.add_metric([row[label]
-                              for label in self.labels], row[self.value_key])
-
+            if "cluster" in options:
+                collect_cb(clusters, metrics, options)
+            elif "csv" in options:
+                collect_csv(metrics, options)
+            else:
+                raise Exception("Invalid type")
         except Exception as e:
-            log.warn("Error while collecting %s: %s", self.name, e)
-            pass
-
-        yield g
-
-
-for options in settings['queries']:
-
-    REGISTRY.register(CouchbaseQueryCollector(
-        options['cluster'], options['name'], options['description'], options['query'], options['value_key'], options['labels']))
-
-    log.info("Registered metrics collection for %s", options['name'])
+            log.warning("Error while collecting {}: {}".format(
+                options["name"], e))
+    return Response("\n".join(metrics), mimetype="text/plain")
 
 
-start_http_server(8000)
-
-log.info("Started HTTP server on port 8000")
-
-while True:
-    time.sleep(1000)
+if __name__ == "__main__":
+    log.info("Started HTTP server on port 8000")
+    app.run(host="0.0.0.0", port=8000)
