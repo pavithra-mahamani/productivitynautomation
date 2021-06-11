@@ -220,6 +220,13 @@
       "description": "SSH Status",
       "column": "ssh_status",
       "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_cpus",
+      "csv": "vm_health",
+      "description": "CPUs",
+      "column": "cpus",
+      "labels": ["ipaddr"]
     }
   ]
 }
