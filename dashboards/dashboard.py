@@ -595,16 +595,27 @@ def query():
                     cache_datapoints(target, datapoints)
 
             elif data_type == "table":
+                
+
                 if target in cache:
                     datapoints = cache[target]['table']
                 else:
                     datapoints = calculate_rows_and_columns(target)
                     cache_table(target, datapoints)
 
+            extra_data = target.get("data") or {}
+
             # single input target can produce multiple output targets
             if isinstance(datapoints, list):
-                data.extend(datapoints)
+                for datapoint in datapoints:
+                    if "row_limit" in extra_data:
+                        row_limit = int(extra_data["row_limit"])
+                        datapoint["rows"] = datapoint["rows"][:row_limit]
+                    data.append(datapoint)
             else:
+                if "row_limit" in extra_data:
+                    row_limit = int(extra_data["row_limit"])
+                    datapoint["rows"] = datapoint["rows"][:row_limit]
                 data.append(datapoints)
 
         return jsonify(data)
