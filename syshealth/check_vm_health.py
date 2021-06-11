@@ -1,12 +1,12 @@
 """
-    QE static pool VMs health check
+    Generic/Jenkins slave VMs health check
    
     Usage example: 
-        python3 check_pool_vm_health.py
-        python3 check_pool_vm_health.py regression,12hrreg,security
+        python3 check_vm_health.py
+        python3 check_vm_health.py <filename-with-ips-in-each-line>
         [ Environment variables needed: vm_windows_password=, vm_linux_password=]
 
-    Output: pool_vm_health_info.csv
+    Output: vm_health_info.csv
 """
 import sys
 import os
