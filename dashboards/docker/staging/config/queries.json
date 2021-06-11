@@ -227,6 +227,83 @@
       "description": "CPUs",
       "column": "cpus",
       "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_memory_total",
+      "csv": "vm_health",
+      "description": "Memory Total",
+      "column": "memory_total(kB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_memory_free",
+      "csv": "vm_health",
+      "description": "Memory Free",
+      "column": "memory_free(kB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_memory_available",
+      "csv": "vm_health",
+      "description": "Memory Available",
+      "column": "memory_available(kB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_disk_size",
+      "csv": "vm_health",
+      "description": "Disk Size",
+      "column": "disk_size(MB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_disk_used",
+      "csv": "vm_health",
+      "description": "Disk Used",
+      "column": "disk_used(MB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_disk_avail",
+      "csv": "vm_health",
+      "description": "Disk Available",
+      "column": "disk_avail(MB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_users",
+      "csv": "vm_health",
+      "description": "Users",
+      "column": "users",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_cpu_load_avg_1min",
+      "csv": "vm_health",
+      "description": "CPU load average (1min)",
+      "column": "cpu_load_avg_1min",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_cpu_load_avg_15mins",
+      "csv": "vm_health",
+      "description": "CPU load average (15mins)",
+      "column": "cpu_load_avg_15mins",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_total_processes",
+      "csv": "vm_health",
+      "description": "Total Processes",
+      "column": "total_processes",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_couchbase_processes",
+      "csv": "vm_health",
+      "description": "Couchbase Processes",
+      "column": "couchbase_process",
+      "labels": ["ipaddr"]
     }
   ]
 }
