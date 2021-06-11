@@ -585,6 +585,7 @@ def query():
 
         for target in request.json['targets']:
             data_type = target['type']
+            extra_data = target.get("data") or {}
             target = target['target']
 
             if data_type == "timeseries":
@@ -602,8 +603,6 @@ def query():
                 else:
                     datapoints = calculate_rows_and_columns(target)
                     cache_table(target, datapoints)
-
-            extra_data = target.get("data") or {}
 
             # single input target can produce multiple output targets
             if isinstance(datapoints, list):
