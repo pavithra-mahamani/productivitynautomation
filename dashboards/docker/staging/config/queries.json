@@ -331,14 +331,6 @@
       "rename": { "ipaddr": "slave_ip" }
     },
     {
-      "name": "slaves_vm_health_ssh_status",
-      "csv": "slaves_vm_health",
-      "description": "SSH Status",
-      "column": "ssh_status",
-      "labels": ["ipaddr"],
-      "rename": { "ipaddr": "slave_ip" }
-    },
-    {
       "name": "slaves_vm_health_cpus",
       "csv": "slaves_vm_health",
       "description": "CPUs",
