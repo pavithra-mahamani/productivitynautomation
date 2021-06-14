@@ -25,7 +25,8 @@ for options in settings['queries'] + settings["columns"]:
 
 
 def get_labels(row, options):
-    return ["{}=\"{}\"".format(label, row[label]) for label in options["labels"]]
+    rename_map = options.get("rename", {})
+    return ["{}=\"{}\"".format(rename_map[label] if label in rename_map else label, row[label]) for label in options["labels"]]
 
 
 def collect_cb(clusters, metrics, options):

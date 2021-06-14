@@ -311,105 +311,120 @@
       "csv": "slaves_vm_health",
       "description": "Memory usage",
       "column": "memory_use(%)",
-      "labels": ["ipaddr"]
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
     },
     {
       "name": "slaves_vm_health_disk_usage",
       "csv": "slaves_vm_health",
       "description": "Disk usage",
       "column": "disk_use%",
-      "labels": ["ipaddr"]
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
     },
     {
       "name": "slaves_vm_health_cpu_load_avg_5mins",
       "csv": "slaves_vm_health",
       "description": "CPU load average (5mins)",
       "column": "cpu_load_avg_5mins",
-      "labels": ["ipaddr"]
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
     },
     {
       "name": "slaves_vm_health_ssh_status",
       "csv": "slaves_vm_health",
       "description": "SSH Status",
       "column": "ssh_status",
-      "labels": ["ipaddr"]
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
     },
     {
       "name": "slaves_vm_health_cpus",
       "csv": "slaves_vm_health",
       "description": "CPUs",
       "column": "cpus",
-      "labels": ["ipaddr"]
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
     },
     {
       "name": "slaves_vm_health_memory_total",
       "csv": "slaves_vm_health",
       "description": "Memory Total",
       "column": "memory_total(kB)",
-      "labels": ["ipaddr"]
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
     },
     {
       "name": "slaves_vm_health_memory_free",
       "csv": "slaves_vm_health",
       "description": "Memory Free",
       "column": "memory_free(kB)",
-      "labels": ["ipaddr"]
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
     },
     {
       "name": "slaves_vm_health_memory_available",
       "csv": "slaves_vm_health",
       "description": "Memory Available",
       "column": "memory_available(kB)",
-      "labels": ["ipaddr"]
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
     },
     {
       "name": "slaves_vm_health_disk_size",
       "csv": "slaves_vm_health",
       "description": "Disk Size",
       "column": "disk_size(MB)",
-      "labels": ["ipaddr"]
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
     },
     {
       "name": "slaves_vm_health_disk_used",
       "csv": "slaves_vm_health",
       "description": "Disk Used",
       "column": "disk_used(MB)",
-      "labels": ["ipaddr"]
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
     },
     {
       "name": "slaves_vm_health_disk_avail",
       "csv": "slaves_vm_health",
       "description": "Disk Available",
       "column": "disk_avail(MB)",
-      "labels": ["ipaddr"]
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
     },
     {
       "name": "slaves_vm_health_users",
       "csv": "slaves_vm_health",
       "description": "Users",
       "column": "users",
-      "labels": ["ipaddr"]
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
     },
     {
       "name": "slaves_vm_health_cpu_load_avg_1min",
       "csv": "slaves_vm_health",
       "description": "CPU load average (1min)",
       "column": "cpu_load_avg_1min",
-      "labels": ["ipaddr"]
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
     },
     {
       "name": "slaves_vm_health_cpu_load_avg_15mins",
       "csv": "slaves_vm_health",
       "description": "CPU load average (15mins)",
       "column": "cpu_load_avg_15mins",
-      "labels": ["ipaddr"]
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
     },
     {
       "name": "slaves_vm_health_total_processes",
       "csv": "slaves_vm_health",
       "description": "Total Processes",
       "column": "total_processes",
-      "labels": ["ipaddr"]
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
     }
   ]
 }
