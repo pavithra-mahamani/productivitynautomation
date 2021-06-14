@@ -46,7 +46,7 @@ def get_vm_data(servers_list_file):
                     ssh_state=1
                     ssh_ok += 1
                 print("{},{},{},{},{},{},{},{},{},{},{},{}".format(index, ipaddr, ssh_status, ssh_error, os_version, cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc))
-                csvout.write("\n{},{},{},{},{},{},{},{},{},{},{}".format(ipaddr, ssh_status, ssh_error, os_version, cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc))
+                csvout.write("\n{},{},{},{},{},{},{},{},{},{},{}".format(ipaddr, ssh_state, ssh_error, os_version, cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc))
                 csvout.flush()
             except Exception as ex:
                 print(ex)
