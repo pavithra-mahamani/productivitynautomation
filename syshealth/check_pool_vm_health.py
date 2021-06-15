@@ -45,12 +45,17 @@ def get_pool_data(pools):
         ssh_ok = 0
         index = 0
         csvout = open("pool_vm_health_info.csv", "w")
-        print("ipaddr,ssh_status,ssh_error,pool_os,real_os,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
+        print("ipaddr,ssh_status,ssh_error,pool_os,real_os,os_match_state,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," + \
                 "total_processes,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status")
-        csvout.write("ipaddr,ssh_status,ssh_error,pool_os,real_os,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
+        csvout.write("ipaddr,ssh_status,ssh_error,pool_os,real_os,os_match_state,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," \
                 "total_processes,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status")
+        os_mappings={"centos":"centos linux 7 (core)", "centosnonroot":"centos linux 7 (core)", "debian10":"debian gnu/linux 10 (buster)", \
+                    "oel8":"oracle linux server 8.1", "rhel":"red hat enterprise linux", "rhel8":"red hat enterprise linux 8.3 (ootpa)", \
+                    "suse12":"suse linux enterprise server 12 sp2", "opensuse15":"opensuse leap 15.1","suse15":"suse linux enterprise server 15", \
+                    "opensuse15hostname":"opensuse leap 15.1","suse15hostname":"suse linux enterprise server 15","ubuntu18":"ubuntu 18.04.4 lts", \
+                    "ubuntu20":"ubuntu 20.04 lts" }
         for row in result:
             index += 1
             try:
@@ -61,10 +66,19 @@ def get_pool_data(pools):
                 else:
                     ssh_state=1
                     ssh_ok += 1
-                print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, row['ipaddr'], ssh_status, ssh_error, row['os'], real_os, \
-                    row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc, cb_proc, cb_version, cb_serv, cb_ind_serv))
-                csvout.write("\n{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, row['os'], real_os, \
-                    row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc, cb_proc, cb_version, cb_serv, cb_ind_serv))
+                os_state = 0
+                if real_os:
+                    pool_os = row['os'].lower()
+                    if pool_os in os_mappings.keys() and os_mappings[pool_os] == real_os.lower():
+                        os_state = 1
+                    elif pool_os in os_mappings.keys() and pool_os.startswith('suse15'):
+                        if os_mappings['open'+pool_os] == real_os.lower():
+                            os_state = 1
+                    
+                print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, row['ipaddr'], ssh_status, ssh_error, row['os'], real_os, \
+                    os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc, cb_proc, cb_version, cb_serv, cb_ind_serv))
+                csvout.write("\n{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, row['os'], real_os, \
+                    os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc, cb_proc, cb_version, cb_serv, cb_ind_serv))
                 csvout.flush()
             except Exception as ex:
                 print(ex)
