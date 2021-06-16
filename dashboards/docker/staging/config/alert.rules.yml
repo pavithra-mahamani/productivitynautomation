@@ -11,4 +11,59 @@ groups:
       description: '{{ $labels.ipaddr }} SSH failed with error: {{ $labels.ssh_error }}.'
    # Labels - additional labels to be attached to the alert
     labels:
-	severity: 'critical'
+	    severity: 'critical'
+  - alert: PoolVMHighDiskUsage
+   # Condition for alerting
+    expr: disk_usage >= 99
+    for: 1m
+   # Annotation - additional informational labels to store more information
+    annotations:
+      title: 'Server Pool VM {{ $labels.ipaddr }} high disk usage'
+      description: '{{ $labels.ipaddr }} has disk usage of {{ $value }}%'
+   # Labels - additional labels to be attached to the alert
+    labels:
+	    severity: 'critical'
+  - alert: PoolVMHighDiskUsage
+   # Condition for alerting
+    expr: memory_usage >= 99
+    for: 1m
+   # Annotation - additional informational labels to store more information
+    annotations:
+      title: 'Server Pool VM {{ $labels.ipaddr }} high memory usage'
+      description: '{{ $labels.ipaddr }} has memory usage of {{ $value }}%'
+   # Labels - additional labels to be attached to the alert
+    labels:
+	    severity: 'critical'
+  - alert: SlaveVMDown
+   # Condition for alerting
+    expr: vm_health_ssh_status == 0
+    for: 1m
+   # Annotation - additional informational labels to store more information
+    annotations:
+      title: 'Slave VM {{ $labels.ipaddr }} SSH Failed'
+      description: '{{ $labels.ipaddr }} SSH failed with error: {{ $labels.ssh_error }}.'
+   # Labels - additional labels to be attached to the alert
+    labels:
+	    severity: 'critical'
+  - alert: SlaveVMHighDiskUsage
+   # Condition for alerting
+    expr: disk_usage >= 99
+    for: 1m
+   # Annotation - additional informational labels to store more information
+    annotations:
+      title: 'Slave VM {{ $labels.ipaddr }} high disk usage'
+      description: '{{ $labels.ipaddr }} has disk usage of {{ $value }}%'
+   # Labels - additional labels to be attached to the alert
+    labels:
+	    severity: 'critical'
+  - alert: SlaveVMHighDiskUsage
+   # Condition for alerting
+    expr: memory_usage >= 99
+    for: 1m
+   # Annotation - additional informational labels to store more information
+    annotations:
+      title: 'Slave VM {{ $labels.ipaddr }} high memory usage'
+      description: '{{ $labels.ipaddr }} has memory usage of {{ $value }}%'
+   # Labels - additional labels to be attached to the alert
+    labels:
+	    severity: 'critical'
