@@ -23,7 +23,7 @@ groups:
    # Labels - additional labels to be attached to the alert
     labels:
 	    severity: 'critical'
-  - alert: PoolVMHighDiskUsage
+  - alert: PoolVMHighMemUsage
    # Condition for alerting
     expr: memory_usage >= 99
     for: 1m
@@ -36,7 +36,7 @@ groups:
 	    severity: 'critical'
   - alert: SlaveVMDown
    # Condition for alerting
-    expr: vm_health_ssh_status == 0
+    expr: slaves_vm_health_ssh_status == 0
     for: 1m
    # Annotation - additional informational labels to store more information
     annotations:
@@ -47,7 +47,7 @@ groups:
 	    severity: 'critical'
   - alert: SlaveVMHighDiskUsage
    # Condition for alerting
-    expr: disk_usage >= 99
+    expr: slaves_vm_health_disk_usage >= 99
     for: 1m
    # Annotation - additional informational labels to store more information
     annotations:
@@ -56,9 +56,9 @@ groups:
    # Labels - additional labels to be attached to the alert
     labels:
 	    severity: 'critical'
-  - alert: SlaveVMHighDiskUsage
+  - alert: SlaveVMHighMemUsage
    # Condition for alerting
-    expr: memory_usage >= 99
+    expr: slaves_vm_health_memory_usage >= 99
     for: 1m
    # Annotation - additional informational labels to store more information
     annotations:
