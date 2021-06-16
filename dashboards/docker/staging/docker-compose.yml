@@ -39,7 +39,6 @@ services:
     build: ../../exporter
     volumes:
       - ./config/queries.json:/app/queries.json
-    mem_limit: 100M
 
   alertmanager:
     restart: unless-stopped
