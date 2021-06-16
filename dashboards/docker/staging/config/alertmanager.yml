@@ -13,4 +13,4 @@ route:
 receivers:
   - name: "email"
     email_configs:
-      - to: jake.rawsthorne@couchbase.com
+      - to: jake.rawsthorne@couchbase.com,jagadesh.munta@couchbase.com
