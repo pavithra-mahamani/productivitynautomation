@@ -40,7 +40,7 @@ groups:
         for: 1m
         # Annotation - additional informational labels to store more information
         annotations:
-          title: "Slave VM {{ $labels.ipaddr }} SSH Failed"
+          title: "Slave VM {{ $labels.slave_ip }} SSH Failed"
           description: "{{ $labels.slave_ip }} SSH failed with error: {{ $labels.ssh_error }}."
         # Labels - additional labels to be attached to the alert
         labels:
@@ -51,7 +51,7 @@ groups:
         for: 1m
         # Annotation - additional informational labels to store more information
         annotations:
-          title: "Slave VM {{ $labels.ipaddr }} high disk usage"
+          title: "Slave VM {{ $labels.slave_ip }} high disk usage"
           description: "{{ $labels.slave_ip }} has disk usage of {{ $value }}%"
         # Labels - additional labels to be attached to the alert
         labels:
@@ -62,7 +62,7 @@ groups:
         for: 1m
         # Annotation - additional informational labels to store more information
         annotations:
-          title: "Slave VM {{ $labels.ipaddr }} high memory usage"
+          title: "Slave VM {{ $labels.slave_ip }} high memory usage"
           description: "{{ $labels.slave_ip }} has memory usage of {{ $value }}%"
         # Labels - additional labels to be attached to the alert
         labels:
