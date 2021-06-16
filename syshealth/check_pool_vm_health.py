@@ -27,6 +27,9 @@ def get_pool_data(pools):
     query = "SELECT ipaddr, os, state, origin, poolId, username FROM `QE-server-pool` WHERE poolId in [" \
                 + ', '.join('"{0}"'.format(p) for p in pools_list) + "] or " \
                 + ' or '.join('"{0}" in poolId'.format(p) for p in pools_list)
+    is_debug = os.environ.get('is_debug')
+    if is_debug:
+        print("Query:{};".format(query))
     pool_cb_host = os.environ.get('pool_cb_host')
     if not pool_cb_host:
         pool_cb_host = "172.23.104.162"
@@ -104,6 +107,9 @@ def get_pool_data_parallel(pools):
     query = "SELECT ipaddr, os, state, origin, poolId, username FROM `QE-server-pool` WHERE poolId in [" \
                 + ', '.join('"{0}"'.format(p) for p in pools_list) + "] or " \
                 + ' or '.join('"{0}" in poolId'.format(p) for p in pools_list)
+    is_debug = os.environ.get('is_debug')
+    if is_debug:
+        print("Query:{};".format(query))
     pool_cb_host = os.environ.get('pool_cb_host')
     if not pool_cb_host:
         pool_cb_host = "172.23.104.162"
@@ -353,9 +359,12 @@ def main():
     xen_hosts_file = ''
     if len(sys.argv) > 2:
         xen_hosts_file = sys.argv[2]
-    #get_pool_data(pools)
-    get_pool_data_parallel(pools)
-
+    
+    is_seq_run = os.environ.get('is_seq_run')
+    if is_seq_run:
+        get_pool_data(pools)
+    else:
+        get_pool_data_parallel(pools)
 
 if __name__ == '__main__':
     main()
