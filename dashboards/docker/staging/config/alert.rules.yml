@@ -34,6 +34,14 @@ groups:
         # Labels - additional labels to be attached to the alert
         labels:
           severity: "critical"
+      - alert: PoolVMOSMismatch
+        expr: vm_health_os_match_state == 0
+        for: 1m
+        annotations:
+          title: "Pool VM {{ $labels.slave_ip }} OS mismatch"
+          description: "{{ $labels.slave_ip }} expected {{ $labels.pool_os }}, got {{ $labels.real_os }}"
+        labels:
+          severity: "critical"
       - alert: SlaveVMDown
         # Condition for alerting
         expr: slaves_vm_health_ssh_status == 0
