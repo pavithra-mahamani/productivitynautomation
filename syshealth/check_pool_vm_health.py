@@ -17,6 +17,7 @@ from couchbase.auth import PasswordAuthenticator
 from couchbase.cluster import Cluster, ClusterOptions, ClusterTimeoutOptions
 from paramiko import SSHClient, AutoAddPolicy
 import multiprocessing as mp
+import time
 
 
 def get_pool_data(pools):
@@ -30,12 +31,8 @@ def get_pool_data(pools):
     is_debug = os.environ.get('is_debug')
     if is_debug:
         print("Query:{};".format(query))
-    pool_cb_host = os.environ.get('pool_cb_host')
-    if not pool_cb_host:
-        pool_cb_host = "172.23.104.162"
-    pool_cb_user = os.environ.get('pool_cb_user')
-    if not pool_cb_user:
-        pool_cb_user = "Administrator"
+    pool_cb_host = os.environ.get('pool_cb_host', "172.23.104.162")
+    pool_cb_user = os.environ.get('pool_cb_user', "Administrator")
     pool_cb_user_p = os.environ.get('pool_cb_password')
     if not pool_cb_user_p:
         print("Error: pool_cb_password environment variable setting is missing!")
@@ -110,21 +107,26 @@ def get_pool_data_parallel(pools):
     is_debug = os.environ.get('is_debug')
     if is_debug:
         print("Query:{};".format(query))
-    pool_cb_host = os.environ.get('pool_cb_host')
-    if not pool_cb_host:
-        pool_cb_host = "172.23.104.162"
-    pool_cb_user = os.environ.get('pool_cb_user')
-    if not pool_cb_user:
-        pool_cb_user = "Administrator"
+    pool_cb_host = os.environ.get('pool_cb_host', "172.23.104.162")
+    pool_cb_user = os.environ.get('pool_cb_user', "Administrator")
     pool_cb_user_p = os.environ.get('pool_cb_password')
     if not pool_cb_user_p:
         print("Error: pool_cb_password environment variable setting is missing!")
         exit(1)
     try:
-        pool_cluster = Cluster("couchbase://"+pool_cb_host, ClusterOptions(PasswordAuthenticator(pool_cb_user, pool_cb_user_p),
-        timeout_options=ClusterTimeoutOptions(kv_timeout=timedelta(seconds=10))))
-        result = pool_cluster.query(query)
-        
+        retry_count = int(os.environ.get('retry_count', 3))
+        query_done = False
+        while not query_done and retry_count != 0:
+            try:
+                pool_cluster = Cluster("couchbase://"+pool_cb_host, ClusterOptions(PasswordAuthenticator(pool_cb_user, pool_cb_user_p),
+                timeout_options=ClusterTimeoutOptions(kv_timeout=timedelta(seconds=10))))
+                result = pool_cluster.query(query)
+                query_done = True
+            except Exception as cbe:
+                print("Got an error: {} and retrying after 5 secs...at {}, query_done={}, retry_count down {}".format(cbe.message, pool_cb_host, query_done, retry_count))
+                time.sleep(5)
+                retry_count -= 1
+
         csvout = open("pool_vm_health_info.csv", "w")
         print("ipaddr,ssh_status,ssh_error,pool_os,real_os,os_match_state,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," + \
@@ -190,12 +192,15 @@ def get_pool_data_vm_parallel(row):
     except Exception as ex:
         print(ex)
         pass
-    
+
 def get_pool_state_count(pool_cluster, pools_list, pool_state):
     query = "SELECT count(*) as count FROM `QE-server-pool` WHERE state='" + pool_state + "' and (poolId in [" \
                 + ', '.join('"{0}"'.format(p) for p in pools_list) + "] or " \
                 + ' or '.join('"{0}" in poolId'.format(p) for p in pools_list) \
                 + ')'
+    is_debug = os.environ.get('is_debug')
+    if is_debug:
+        print("Query:{};".format(query))
     count = 0
     result = pool_cluster.query(query)
     for row in result:
