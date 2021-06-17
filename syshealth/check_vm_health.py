@@ -16,6 +16,7 @@ from datetime import timedelta
 from couchbase.auth import PasswordAuthenticator
 from couchbase.cluster import Cluster, ClusterOptions, ClusterTimeoutOptions
 from paramiko import SSHClient, AutoAddPolicy
+import time
 
 def get_vm_data(servers_list_file):
     vms_list = []
@@ -28,10 +29,10 @@ def get_vm_data(servers_list_file):
         ssh_ok = 0
         index = 0
         csvout = open("vm_health_info.csv", "w")
-        print("ipaddr,ssh_status,ssh_error,os,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
+        print("ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),os,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," + \
                 "total_processes")
-        csvout.write("ipaddr,ssh_status,ssh_error,os,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
+        csvout.write("ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),os,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," \
                 "total_processes")
         for ip in vms_list:
@@ -39,15 +40,15 @@ def get_vm_data(servers_list_file):
             ipaddr = ip.rstrip()
             os_name = os.environ.get('os','linux')
             try:
-                ssh_status, ssh_error, os_version, cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc = check_vm(os_name,ipaddr.rstrip())
+                ssh_status, ssh_error, ssh_resp_time, os_version, cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc = check_vm(os_name,ipaddr.rstrip())
                 if ssh_status == 'ssh_failed':
                     ssh_state=0
                     ssh_failed += 1
                 else:
                     ssh_state=1
                     ssh_ok += 1
-                print("{},{},{},{},{},{},{},{},{},{},{},{}".format(index, ipaddr, ssh_status, ssh_error, os_version, cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc))
-                csvout.write("\n{},{},{},{},{},{},{},{},{},{},{}".format(ipaddr, ssh_state, ssh_error, os_version, cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc))
+                print("{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, ipaddr, ssh_status, ssh_error, ssh_resp_time, os_version, cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc))
+                csvout.write("\n{},{},{},{},{},{},{},{},{},{},{},{}".format(ipaddr, ssh_state, ssh_error, ssh_resp_time, os_version, cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc))
                 csvout.flush()
             except Exception as ex:
                 print(ex)
@@ -62,6 +63,9 @@ def get_vm_data(servers_list_file):
 
 def check_vm(os_name, host):
     config = os.environ
+    ssh_resp_time = ''
+    start = 0
+    end = 0
     if '[' in host:
         host = host.replace('[','').replace(']','')
     if "windows" in os_name:
@@ -73,14 +77,17 @@ def check_vm(os_name, host):
     try:
         client = SSHClient()
         client.set_missing_host_key_policy(AutoAddPolicy())
-        print("{},{}".format(username, password))
+        ssh_connect_timeout = int(config.get("ssh_connect_timeout", 45))
+        start = time.time()
         client.connect(
             host,
             username=username,
             password=password,
-            timeout=30,
+            timeout=ssh_connect_timeout,
             look_for_keys=False
         )
+        end = time.time()
+        ssh_resp_time = "{:4.2f}".format(end-start)
         cpus = get_cpuinfo(client)
         meminfo = get_meminfo(client)
         diskinfo = get_diskinfo(client)
@@ -103,8 +110,11 @@ def check_vm(os_name, host):
         meminfo = ',,,'
         diskinfo = ',,,'
         cpu_load = ',,,'
-        return 'ssh_failed', str(e).replace(',',' '), '', '', meminfo, diskinfo,'','',cpu_load, ''
-    return 'ssh_ok', '', os_version, cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_total_processes
+        if end == 0:
+            end = time.time()
+            ssh_resp_time = "{:4.2f}".format(end-start)
+        return 'ssh_failed', ssh_resp_time, str(e).replace(',',' '), '', '', meminfo, diskinfo,'','',cpu_load, ''
+    return 'ssh_ok', '', ssh_resp_time, os_version, cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_total_processes
 
 def get_cpuinfo(ssh_client):
     return ssh_command(ssh_client,"cat /proc/cpuinfo  |egrep processor |wc -l")
