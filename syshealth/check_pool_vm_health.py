@@ -57,7 +57,7 @@ def get_pool_data(pools):
                     "oel8":"oracle linux server 8.1", "rhel":"red hat enterprise linux", "rhel8":"red hat enterprise linux 8.3 (ootpa)", \
                     "suse12":"suse linux enterprise server 12 sp2", "opensuse15":"opensuse leap 15.1","suse15":"suse linux enterprise server 15", \
                     "opensuse15hostname":"opensuse leap 15.1","suse15hostname":"suse linux enterprise server 15","ubuntu18":"ubuntu 18.04.4 lts", \
-                    "ubuntu20":"ubuntu 20.04 lts" }
+                    "ubuntu20":"ubuntu 20.04 lts", "windows2019":"windows" }
         for row in result:
             index += 1
             try:
@@ -122,8 +122,8 @@ def get_pool_data_parallel(pools):
                 timeout_options=ClusterTimeoutOptions(kv_timeout=timedelta(seconds=10))))
                 result = pool_cluster.query(query)
                 query_done = True
-            except Exception as cbe:
-                print("Got an error: {} and retrying after 5 secs...at {}, query_done={}, retry_count down {}".format(cbe.message, pool_cb_host, query_done, retry_count))
+            except:
+                print("Got an error: {} and retrying after 5 secs...at {}, query_done={}, retry_count down {}".format(sys.exc_info()[0], pool_cb_host, query_done, retry_count))
                 time.sleep(5)
                 retry_count -= 1
 
@@ -169,7 +169,7 @@ def get_pool_data_vm_parallel(row):
                     "oel8":"oracle linux server 8.1", "rhel":"red hat enterprise linux", "rhel8":"red hat enterprise linux 8.3 (ootpa)", \
                     "suse12":"suse linux enterprise server 12 sp2", "opensuse15":"opensuse leap 15.1","suse15":"suse linux enterprise server 15", \
                     "opensuse15hostname":"opensuse leap 15.1","suse15hostname":"suse linux enterprise server 15","ubuntu18":"ubuntu 18.04.4 lts", \
-                    "ubuntu20":"ubuntu 20.04 lts" }
+                    "ubuntu20":"ubuntu 20.04 lts", "windows2019":"windows" }
 
         ssh_status, ssh_error, real_os, cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc, cb_proc, cb_version, cb_serv, cb_ind_serv = check_vm(row['os'],row['ipaddr'])
         if ssh_status == 'ssh_failed':
@@ -211,7 +211,7 @@ def check_vm(os_name, host):
     config = os.environ
     if '[' in host:
         host = host.replace('[','').replace(']','')
-    if "windows" in os_name:
+    if "win" in os_name:
         username = 'Administrator' if not config.get("vm_windows_username") else config.get("vm_windows_username")
         password = config.get("vm_windows_password")
     else:
@@ -233,7 +233,10 @@ def check_vm(os_name, host):
         systime = get_system_time(client)
         cpu_load = get_cpu_users_load_avg(client)
         cpu_total_processes = get_total_processes(client)
-        real_os_version = get_os_version(client)
+        if 'win' in os_name:
+            real_os_version = get_os_win_version(client)
+        else:
+            real_os_version = get_os_version(client)
         cb_processes = get_cb_processes(client)
         cb_running_serv = get_cb_running_services(client)
         cb_version = get_cb_version(client)
@@ -310,6 +313,9 @@ def get_total_processes(ssh_client):
 
 def get_os_version(ssh_client):
     return ssh_command(ssh_client, "cat /etc/*release* |egrep PRETTY|cut -f2 -d'='|xargs")
+
+def get_os_win_version(ssh_client):
+    return ssh_command(ssh_client, "cat /etc/hosts |egrep Windows |rev|cut -f1 -d' '|rev|cut -f1 -d'.'")
 
 def get_cb_processes(ssh_client):
     return ssh_command(ssh_client, "ps -o comm `pgrep -f couchbase` |egrep -v COMMAND |wc -l")
