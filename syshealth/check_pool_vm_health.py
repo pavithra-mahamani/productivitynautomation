@@ -211,9 +211,9 @@ def check_vm(os_name, host):
     config = os.environ
     if '[' in host:
         host = host.replace('[','').replace(']','')
-    if os_name == "windows":
+    if "windows" in os_name:
         username = 'Administrator' if not config.get("vm_windows_username") else config.get("vm_windows_username")
-        password = config.get("vm.windows.password")
+        password = config.get("vm_windows_password")
     else:
         username = 'root' if not config.get("vm_linux_username") else config.get("vm_linux_username")
         password = config.get("vm_linux_password")

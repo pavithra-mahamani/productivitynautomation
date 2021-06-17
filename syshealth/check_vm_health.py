@@ -37,8 +37,9 @@ def get_vm_data(servers_list_file):
         for ip in vms_list:
             index += 1
             ipaddr = ip.rstrip()
+            os_name = os.environ.get('os','linux')
             try:
-                ssh_status, ssh_error, os_version, cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc = check_vm('linux',ipaddr.rstrip())
+                ssh_status, ssh_error, os_version, cpus, meminfo, diskinfo, uptime, systime, cpu_load, cpu_proc = check_vm(os_name,ipaddr.rstrip())
                 if ssh_status == 'ssh_failed':
                     ssh_state=0
                     ssh_failed += 1
@@ -63,20 +64,22 @@ def check_vm(os_name, host):
     config = os.environ
     if '[' in host:
         host = host.replace('[','').replace(']','')
-    if os_name == "windows":
+    if "windows" in os_name:
         username = 'Administrator' if not config.get("vm_windows_username") else config.get("vm_windows_username")
-        password = config.get("vm.windows.password")
+        password = config.get("vm_windows_password")
     else:
         username = 'root' if not config.get("vm_linux_username") else config.get("vm_linux_username")
         password = config.get("vm_linux_password")
     try:
         client = SSHClient()
         client.set_missing_host_key_policy(AutoAddPolicy())
+        print("{},{}".format(username, password))
         client.connect(
             host,
             username=username,
             password=password,
-            timeout=30
+            timeout=30,
+            look_for_keys=False
         )
         cpus = get_cpuinfo(client)
         meminfo = get_meminfo(client)
