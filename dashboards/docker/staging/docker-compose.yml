@@ -47,3 +47,4 @@ services:
       - 9093:9093
     volumes:
       - ./config/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - ./config/alert_templates:/etc/alertmanager/templates
