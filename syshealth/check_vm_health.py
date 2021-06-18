@@ -38,6 +38,21 @@ def get_vm_data(servers_list_file):
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," \
                 "total_processes"
         csvout.write(csv_head)
+        is_save_cb = bool(os.environ.get("is_save_cb"))
+        if is_save_cb:
+            cb_doc = CBDoc()
+            created_time = time.time()
+            created_timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            is_daily_save_only = os.environ.get("is_daily_save_only",'')
+            if is_daily_save_only:
+                created_date = datetime.datetime.now().strftime('%Y-%m-%d')
+                query = "SELECT ipaddr FROM `QE-staticserver-pool-health` WHERE created_timestamp like '" + created_date + "%' limit 1"
+                print(query)
+                saved_result = cb_doc.cb_cluster.query(query)
+                for row in saved_result:
+                    print("NOTE: Data is not saving again for Today into cb because is_daily_save_only set!")
+                    is_save_cb = False
+                    break     
         for ip in vms_list:
             index += 1
             ipaddr = ip.rstrip()
@@ -55,17 +70,15 @@ def get_vm_data(servers_list_file):
                 csv_row = "{},{},{},{},{},{},{},{},{},{},{},{},{}".format(ipaddr, ssh_state, ssh_error, ssh_resp_time, os_version, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc)
                 csvout.write("\n{}".format(csv_row))
                 csvout.flush()
-                is_save_cb = bool(os.environ.get("is_save_cb"))
                 if is_save_cb:
-                    cb_doc = CBDoc()
                     doc_val = {}
                     keys = csv_head.split(",")
                     values = csv_row.split(",")
                     for index in range(0, len(keys)):
                         doc_val[keys[index]] = values[index]
                     doc_val['type'] = 'jenkins_agent_vm'
-                    doc_val['created_time'] = time.time()
-                    doc_val['created_timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    doc_val['created_time'] = created_time
+                    doc_val['created_timestamp'] = created_timestamp
                     doc_key = "{}_{}".format(ipaddr, str(uuid.uuid4())) 
                     cb_doc.save_doc(doc_key, doc_val)
             except Exception as ex:
