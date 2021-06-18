@@ -57,8 +57,8 @@ def get_pool_data(pools):
         os_mappings={"centos":"centos linux 7 (core)", "centosnonroot":"centos linux 7 (core)", "debian10":"debian gnu/linux 10 (buster)", \
                     "oel8":"oracle linux server 8.1", "rhel":"red hat enterprise linux", "rhel8":"red hat enterprise linux 8.3 (ootpa)", \
                     "suse12":"suse linux enterprise server 12 sp2", "opensuse15":"opensuse leap 15.1","suse15":"suse linux enterprise server 15", \
-                    "opensuse15hostname":"opensuse leap 15.1","suse15hostname":"suse linux enterprise server 15","ubuntu18":"ubuntu 18.04.4 lts", \
-                    "ubuntu20":"ubuntu 20.04 lts", "windows2019":"windows" }
+                    "opensuse15hostname":"opensuse leap 15.1","suse15hostname":"suse linux enterprise server 15","ubuntu18":"ubuntu 18", \
+                    "ubuntu20":"ubuntu 20", "windows2019":"windows" }
         for row in result:
             index += 1
             try:
@@ -72,7 +72,7 @@ def get_pool_data(pools):
                 os_state = 0
                 if real_os:
                     pool_os = row['os'].lower()
-                    if pool_os in os_mappings.keys() and os_mappings[pool_os] == real_os.lower():
+                    if pool_os in os_mappings.keys() and os_mappings[pool_os] in real_os.lower():
                         os_state = 1
                     elif pool_os in os_mappings.keys() and pool_os.startswith('suse15'):
                         if os_mappings['open'+pool_os] == real_os.lower():
@@ -169,8 +169,8 @@ def get_pool_data_vm_parallel(row):
         os_mappings={"centos":"centos linux 7 (core)", "centosnonroot":"centos linux 7 (core)", "debian10":"debian gnu/linux 10 (buster)", \
                     "oel8":"oracle linux server 8.1", "rhel":"red hat enterprise linux", "rhel8":"red hat enterprise linux 8.3 (ootpa)", \
                     "suse12":"suse linux enterprise server 12 sp2", "opensuse15":"opensuse leap 15.1","suse15":"suse linux enterprise server 15", \
-                    "opensuse15hostname":"opensuse leap 15.1","suse15hostname":"suse linux enterprise server 15","ubuntu18":"ubuntu 18.04.4 lts", \
-                    "ubuntu20":"ubuntu 20.04 lts", "windows2019":"windows" }
+                    "opensuse15hostname":"opensuse leap 15.1","suse15hostname":"suse linux enterprise server 15","ubuntu18":"ubuntu 18", \
+                    "ubuntu20":"ubuntu 20", "windows2019":"windows" }
 
         ssh_status, ssh_error, ssh_resp_time, real_os, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, cb_proc, cb_version, cb_serv, cb_ind_serv = check_vm(row['os'],row['ipaddr'])
         if ssh_status == 'ssh_failed':
@@ -181,7 +181,7 @@ def get_pool_data_vm_parallel(row):
         os_state = 0
         if real_os:
             pool_os = row['os'].lower()
-            if pool_os in os_mappings.keys() and os_mappings[pool_os] == real_os.lower():
+            if pool_os in os_mappings.keys() and os_mappings[pool_os] in real_os.lower():
                 os_state = 1
             elif pool_os in os_mappings.keys() and pool_os.startswith('suse15'):
                 if os_mappings['open'+pool_os] == real_os.lower():
