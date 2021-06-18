@@ -38,12 +38,12 @@ def get_vm_data(servers_list_file):
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," \
                 "total_processes"
         csvout.write(csv_head)
-        is_save_cb = bool(os.environ.get("is_save_cb"))
+        is_save_cb = os.environ.get("is_save_cb", 'False').lower() in ('true', '1', 't')
         if is_save_cb:
             cb_doc = CBDoc()
             created_time = time.time()
             created_timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            is_daily_save_only = os.environ.get("is_daily_save_only",'')
+            is_daily_save_only = os.environ.get("is_daily_save_only", 'False').lower() in ('true', '1', 't')
             if is_daily_save_only:
                 created_date = datetime.datetime.now().strftime('%Y-%m-%d')
                 query = "SELECT ipaddr FROM `QE-staticserver-pool-health` WHERE created_timestamp like '" + created_date + "%' limit 1"
