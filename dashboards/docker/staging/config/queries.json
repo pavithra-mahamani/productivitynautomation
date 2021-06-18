@@ -431,6 +431,20 @@
       "description": "OS Match State",
       "column": "os_match_state",
       "labels": ["ipaddr", "real_os", "pool_os"]
+    },
+    {
+      "name": "vm_health_booted_days",
+      "csv": "vm_health",
+      "description": "Booted Days",
+      "column": "booted(days)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_ssh_resp_time",
+      "csv": "vm_health",
+      "description": "SSH Response Time",
+      "column": "ssh_resp_time(secs)",
+      "labels": ["ipaddr"]
     }
   ]
 }
