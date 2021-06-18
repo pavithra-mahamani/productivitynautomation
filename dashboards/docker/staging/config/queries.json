@@ -220,7 +220,7 @@
       "csv": "vm_health",
       "description": "SSH Status",
       "column": "ssh_status",
-      "labels": ["ipaddr", "ssh_error"]
+      "labels": ["ipaddr", "ssh_error", "pool_state", "couchbase_version"]
     },
     {
       "name": "vm_health_cpus",
