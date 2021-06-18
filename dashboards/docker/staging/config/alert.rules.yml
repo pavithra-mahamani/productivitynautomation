@@ -42,14 +42,14 @@ groups:
           description: "{{ $labels.ipaddr }} expected {{ $labels.pool_os }}, got {{ $labels.real_os }}"
         labels:
           severity: "critical"
-      - alert: PoolVMOverdueReboot
-        expr: vm_health_booted_days > 60
-        for: 1m
-        annotations:
-          title: "Pool VM {{ $labels.ipaddr }} overdue reboot"
-          description: "{{ $labels.ipaddr }} was last rebooted {{ $value }} days ago"
-        labels:
-          severity: "critical"
+      # - alert: PoolVMOverdueReboot
+      #   expr: vm_health_booted_days > 60
+      #   for: 1m
+      #   annotations:
+      #     title: "Pool VM {{ $labels.ipaddr }} overdue reboot"
+      #     description: "{{ $labels.ipaddr }} was last rebooted {{ $value }} days ago"
+      #   labels:
+      #     severity: "critical"
       - alert: PoolVMSlowSSHResponseTime
         expr: vm_health_ssh_resp_time > 10
         for: 1m
