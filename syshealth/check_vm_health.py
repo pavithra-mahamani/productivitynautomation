@@ -18,6 +18,7 @@ from couchbase.cluster import Cluster, ClusterOptions, ClusterTimeoutOptions
 from paramiko import SSHClient, AutoAddPolicy
 import time
 import datetime
+import uuid
 
 def get_vm_data(servers_list_file):
     vms_list = []
@@ -33,9 +34,10 @@ def get_vm_data(servers_list_file):
         print("ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),os,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," + \
                 "total_processes")
-        csvout.write("ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),os,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
+        csv_head = "ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),os,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," \
-                "total_processes")
+                "total_processes"
+        csvout.write(csv_head)
         for ip in vms_list:
             index += 1
             ipaddr = ip.rstrip()
@@ -48,9 +50,24 @@ def get_vm_data(servers_list_file):
                 else:
                     ssh_state=1
                     ssh_ok += 1
-                print("{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, ipaddr, ssh_status, ssh_error, ssh_resp_time, os_version, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc))
-                csvout.write("\n{},{},{},{},{},{},{},{},{},{},{},{},{}".format(ipaddr, ssh_state, ssh_error, ssh_resp_time, os_version, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc))
+                print_row = "{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, ipaddr, ssh_status, ssh_error, ssh_resp_time, os_version, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc)
+                print(print_row)
+                csv_row = "{},{},{},{},{},{},{},{},{},{},{},{},{}".format(ipaddr, ssh_state, ssh_error, ssh_resp_time, os_version, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc)
+                csvout.write("\n{}".format(csv_row))
                 csvout.flush()
+                is_save_cb = bool(os.environ.get("is_save_cb"))
+                if is_save_cb:
+                    cb_doc = CBDoc()
+                    doc_val = {}
+                    keys = csv_head.split(",")
+                    values = csv_row.split(",")
+                    for index in range(0, len(keys)):
+                        doc_val[keys[index]] = values[index]
+                    doc_val['type'] = 'jenkins_agent_vm'
+                    doc_val['created_time'] = time.time()
+                    doc_val['created_timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    doc_key = "{}_{}".format(ipaddr, str(uuid.uuid4())) 
+                    cb_doc.save_doc(doc_key, doc_val)
             except Exception as ex:
                 print(ex)
                 pass
@@ -162,6 +179,64 @@ def ssh_command(ssh_client, cmd):
 
     return ssh_output
 
+class CBDoc:
+    def __init__(self):
+        config = os.environ
+        self.cb_host = config.get("health_cb_host", "172.23.104.180")
+        self.cb_bucket = config.get("health_cb_bucket", "QE-staticserver-pool-health")
+        self.cb_username = config.get("health_cb_username", "Administrator")
+        self.cb_userpassword = config.get("health_cb_password")
+        if not self.cb_userpassword:
+            print("Setting of env variable: heal_cb_password= is needed!")
+            return
+        try:
+            self.cb_cluster = Cluster("couchbase://"+self.cb_host, ClusterOptions(PasswordAuthenticator(self.cb_username, self.cb_userpassword), \
+                                    timeout_options=ClusterTimeoutOptions(kv_timeout=timedelta(seconds=10))))
+            self.cb_b = self.cb_cluster.bucket(self.cb_bucket)
+            self.cb = self.cb_b.default_collection()
+            
+        except Exception as e:
+            print('Connection Failed: %s ' % self.cb_host)
+            print(e)
+
+    def get_doc(self, doc_key, retries=3):
+        while retries > 0:
+            try:
+                return self.cb.get(doc_key)
+            except Exception as e:
+                print('Error while getting doc %s !' % doc_key)
+                print(e)
+            time.sleep(5)
+            retries -= 1
+
+    def save_doc(self, doc_key, doc_value, retries=3):
+        while retries > 0:
+            try:
+                self.cb.upsert(doc_key, doc_value)
+                print("%s added/updated successfully" % doc_key)
+                break
+            except Exception as e:
+                print('Document with key: %s saving error' % doc_key)
+                print(e)
+            time.sleep(5)
+            retries -= 1
+
+    def remove_doc(self, ip, retries=3):
+        while retries > 0:
+            try:
+                static_doc_value = self.static_cb.get(ip).value
+                self.static_cb.remove(ip)
+                log.info("{} removed from static pools: {}".format(ip, ",".join(static_doc_value["poolId"])))
+                break
+            except NotFoundError:
+                break
+            except Exception as e:
+                print("Error removing {} from static pools".format(ip))
+                print(e)
+            time.sleep(5)
+            retries -= 1
+    
+            
 def main():
     if len(sys.argv) < 2:
         print("Usage: {} {}".format(sys.argv[0], "<vms_file> [xen_hosts_file] "))
