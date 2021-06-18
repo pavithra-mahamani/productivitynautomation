@@ -181,7 +181,7 @@ def get_pool_data_parallel(pools):
                 ipaddr = values[0]
                 for index in range(0, len(keys)):
                     doc_val[keys[index]] = values[index]
-                doc_val['type'] = 'jenkins_agent_vm'
+                doc_val['type'] = 'static_server_pool_vm'
                 doc_val['created_time'] = time.time()
                 doc_val['created_timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 doc_key = "{}_{}".format(ipaddr, str(uuid.uuid4())) 
