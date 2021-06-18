@@ -19,6 +19,7 @@ from paramiko import SSHClient, AutoAddPolicy
 import multiprocessing as mp
 import time
 import datetime
+import uuid
 
 
 def get_pool_data(pools):
@@ -48,12 +49,13 @@ def get_pool_data(pools):
         ssh_ok = 0
         index = 0
         csvout = open("pool_vm_health_info.csv", "w")
-        print("ipaddr,ssh_status,ssh_error,pool_os,real_os,os_match_state,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
+        print("ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),pool_os,real_os,os_match_state,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," + \
                 "total_processes,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status")
-        csvout.write("ipaddr,ssh_status,ssh_error,pool_os,real_os,os_match_state,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
+        csv_head = "ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),pool_os,real_os,os_match_state,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," \
-                "total_processes,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status")
+                "total_processes,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status"
+        csvout.write(csv_head)
         os_mappings={"centos":"centos linux 7 (core)", "centosnonroot":"centos linux 7 (core)", "debian10":"debian gnu/linux 10 (buster)", \
                     "oel8":"oracle linux server 8.1", "rhel":"red hat enterprise linux", "rhel8":"red hat enterprise linux 8.3 (ootpa)", \
                     "suse12":"suse linux enterprise server 12 sp2", "opensuse15":"opensuse leap 15.1","suse15":"suse linux enterprise server 15", \
@@ -62,7 +64,7 @@ def get_pool_data(pools):
         for row in result:
             index += 1
             try:
-                ssh_status, ssh_error, real_os, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, cb_proc, cb_version, cb_serv, cb_ind_serv = check_vm(row['os'],row['ipaddr'])
+                ssh_status, ssh_error, ssh_resp_time, real_os, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, cb_proc, cb_version, cb_serv, cb_ind_serv = check_vm(row['os'],row['ipaddr'])
                 if ssh_status == 'ssh_failed':
                     ssh_state=0
                     ssh_failed += 1
@@ -78,11 +80,26 @@ def get_pool_data(pools):
                         if os_mappings['open'+pool_os] == real_os.lower():
                             os_state = 1
                     
-                print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, row['ipaddr'], ssh_status, ssh_error, row['os'], real_os, \
+                print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, row['ipaddr'], ssh_status, ssh_error, ssh_resp_time, row['os'], real_os, \
                     os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, cb_proc, cb_version, cb_serv, cb_ind_serv))
-                csvout.write("\n{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, row['os'], real_os, \
-                    os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, cb_proc, cb_version, cb_serv, cb_ind_serv))
+                csv_row = "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, ssh_resp_time, row['os'], real_os, \
+                    os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, cb_proc, cb_version, cb_serv, cb_ind_serv)
+                csvout.write("\n{}".format(csv_row))
                 csvout.flush()
+                ipaddr = row['ipaddr']
+                is_save_cb = bool(os.environ.get("is_save_cb"))
+                if is_save_cb:
+                    cb_doc = CBDoc()
+                    doc_val = {}
+                    keys = csv_head.split(",")
+                    values = csv_row.split(",")
+                    for index in range(0, len(keys)):
+                        doc_val[keys[index]] = values[index]
+                    doc_val['type'] = 'static_server_pool_vm'
+                    doc_val['created_time'] = time.time()
+                    doc_val['created_timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    doc_key = "{}_{}".format(ipaddr, str(uuid.uuid4())) 
+                    cb_doc.save_doc(doc_key, doc_val)
             except Exception as ex:
                 print(ex)
                 pass
@@ -132,9 +149,10 @@ def get_pool_data_parallel(pools):
         print("ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),pool_os,real_os,os_match_state,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," + \
                 "total_processes,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status")
-        csvout.write("ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),pool_os,real_os,os_match_state,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
+        csv_head = "ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),pool_os,real_os,os_match_state,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," \
-                "total_processes,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status")
+                "total_processes,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status"
+        csvout.write(csv_head)
         
         mp_pool = mp.Pool(mp.cpu_count())
         data = mp_pool.map(get_pool_data_vm_parallel, [row for row in result])
@@ -153,8 +171,22 @@ def get_pool_data_parallel(pools):
             print("{},{}".format(count,r))
             csvout.write("\n{}".format(r))
             csvout.flush()
+            csv_row = r
+            is_save_cb = bool(os.environ.get("is_save_cb"))
+            if is_save_cb:
+                cb_doc = CBDoc()
+                doc_val = {}
+                keys = csv_head.split(",")
+                values = csv_row.split(",")
+                ipaddr = values[0]
+                for index in range(0, len(keys)):
+                    doc_val[keys[index]] = values[index]
+                doc_val['type'] = 'jenkins_agent_vm'
+                doc_val['created_time'] = time.time()
+                doc_val['created_timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                doc_key = "{}_{}".format(ipaddr, str(uuid.uuid4())) 
+                cb_doc.save_doc(doc_key, doc_val)
             
-
         booked_count = get_pool_state_count(pool_cluster, pools_list, 'booked')
         avail_count = get_pool_state_count(pool_cluster, pools_list, 'available')
         using_count = booked_count + avail_count
@@ -377,6 +409,63 @@ def ssh_command(ssh_client, cmd):
 
     return ssh_output
 
+class CBDoc:
+    def __init__(self):
+        config = os.environ
+        self.cb_host = config.get("health_cb_host", "172.23.104.180")
+        self.cb_bucket = config.get("health_cb_bucket", "QE-staticserver-pool-health")
+        self.cb_username = config.get("health_cb_username", "Administrator")
+        self.cb_userpassword = config.get("health_cb_password")
+        if not self.cb_userpassword:
+            print("Setting of env variable: heal_cb_password= is needed!")
+            return
+        try:
+            self.cb_cluster = Cluster("couchbase://"+self.cb_host, ClusterOptions(PasswordAuthenticator(self.cb_username, self.cb_userpassword), \
+                                    timeout_options=ClusterTimeoutOptions(kv_timeout=timedelta(seconds=10))))
+            self.cb_b = self.cb_cluster.bucket(self.cb_bucket)
+            self.cb = self.cb_b.default_collection()
+            
+        except Exception as e:
+            print('Connection Failed: %s ' % self.cb_host)
+            print(e)
+
+    def get_doc(self, doc_key, retries=3):
+        while retries > 0:
+            try:
+                return self.cb.get(doc_key)
+            except Exception as e:
+                print('Error while getting doc %s !' % doc_key)
+                print(e)
+            time.sleep(5)
+            retries -= 1
+
+    def save_doc(self, doc_key, doc_value, retries=3):
+        while retries > 0:
+            try:
+                self.cb.upsert(doc_key, doc_value)
+                print("%s added/updated successfully" % doc_key)
+                break
+            except Exception as e:
+                print('Document with key: %s saving error' % doc_key)
+                print(e)
+            time.sleep(5)
+            retries -= 1
+
+    def remove_doc(self, ip, retries=3):
+        while retries > 0:
+            try:
+                static_doc_value = self.static_cb.get(ip).value
+                self.static_cb.remove(ip)
+                log.info("{} removed from static pools: {}".format(ip, ",".join(static_doc_value["poolId"])))
+                break
+            except NotFoundError:
+                break
+            except Exception as e:
+                print("Error removing {} from static pools".format(ip))
+                print(e)
+            time.sleep(5)
+            retries -= 1
+    
 def main():
     if len(sys.argv) < 2:
         print("Usage: {} {}".format(sys.argv[0], "<pool> [xen_hosts_file] "))
