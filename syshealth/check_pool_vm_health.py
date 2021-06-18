@@ -69,7 +69,7 @@ def get_pool_data(pools):
             is_daily_save_only = os.environ.get("is_daily_save_only", 'False').lower() in ('true', '1', 't')
             if is_daily_save_only:
                 created_date = datetime.datetime.now().strftime('%Y-%m-%d')
-                query = "SELECT ipaddr FROM `QE-staticserver-pool-health` WHERE created_timestamp like '" + created_date + "%' limit 1"
+                query = "SELECT ipaddr FROM `" + cb_doc.cb_bucket + "` WHERE created_timestamp like '" + created_date + "%' limit 1"
                 print(query)
                 saved_result = cb_doc.cb_cluster.query(query)
                 for row in saved_result:
@@ -182,7 +182,7 @@ def get_pool_data_parallel(pools):
             is_daily_save_only = os.environ.get("is_daily_save_only", 'False').lower() in ('true', '1', 't')
             if is_daily_save_only:
                 created_date = datetime.datetime.now().strftime('%Y-%m-%d')
-                query = "SELECT ipaddr FROM `QE-staticserver-pool-health` WHERE created_timestamp like '" + created_date + "%' limit 1"
+                query = "SELECT ipaddr FROM `" + cb_doc.cb_bucket + "` WHERE created_timestamp like '" + created_date + "%' limit 1"
                 print(query)
                 saved_result = cb_doc.cb_cluster.query(query)
                 for row in saved_result:
