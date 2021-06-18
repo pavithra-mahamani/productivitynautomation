@@ -21,7 +21,7 @@ import time
 import datetime
 import uuid
 
-
+# Sequential mode - TBD: remove duplicate code with parallel
 def get_pool_data(pools):
     pools_list = []
     for pool in pools.split(','):
@@ -61,6 +61,21 @@ def get_pool_data(pools):
                     "suse12":"suse linux enterprise server 12 sp2", "opensuse15":"opensuse leap 15.1","suse15":"suse linux enterprise server 15", \
                     "opensuse15hostname":"opensuse leap 15.1","suse15hostname":"suse linux enterprise server 15","ubuntu18":"ubuntu 18", \
                     "ubuntu20":"ubuntu 20", "windows2019":"windows" }
+        is_save_cb = os.environ.get("is_save_cb", 'False').lower() in ('true', '1', 't')
+        if is_save_cb:
+            cb_doc = CBDoc()
+            created_time = time.time()
+            created_timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            is_daily_save_only = os.environ.get("is_daily_save_only", 'False').lower() in ('true', '1', 't')
+            if is_daily_save_only:
+                created_date = datetime.datetime.now().strftime('%Y-%m-%d')
+                query = "SELECT ipaddr FROM `QE-staticserver-pool-health` WHERE created_timestamp like '" + created_date + "%' limit 1"
+                print(query)
+                saved_result = cb_doc.cb_cluster.query(query)
+                for row in saved_result:
+                    print("NOTE: Data is not saving again for Today into cb because is_daily_save_only set!")
+                    is_save_cb = False
+                    break 
         for row in result:
             index += 1
             try:
@@ -87,17 +102,15 @@ def get_pool_data(pools):
                 csvout.write("\n{}".format(csv_row))
                 csvout.flush()
                 ipaddr = row['ipaddr']
-                is_save_cb = bool(os.environ.get("is_save_cb"))
                 if is_save_cb:
-                    cb_doc = CBDoc()
                     doc_val = {}
                     keys = csv_head.split(",")
                     values = csv_row.split(",")
                     for index in range(0, len(keys)):
                         doc_val[keys[index]] = values[index]
                     doc_val['type'] = 'static_server_pool_vm'
-                    doc_val['created_time'] = time.time()
-                    doc_val['created_timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    doc_val['created_time'] = created_time
+                    doc_val['created_timestamp'] = created_timestamp
                     doc_key = "{}_{}".format(ipaddr, str(uuid.uuid4())) 
                     cb_doc.save_doc(doc_key, doc_val)
             except Exception as ex:
@@ -113,7 +126,7 @@ def get_pool_data(pools):
         print(fex)
         #print("exception:", sys.exc_info()[0])
 
-
+# Parallel mode
 def get_pool_data_parallel(pools):
     pools_list = []
     for pool in pools.split(','):
@@ -161,6 +174,21 @@ def get_pool_data_parallel(pools):
         count = 0
         ssh_failed = 0
         ssh_ok = 0
+        is_save_cb = os.environ.get("is_save_cb", 'False').lower() in ('true', '1', 't')
+        if is_save_cb:
+            cb_doc = CBDoc()
+            created_time = time.time()
+            created_timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            is_daily_save_only = os.environ.get("is_daily_save_only", 'False').lower() in ('true', '1', 't')
+            if is_daily_save_only:
+                created_date = datetime.datetime.now().strftime('%Y-%m-%d')
+                query = "SELECT ipaddr FROM `QE-staticserver-pool-health` WHERE created_timestamp like '" + created_date + "%' limit 1"
+                print(query)
+                saved_result = cb_doc.cb_cluster.query(query)
+                for row in saved_result:
+                    print("NOTE: Data is not saving again for Today into cb because is_daily_save_only set!")
+                    is_save_cb = False
+                    break     
         for r in data:
             count += 1
             ssh_status=r.split(',')[1]
@@ -172,9 +200,7 @@ def get_pool_data_parallel(pools):
             csvout.write("\n{}".format(r))
             csvout.flush()
             csv_row = r
-            is_save_cb = bool(os.environ.get("is_save_cb"))
             if is_save_cb:
-                cb_doc = CBDoc()
                 doc_val = {}
                 keys = csv_head.split(",")
                 values = csv_row.split(",")
@@ -182,8 +208,8 @@ def get_pool_data_parallel(pools):
                 for index in range(0, len(keys)):
                     doc_val[keys[index]] = values[index]
                 doc_val['type'] = 'static_server_pool_vm'
-                doc_val['created_time'] = time.time()
-                doc_val['created_timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                doc_val['created_time'] = created_time
+                doc_val['created_timestamp'] = created_timestamp
                 doc_key = "{}_{}".format(ipaddr, str(uuid.uuid4())) 
                 cb_doc.save_doc(doc_key, doc_val)
             
@@ -476,7 +502,7 @@ def main():
     if len(sys.argv) > 2:
         xen_hosts_file = sys.argv[2]
     
-    is_seq_run = os.environ.get('is_seq_run')
+    is_seq_run = os.environ.get('is_seq_run', 'False').lower() in ('true', '1', 't')
     if is_seq_run:
         get_pool_data(pools)
     else:
