@@ -27,19 +27,20 @@ def get_pool_data(pools):
     for pool in pools.split(','):
         pools_list.append(pool)
     
-    query = "SELECT ipaddr, os, state, origin, poolId, username FROM `QE-server-pool` WHERE poolId in [" \
-                + ', '.join('"{0}"'.format(p) for p in pools_list) + "] or " \
-                + ' or '.join('"{0}" in poolId'.format(p) for p in pools_list)
-    is_debug = os.environ.get('is_debug')
-    if is_debug:
-        print("Query:{};".format(query))
     pool_cb_host = os.environ.get('pool_cb_host', "172.23.104.162")
+    pool_cb_bucket = os.environ.get('pool_cb_bucket', "QE-server-pool")
     pool_cb_user = os.environ.get('pool_cb_user', "Administrator")
     pool_cb_user_p = os.environ.get('pool_cb_password')
     if not pool_cb_user_p:
         print("Error: pool_cb_password environment variable setting is missing!")
         exit(1)
     data = ''
+    query = "SELECT ipaddr, os, state, origin, poolId, username FROM `" + pool_cb_bucket + "` WHERE poolId in [" \
+                + ', '.join('"{0}"'.format(p) for p in pools_list) + "] or " \
+                + ' or '.join('"{0}" in poolId'.format(p) for p in pools_list)
+    is_debug = os.environ.get('is_debug')
+    if is_debug:
+        print("Query:{};".format(query))
     try:
         pool_cluster = Cluster("couchbase://"+pool_cb_host, ClusterOptions(PasswordAuthenticator(pool_cb_user, pool_cb_user_p),
         timeout_options=ClusterTimeoutOptions(kv_timeout=timedelta(seconds=10))))
@@ -132,18 +133,19 @@ def get_pool_data_parallel(pools):
     for pool in pools.split(','):
         pools_list.append(pool)
     
-    query = "SELECT ipaddr, os, state, origin, poolId, username FROM `QE-server-pool` WHERE poolId in [" \
-                + ', '.join('"{0}"'.format(p) for p in pools_list) + "] or " \
-                + ' or '.join('"{0}" in poolId'.format(p) for p in pools_list)
-    is_debug = os.environ.get('is_debug')
-    if is_debug:
-        print("Query:{};".format(query))
     pool_cb_host = os.environ.get('pool_cb_host', "172.23.104.162")
+    pool_cb_bucket = os.environ.get('pool_cb_bucket', "QE-server-pool")
     pool_cb_user = os.environ.get('pool_cb_user', "Administrator")
     pool_cb_user_p = os.environ.get('pool_cb_password')
     if not pool_cb_user_p:
         print("Error: pool_cb_password environment variable setting is missing!")
         exit(1)
+    query = "SELECT ipaddr, os, state, origin, poolId, username FROM `" + pool_cb_bucket + "` WHERE poolId in [" \
+                + ', '.join('"{0}"'.format(p) for p in pools_list) + "] or " \
+                + ' or '.join('"{0}" in poolId'.format(p) for p in pools_list)
+    is_debug = os.environ.get('is_debug')
+    if is_debug:
+        print("Query:{};".format(query))
     try:
         retry_count = int(os.environ.get('retry_count', 3))
         query_done = False
@@ -253,7 +255,8 @@ def get_pool_data_vm_parallel(row):
         pass
 
 def get_pool_state_count(pool_cluster, pools_list, pool_state):
-    query = "SELECT count(*) as count FROM `QE-server-pool` WHERE state='" + pool_state + "' and (poolId in [" \
+    pool_cb_bucket = os.environ.get('pool_cb_bucket', "QE-server-pool")
+    query = "SELECT count(*) as count FROM `" + pool_cb_bucket + "` WHERE state='" + pool_state + "' and (poolId in [" \
                 + ', '.join('"{0}"'.format(p) for p in pools_list) + "] or " \
                 + ' or '.join('"{0}" in poolId'.format(p) for p in pools_list) \
                 + ')'
