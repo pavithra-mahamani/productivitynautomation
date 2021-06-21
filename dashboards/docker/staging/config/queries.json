@@ -445,6 +445,55 @@
       "description": "SSH Response Time",
       "column": "ssh_resp_time(secs)",
       "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_cb_data_kv_status",
+      "csv": "vm_health",
+      "description": "KV Service Active",
+      "column": "cb_data_kv_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_cb_index_status",
+      "csv": "vm_health",
+      "description": "Index Service Active",
+      "column": "cb_index_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_cb_query_status",
+      "csv": "vm_health",
+      "description": "Query Service Active",
+      "column": "cb_query_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_cb_search_status",
+      "csv": "vm_health",
+      "description": "Search Service Active",
+      "column": "cb_search_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_cb_analytics_status",
+      "csv": "vm_health",
+      "description": "Analytics Service Active",
+      "column": "cb_analytics_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_cb_eventing_status",
+      "csv": "vm_health",
+      "description": "Eventing Service Active",
+      "column": "cb_eventing_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_cb_xdcr_status",
+      "csv": "vm_health",
+      "description": "XDCR Service Active",
+      "column": "cb_xdcr_status",
+      "labels": ["ipaddr"]
     }
   ]
 }
