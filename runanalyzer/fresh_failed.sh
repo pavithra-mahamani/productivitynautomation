@@ -10,6 +10,12 @@ CB_BUILD_LIST="$1"
 if [ "${CB_BUILD_LIST}" == "" ]; then
   echo "Get the list of fresh aborted and failed run details..."
   echo "Usage: $0 CB_BUILD_LIST"
+  echo "Set the env variables for greenboard quey cluster cb_password= and pool_cb_password= and optionally have is_include_unstable="
+  exit 1
+fi
+
+if [ -z ${cb_password} ] || [ -z ${pool_cb_password} ]; then
+  echo "Error: Set the env variables for greenboard quey cluster cb_password= and pool_cb_password="
   exit 1
 fi
 
