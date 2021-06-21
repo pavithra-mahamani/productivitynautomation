@@ -33,10 +33,10 @@ def get_vm_data(servers_list_file):
         csvout = open("vm_health_info.csv", "w")
         print("ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),os,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," + \
-                "total_processes")
+                "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit")
         csv_head = "ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),os,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," \
-                "total_processes"
+                "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit"
         csvout.write(csv_head)
         is_save_cb = os.environ.get("is_save_cb", 'False').lower() in ('true', '1', 't')
         if is_save_cb:
@@ -58,16 +58,18 @@ def get_vm_data(servers_list_file):
             ipaddr = ip.rstrip()
             os_name = os.environ.get('os','linux')
             try:
-                ssh_status, ssh_error, ssh_resp_time, os_version, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc = check_vm(os_name,ipaddr.rstrip())
+                ssh_status, ssh_error, ssh_resp_time, os_version, cpus, meminfo, diskinfo, uptime, uptime_days, systime,  \
+                        cpu_load, cpu_proc, fd_info = \
+                        check_vm(os_name,ipaddr.rstrip())
                 if ssh_status == 'ssh_failed':
                     ssh_state=0
                     ssh_failed += 1
                 else:
                     ssh_state=1
                     ssh_ok += 1
-                print_row = "{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, ipaddr, ssh_status, ssh_error, ssh_resp_time, os_version, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc)
+                print_row = "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, ipaddr, ssh_status, ssh_error, ssh_resp_time, os_version, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, fd_info)
                 print(print_row)
-                csv_row = "{},{},{},{},{},{},{},{},{},{},{},{},{}".format(ipaddr, ssh_state, ssh_error, ssh_resp_time, os_version, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc)
+                csv_row = "{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(ipaddr, ssh_state, ssh_error, ssh_resp_time, os_version, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, fd_info)
                 csvout.write("\n{}".format(csv_row))
                 csvout.flush()
                 if is_save_cb:
@@ -131,6 +133,7 @@ def check_vm(os_name, host):
         cpu_load = get_cpu_users_load_avg(client)
         cpu_total_processes = get_total_processes(client)
         os_version = get_os_version(client)
+        fdinfo = get_file_descriptors(client)
 
         while len(meminfo.split(','))<3:
             meminfo += ','
@@ -140,16 +143,19 @@ def check_vm(os_name, host):
             meminfo += ","+ str(round(((int(mem_total)-int(mem_avail))/int(mem_total))*100))
         while len(cpu_load.split(','))<4:
             cpu_load += ','
+        while len(fdinfo.split(','))<3:
+            fdinfo += ','
         client.close()
     except Exception as e:
         meminfo = ',,,'
         diskinfo = ',,,'
         cpu_load = ',,,'
+        fdinfo = ',,,'
         if end == 0:
             end = time.time()
             ssh_resp_time = "{:4.2f}".format(end-start)
-        return 'ssh_failed', ssh_resp_time, str(e).replace(',',' '), '', '', '', meminfo, diskinfo,'','',cpu_load, ''
-    return 'ssh_ok', '', ssh_resp_time, os_version, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_total_processes
+        return 'ssh_failed', ssh_resp_time, str(e).replace(',',' '), '', '', '', meminfo, diskinfo,'','',cpu_load, '', fdinfo
+    return 'ssh_ok', '', ssh_resp_time, os_version, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_total_processes, fdinfo
 
 def get_cpuinfo(ssh_client):
     return ssh_command(ssh_client,"cat /proc/cpuinfo  |egrep processor |wc -l")
@@ -174,6 +180,10 @@ def get_total_processes(ssh_client):
 
 def get_os_version(ssh_client):
     return ssh_command(ssh_client, "cat /etc/*release* |egrep PRETTY|cut -f2 -d'='|xargs")
+
+def get_file_descriptors(ssh_client):
+    return ssh_command(ssh_client, "echo $(cat /proc/sys/fs/file-nr;ulimit -n)|sed 's/ /,/g'")
+
 
 def ssh_command(ssh_client, cmd):
     ssh_output = ''
