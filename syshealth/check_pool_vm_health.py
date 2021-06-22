@@ -287,7 +287,7 @@ def check_vm(os_name, host):
     try:
         client = SSHClient()
         client.set_missing_host_key_policy(AutoAddPolicy())
-        ssh_connect_timeout = int(config.get("ssh_connect_timeout", 45))
+        ssh_connect_timeout = int(config.get("ssh_connect_timeout", 30))
         start = time.time()
         client.connect(
             host,
@@ -332,7 +332,7 @@ def check_vm(os_name, host):
         
         while len(diskinfo.split(','))<4:
             diskinfo += ','
-        while len(fdinfo.split(','))<3:
+        while len(fdinfo.split(','))<4:
             fdinfo += ','
         while len(cpu_load.split(','))<4:
             cpu_load += ','
@@ -433,7 +433,7 @@ def ssh_command(ssh_client, cmd):
     ssh_output = ''
     ssh_error = ''
     try:
-        ssh_stdin, ssh_stdout, ssh_stderr = ssh_client.exec_command(cmd)
+        ssh_stdin, ssh_stdout, ssh_stderr = ssh_client.exec_command(cmd, timeout=10)
         
         for line in iter(ssh_stdout.readline, ""):
             ssh_output += line
