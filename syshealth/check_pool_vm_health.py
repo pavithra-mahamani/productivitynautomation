@@ -364,7 +364,7 @@ def check_vm(os_name, host):
         meminfo = ',,,'
         diskinfo = ',,,'
         cpu_load = ',,,'
-        fd_info = ',,,'
+        fdinfo = ',,,'
         cb_ind_serv = ',,,,,,'
         if end == 0:
             end = time.time()
