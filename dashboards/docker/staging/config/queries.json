@@ -494,6 +494,20 @@
       "description": "XDCR Service Active",
       "column": "cb_xdcr_status",
       "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_proc_fd_ulimit",
+      "csv": "vm_health",
+      "description": "Proc fd ulimit",
+      "column": "proc_fd_ulimit",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "slaves_vm_health_proc_fd_ulimit",
+      "csv": "slaves_vm_health",
+      "description": "Proc fd ulimit",
+      "column": "proc_fd_ulimit",
+      "labels": ["ipaddr"]
     }
   ]
 }
