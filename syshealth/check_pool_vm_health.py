@@ -81,20 +81,21 @@ def get_pool_data(pools):
             index += 1
             try:
                 ssh_status, ssh_error, ssh_resp_time, real_os, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, fdinfo, cb_proc, cb_version, cb_serv, cb_ind_serv = check_vm(row['os'],row['ipaddr'])
-                if ssh_status == 'ssh_failed':
-                    ssh_state=0
-                    ssh_failed += 1
-                else:
-                    ssh_state=1
-                    ssh_ok += 1
                 os_state = 0
-                if real_os:
-                    pool_os = row['os'].lower()
-                    if pool_os in os_mappings.keys() and os_mappings[pool_os] in real_os.lower():
-                        os_state = 1
-                    elif pool_os in os_mappings.keys() and pool_os.startswith('suse15'):
-                        if os_mappings['open'+pool_os] == real_os.lower():
+                if ssh_status == 'ssh_failed':
+                    ssh_state = 0
+                    ssh_failed += 1
+                    os_state = 1 #Marking os_match to ok for ssh_failed to avoid more notifications
+                else:
+                    ssh_state = 1
+                    ssh_ok += 1
+                    if real_os:
+                        pool_os = row['os'].lower()
+                        if pool_os in os_mappings.keys() and os_mappings[pool_os] in real_os.lower():
                             os_state = 1
+                        elif pool_os in os_mappings.keys() and pool_os.startswith('suse15'):
+                            if os_mappings['open'+pool_os] == real_os.lower():
+                                os_state = 1
                     
                 print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, row['ipaddr'], ssh_status, ssh_error, ssh_resp_time, row['os'], real_os, \
                     os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, fdinfo, cb_proc, cb_version, cb_serv, cb_ind_serv))
@@ -235,19 +236,19 @@ def get_pool_data_vm_parallel(row):
                     "ubuntu20":"ubuntu 20", "windows2019":"windows" }
 
         ssh_status, ssh_error, ssh_resp_time, real_os, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, fdinfo, cb_proc, cb_version, cb_serv, cb_ind_serv = check_vm(row['os'],row['ipaddr'])
+        os_state = 0
         if ssh_status == 'ssh_failed':
             ssh_state=0
+            os_state = 1 #Marking os_match to ok for ssh_failed to avoid more notifications
         else:
             ssh_state=1
-        
-        os_state = 0
-        if real_os:
-            pool_os = row['os'].lower()
-            if pool_os in os_mappings.keys() and os_mappings[pool_os] in real_os.lower():
-                os_state = 1
-            elif pool_os in os_mappings.keys() and pool_os.startswith('suse15'):
-                if os_mappings['open'+pool_os] == real_os.lower():
+            if real_os:
+                pool_os = row['os'].lower()
+                if pool_os in os_mappings.keys() and os_mappings[pool_os] in real_os.lower():
                     os_state = 1
+                elif pool_os in os_mappings.keys() and pool_os.startswith('suse15'):
+                    if os_mappings['open'+pool_os] == real_os.lower():
+                        os_state = 1
             
         return "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, ssh_resp_time, row['os'], real_os, \
             os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, fdinfo, cb_proc, cb_version, cb_serv, cb_ind_serv)
