@@ -52,10 +52,10 @@ def get_pool_data(pools):
         csvout = open("pool_vm_health_info.csv", "w")
         print("ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),pool_os,real_os,os_match_state,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," + \
-                "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status")
+                "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit,iptables_rules_count,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status")
         csv_head = "ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),pool_os,real_os,os_match_state,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," \
-                "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status"
+                "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit,iptables_rules_count,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status"
         csvout.write(csv_head)
         os_mappings={"centos":"centos linux 7 (core)", "centosnonroot":"centos linux 7 (core)", "debian10":"debian gnu/linux 10 (buster)", \
                     "oel8":"oracle linux server 8.1", "rhel":"red hat enterprise linux", "rhel8":"red hat enterprise linux 8.3 (ootpa)", \
@@ -80,7 +80,7 @@ def get_pool_data(pools):
         for row in result:
             index += 1
             try:
-                ssh_status, ssh_error, ssh_resp_time, real_os, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, fdinfo, cb_proc, cb_version, cb_serv, cb_ind_serv = check_vm(row['os'],row['ipaddr'])
+                ssh_status, ssh_error, ssh_resp_time, real_os, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, fdinfo, iptables_rules_count, cb_proc, cb_version, cb_serv, cb_ind_serv = check_vm(row['os'],row['ipaddr'])
                 os_state = 0
                 if ssh_status == 'ssh_failed':
                     ssh_state = 0
@@ -97,10 +97,10 @@ def get_pool_data(pools):
                             if os_mappings['open'+pool_os] == real_os.lower():
                                 os_state = 1
                     
-                print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, row['ipaddr'], ssh_status, ssh_error, ssh_resp_time, row['os'], real_os, \
-                    os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, fdinfo, cb_proc, cb_version, cb_serv, cb_ind_serv))
-                csv_row = "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, ssh_resp_time, row['os'], real_os, \
-                    os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, fdinfo, cb_proc, cb_version, cb_serv, cb_ind_serv)
+                print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, row['ipaddr'], ssh_status, ssh_error, ssh_resp_time, row['os'], real_os, \
+                    os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, fdinfo, iptables_rules_count, cb_proc, cb_version, cb_serv, cb_ind_serv))
+                csv_row = "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, ssh_resp_time, row['os'], real_os, \
+                    os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, fdinfo, iptables_rules_count, cb_proc, cb_version, cb_serv, cb_ind_serv)
                 csvout.write("\n{}".format(csv_row))
                 csvout.flush()
                 ipaddr = row['ipaddr']
@@ -164,11 +164,11 @@ def get_pool_data_parallel(pools):
         csvout = open("pool_vm_health_info.csv", "w")
         print("ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),pool_os,real_os,os_match_state,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," + \
-                "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status," + \
+                "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit,iptables_rules_count,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status," + \
                 "cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status")
         csv_head = "ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),pool_os,real_os,os_match_state,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," + \
-                "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status," + \
+                "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit,iptables_rules_count,couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status," + \
                 "cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status"
         csvout.write(csv_head)
         
@@ -235,7 +235,7 @@ def get_pool_data_vm_parallel(row):
                     "opensuse15hostname":"opensuse leap 15.1","suse15hostname":"suse linux enterprise server 15","ubuntu18":"ubuntu 18", \
                     "ubuntu20":"ubuntu 20", "windows2019":"windows" }
 
-        ssh_status, ssh_error, ssh_resp_time, real_os, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, fdinfo, cb_proc, cb_version, cb_serv, cb_ind_serv = check_vm(row['os'],row['ipaddr'])
+        ssh_status, ssh_error, ssh_resp_time, real_os, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, fdinfo, iptables_rules_count, cb_proc, cb_version, cb_serv, cb_ind_serv = check_vm(row['os'],row['ipaddr'])
         os_state = 0
         if ssh_status == 'ssh_failed':
             ssh_state=0
@@ -250,8 +250,8 @@ def get_pool_data_vm_parallel(row):
                     if os_mappings['open'+pool_os] == real_os.lower():
                         os_state = 1
             
-        return "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, ssh_resp_time, row['os'], real_os, \
-            os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, fdinfo, cb_proc, cb_version, cb_serv, cb_ind_serv)
+        return "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, ssh_resp_time, row['os'], real_os, \
+            os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, fdinfo, iptables_rules_count, cb_proc, cb_version, cb_serv, cb_ind_serv)
         
     except Exception as ex:
         print(ex)
@@ -315,6 +315,7 @@ def check_vm(os_name, host):
         else:
             real_os_version = get_os_version(client)
         fdinfo = get_file_descriptors(client)
+        iptables_rules_count = get_iptables_rules_count(client)
         cb_processes = get_cb_processes(client)
         cb_running_serv = get_cb_running_services(client)
         cb_version = get_cb_version(client)
@@ -370,8 +371,8 @@ def check_vm(os_name, host):
         if end == 0:
             end = time.time()
             ssh_resp_time = "{:4.2f}".format(end-start)
-        return 'ssh_failed', str(e).replace(',',' '), ssh_resp_time, '', '', '', meminfo, diskinfo,'','',cpu_load, '', '', fdinfo, '','', cb_ind_serv
-    return 'ssh_ok', '', ssh_resp_time, real_os_version, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_total_processes, fdinfo, cb_processes, cb_version, cb_running_serv, cb_ind_serv
+        return 'ssh_failed', str(e).replace(',',' '), ssh_resp_time, '', '', '', meminfo, diskinfo,'','',cpu_load, '', '', fdinfo, '','','', cb_ind_serv
+    return 'ssh_ok', '', ssh_resp_time, real_os_version, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_total_processes, fdinfo, iptables_rules_count, cb_processes, cb_version, cb_running_serv, cb_ind_serv
 
 def get_cpuinfo(ssh_client):
     return ssh_command(ssh_client,"cat /proc/cpuinfo  |egrep processor |wc -l")
@@ -402,6 +403,9 @@ def get_os_win_version(ssh_client):
 
 def get_file_descriptors(ssh_client):
     return ssh_command(ssh_client, "echo $(cat /proc/sys/fs/file-nr;ulimit -n)|sed 's/ /,/g'")
+
+def get_iptables_rules_count(ssh_client):
+    return ssh_command(ssh_client, "iptables --list --line-numbers | sed '/^num\|^$\|^Chain/d' |wc -l |xargs")
 
 def get_cb_processes(ssh_client):
     return ssh_command(ssh_client, "ps -o comm `pgrep -f couchbase` |egrep -v COMMAND |wc -l")
