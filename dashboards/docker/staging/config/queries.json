@@ -508,6 +508,13 @@
       "description": "Proc fd ulimit",
       "column": "proc_fd_ulimit",
       "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_iptables_rules_count",
+      "csv": "vm_health",
+      "description": "iptables rules count",
+      "column": "iptables_rules_count",
+      "labels": ["ipaddr"]
     }
   ]
 }
