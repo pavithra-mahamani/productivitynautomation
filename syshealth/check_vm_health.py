@@ -204,7 +204,7 @@ def get_swap_space(ssh_client):
         swap_parts = swap_total_free_use.split(',')
         swap_use_perc = '0'
         if int(swap_parts[0]) != 0:
-            swap_use_perc = "{}".format(str(round(int(swap_parts[2])*100/int(swap_parts[0]))))
+            swap_use_perc = "{}".format(str(round(int(swap_parts[1])*100/int(swap_parts[0]))))
         return swap_total_free_use + "," + swap_use_perc
 
 def ssh_command(ssh_client, cmd):
