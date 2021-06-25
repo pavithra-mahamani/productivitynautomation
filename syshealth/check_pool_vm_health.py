@@ -90,13 +90,15 @@ def get_pool_data(pools):
                 else:
                     ssh_state = 1
                     ssh_ok += 1
-                    if real_os:
+                    if real_os not in (None, '') or real_os.strip():
                         pool_os = row['os'].lower()
                         if pool_os in os_mappings.keys() and os_mappings[pool_os] in real_os.lower():
                             os_state = 1
                         elif pool_os in os_mappings.keys() and pool_os.startswith('suse15'):
                             if os_mappings['open'+pool_os] == real_os.lower():
                                 os_state = 1
+                    else:
+                        os_state = 1 # To avoid in case no data like on sometimes with windows
                     
                 print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, row['ipaddr'], ssh_status, ssh_error, ssh_resp_time, row['os'], real_os, \
                     os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, \
@@ -246,13 +248,15 @@ def get_pool_data_vm_parallel(row):
             os_state = 1 #Marking os_match to ok for ssh_failed to avoid more notifications
         else:
             ssh_state=1
-            if real_os:
+            if real_os not in (None, '') or real_os.strip():
                 pool_os = row['os'].lower()
                 if pool_os in os_mappings.keys() and os_mappings[pool_os] in real_os.lower():
                     os_state = 1
                 elif pool_os in os_mappings.keys() and pool_os.startswith('suse15'):
                     if os_mappings['open'+pool_os] == real_os.lower():
                         os_state = 1
+            else:
+                os_state = 1 # To avoid the mismatch in case no data like on sometimes with windows
             
         return "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, ssh_resp_time, row['os'], real_os, \
             os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, \
