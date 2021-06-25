@@ -515,6 +515,13 @@
       "description": "iptables rules count",
       "column": "iptables_rules_count",
       "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_swap_use",
+      "csv": "vm_health",
+      "description": "Swap Use",
+      "column": "swap_use(%)",
+      "labels": ["ipaddr"]
     }
   ]
 }
