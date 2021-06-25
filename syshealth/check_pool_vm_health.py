@@ -294,6 +294,7 @@ def check_vm(os_name, host):
         client = SSHClient()
         client.set_missing_host_key_policy(AutoAddPolicy())
         ssh_connect_timeout = int(config.get("ssh_connect_timeout", 30))
+        ssh_status='ssh_failed'
         start = time.time()
         client.connect(
             host,
@@ -304,6 +305,7 @@ def check_vm(os_name, host):
         )
         end = time.time()
         ssh_resp_time = "{:4.2f}".format(end-start)
+        ssh_status='ssh_ok'
         cpus = get_cpuinfo(client)
         meminfo = get_meminfo(client)
         diskinfo = get_diskinfo(client)
@@ -372,6 +374,7 @@ def check_vm(os_name, host):
     
         client.close()
     except Exception as e:
+        ssh_error = ''
         meminfo = ',,,'
         diskinfo = ',,,'
         cpu_load = ',,,'
@@ -381,8 +384,10 @@ def check_vm(os_name, host):
         if end == 0:
             end = time.time()
             ssh_resp_time = "{:4.2f}".format(end-start)
-        return 'ssh_failed', str(e).replace(',',' '), ssh_resp_time, '', '', '', meminfo, diskinfo,'','',cpu_load, '', '', fdinfo, '', swapinfo, '', '', '', cb_ind_serv
-    return 'ssh_ok', '', ssh_resp_time, real_os_version, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_total_processes, fdinfo, \
+        if ssh_status == 'ssh_failed' and e:
+            ssh_error = str(e).replace(',',' ')
+        return ssh_status, ssh_error, ssh_resp_time, '', '', '', meminfo, diskinfo,'','',cpu_load, '', '', fdinfo, '', swapinfo, '', '', '', cb_ind_serv
+    return ssh_status, '', ssh_resp_time, real_os_version, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_total_processes, fdinfo, \
         iptables_rules_count, mac_address, swapinfo, cb_processes, cb_version, cb_running_serv, cb_ind_serv
 
 def get_cpuinfo(ssh_client):
@@ -424,11 +429,15 @@ def get_mac_address(ssh_client):
 def get_swap_space(ssh_client):
     swap_total_free_use = ssh_command(ssh_client, "free |egrep Swap |cut -f2 -d':'|xargs|sed 's/ /,/g'")
     if swap_total_free_use:
-        swap_parts = swap_total_free_use.split(',')
-        swap_use_perc = '0'
-        if int(swap_parts[0]) != 0:
-            swap_use_perc = "{}".format(str(round(int(swap_parts[1])*100/int(swap_parts[0]))))
-        return swap_total_free_use + "," + swap_use_perc
+        try:
+            swap_parts = swap_total_free_use.split(',')
+            swap_use_perc = '0'
+            if int(swap_parts[0]) != 0:
+                swap_use_perc = "{}".format(str(round(int(swap_parts[1])*100/int(swap_parts[0]))))
+                swap_total_free_use += "," + swap_use_perc
+        except:
+            swap_total_free_use = ',,,'
+        return swap_total_free_use
 
 def get_cb_processes(ssh_client):
     return ssh_command(ssh_client, "ps -o comm `pgrep -f couchbase` |egrep -v COMMAND |wc -l")
