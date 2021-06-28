@@ -517,10 +517,10 @@
       "labels": ["ipaddr"]
     },
     {
-      "name": "vm_health_swap_use",
+      "name": "vm_health_swap_total",
       "csv": "vm_health",
-      "description": "Swap Use",
-      "column": "swap_use(%)",
+      "description": "Swap Total",
+      "column": "swap_total(kB)",
       "labels": ["ipaddr"]
     }
   ]
