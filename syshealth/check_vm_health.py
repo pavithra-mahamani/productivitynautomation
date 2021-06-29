@@ -74,6 +74,22 @@ def get_vm_data(servers_list_file):
                         meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, fd_info, iptables_rules_count, mac_address, swapinfo)
                 csvout.write("\n{}".format(csv_row))
                 csvout.flush()
+                # replace memory and add macaddress
+                is_replace_pool = os.environ.get("is_replace_pool", 'False').lower() in ('true', '1', 't')
+                if is_replace_pool:
+                    pool_cb_host = os.environ.get('pool_cb_host', "172.23.96.189")
+                    pool_cb_bucket = os.environ.get('pool_cb_bucket', "QE-server-pool")
+                    pool_cb_user = os.environ.get('pool_cb_user', "Administrator")
+                    pool_cb_user_p = os.environ.get('pool_cb_password')
+                    if not pool_cb_user_p:
+                        print("Error: pool_cb_password environment variable setting is missing!")
+                        exit(1)
+                    rcb_doc = CBDoc(pool_cb_host, pool_cb_bucket, pool_cb_user, pool_cb_user_p)
+                    new_doc = {}
+                    new_doc['memory'] = meminfo.split(',')[0]
+                    new_doc['mac_address'] = mac_address
+                    print("--Replacing pool with {}".format(str(new_doc)))
+                    rcb_doc.replace_doc(ipaddr,new_doc)
                 if is_save_cb:
                     doc_val = {}
                     keys = csv_head.split(",")
@@ -225,16 +241,23 @@ def ssh_command(ssh_client, cmd):
     return ssh_output
 
 class CBDoc:
-    def __init__(self):
+    def __init__(self, host=None, bucket=None, username=None, password=None):
         config = os.environ
-        self.cb_host = config.get("health_cb_host", "172.23.104.180")
-        self.cb_bucket = config.get("health_cb_bucket", "QE-staticserver-pool-health")
-        self.cb_username = config.get("health_cb_username", "Administrator")
-        self.cb_userpassword = config.get("health_cb_password")
+        if not host or not bucket or not username or not password: 
+            self.cb_host = config.get("health_cb_host", "172.23.104.180")
+            self.cb_bucket = config.get("health_cb_bucket", "QE-staticserver-pool-health")
+            self.cb_username = config.get("health_cb_username", "Administrator")
+            self.cb_userpassword = config.get("health_cb_password")
+        else:
+            self.cb_host = host
+            self.cb_bucket = bucket
+            self.cb_username = username
+            self.cb_userpassword = password
         if not self.cb_userpassword:
             print("Setting of env variable: heal_cb_password= is needed!")
             return
         try:
+            print("Connecting to {},{},{}".format(self.cb_host, self.cb_bucket, self.cb_username))
             self.cb_cluster = Cluster("couchbase://"+self.cb_host, ClusterOptions(PasswordAuthenticator(self.cb_username, self.cb_userpassword), \
                                     timeout_options=ClusterTimeoutOptions(kv_timeout=timedelta(seconds=10))))
             self.cb_b = self.cb_cluster.bucket(self.cb_bucket)
@@ -262,6 +285,22 @@ class CBDoc:
                 break
             except Exception as e:
                 print('Document with key: %s saving error' % doc_key)
+                print(e)
+            time.sleep(5)
+            retries -= 1
+
+    def replace_doc(self, doc_key, replace_doc_value, retries=3):
+        while retries > 0:
+            try:
+                result = self.cb.get(doc_key)
+                doc = result.content_as[dict]
+                for k in replace_doc_value.keys():
+                    doc[k] = replace_doc_value[k]
+                result = self.cb.replace(doc_key, doc, cas=result.cas)
+                print("%s replaced successfully" % doc_key)
+                break
+            except Exception as e:
+                print('Document with key: %s replace error' % doc_key)
                 print(e)
             time.sleep(5)
             retries -= 1
