@@ -101,10 +101,10 @@ def get_pool_data(pools):
                         os_state = 1 # To avoid in case no data like on sometimes with windows
                     
                 print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, row['ipaddr'], ssh_status, ssh_error, ssh_resp_time, row['os'], real_os, \
-                    os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, \
+                    os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']) if isinstance(row['poolId'], list) else row['poolId'], row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, \
                     fdinfo, iptables_rules_count, mac_address, swapinfo, cb_proc, cb_version, cb_serv, cb_ind_serv))
                 csv_row = "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, ssh_resp_time, row['os'], real_os, \
-                    os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, \
+                    os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']) if isinstance(row['poolId'], list) else row['poolId'], row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, \
                     cpu_proc, fdinfo, iptables_rules_count, mac_address, swapinfo, cb_proc, cb_version, cb_serv, cb_ind_serv)
                 csvout.write("\n{}".format(csv_row))
                 csvout.flush()
@@ -333,8 +333,11 @@ def check_vm(os_name, host):
         cb_running_serv = get_cb_running_services(client)
         cb_version = get_cb_version(client)
 
-        while len(meminfo.split(','))<3:
-            meminfo += ','
+        if not meminfo:
+            meminfo = ',,'
+        else:
+            while len(meminfo.split(','))<3:
+                meminfo += ','
         mem_total = meminfo.split(',')[0]
         mem_free = meminfo.split(',')[1]
         mem_avail = meminfo.split(',')[2]
@@ -344,15 +347,26 @@ def check_vm(os_name, host):
             meminfo += ","+ str(round(((int(mem_total)-int(mem_free))/int(mem_total))*100))
         else:
             meminfo += ','
-        
-        while len(diskinfo.split(','))<4:
-            diskinfo += ','
-        while len(fdinfo.split(','))<4:
-            fdinfo += ','
-        while len(cpu_load.split(','))<4:
-            cpu_load += ','
-        while len(swapinfo.split(','))<4:
-            swapinfo += ','
+        if not diskinfo:
+            diskinfo = ',,,'
+        else:
+            while len(diskinfo.split(','))<4:
+                diskinfo += ','
+        if not fdinfo:
+            fdinfo = ',,,'
+        else:
+            while len(fdinfo.split(','))<4:
+                fdinfo += ','
+        if not cpu_load:
+            cpu_load = ',,,'
+        else:
+            while len(cpu_load.split(','))<4:
+                cpu_load += ','
+        if not swapinfo:
+            swapinfo = ',,,'
+        else:
+            while len(swapinfo.split(','))<4:
+                swapinfo += ','
         cb_serv_data = 0
         cb_serv_index = 0
         cb_serv_query = 0
