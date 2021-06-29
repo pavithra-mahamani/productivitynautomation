@@ -259,7 +259,7 @@ def get_pool_data_vm_parallel(row):
                 os_state = 1 # To avoid the mismatch in case no data like on sometimes with windows
             
         return "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, ssh_resp_time, row['os'], real_os, \
-            os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']), row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, \
+            os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']) if isinstance(row['poolId'], list) else row['poolId'], row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, \
             fdinfo, iptables_rules_count, mac_address, swapinfo, cb_proc, cb_version, cb_serv, cb_ind_serv)
         
     except Exception as ex:
