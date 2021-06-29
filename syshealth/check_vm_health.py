@@ -32,10 +32,10 @@ def get_vm_data(servers_list_file):
         index = 0
         csvout = open("vm_health_info.csv", "w")
         print("ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),os,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
-                "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," + \
+                "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,disk_size_data(MB),disk_used_data(MB),disk_avail_data(MB),disk_use_data%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," + \
                 "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit,iptables_rules_count,mac_address,swap_total(kB),swap_used(kB),swap_free(kB),swap_use(%)")
         csv_head = "ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),os,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
-                "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," \
+                "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,disk_size_data(MB),disk_used_data(MB),disk_avail_data(MB),disk_use_data%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," \
                 "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit,iptables_rules_count,mac_address,swap_total(kB),swap_used(kB),swap_free(kB),swap_use(%)"
         csvout.write(csv_head)
         is_save_cb = os.environ.get("is_save_cb", 'False').lower() in ('true', '1', 't')
@@ -162,6 +162,8 @@ def check_vm(os_name, host):
         mem_avail = meminfo.split(',')[2]
         if mem_avail and mem_total:
             meminfo += ","+ str(round(((int(mem_total)-int(mem_avail))/int(mem_total))*100))
+        while len(diskinfo.split(','))<8:
+            diskinfo += ','
         while len(cpu_load.split(','))<4:
             cpu_load += ','
         while len(fdinfo.split(','))<3:
@@ -171,7 +173,7 @@ def check_vm(os_name, host):
         client.close()
     except Exception as e:
         meminfo = ',,,'
-        diskinfo = ',,,'
+        diskinfo = ',,,,,,,'
         cpu_load = ',,,'
         fdinfo = ',,,'
         swapinfo = ',,,'
@@ -188,7 +190,7 @@ def get_meminfo(ssh_client):
     return ssh_command(ssh_client,"cat /proc/meminfo |egrep Mem |cut -f2- -d':'|sed 's/ //g'|xargs|sed 's/ /,/g'|sed 's/kB//g'")
 
 def get_diskinfo(ssh_client):
-    return ssh_command(ssh_client,"df -ml --output=size,used,avail,pcent / |tail -1 |sed 's/ \+/,/g'|cut -f2- -d','|sed 's/%//g'")
+    return ssh_command(ssh_client,"df -ml --output=size,used,avail,pcent / /data |tail -2 |sed 's/ \+/,/g'|cut -f2- -d','|sed 's/%//g'|xargs|sed 's/ /,/g'|egrep '^[0-9,]'")
 
 def get_system_time(ssh_client):
     return ssh_command(ssh_client, "TZ='America/Los_Angeles' date '+%Y-%m-%d %H:%M:%S'")
