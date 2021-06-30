@@ -739,7 +739,7 @@
       "csv": "vm_health",
       "description": "Mac Address Match State",
       "column": "mac_address_match",
-      "labels": ["ipaddr"]
+      "labels": ["ipaddr", "pool_ids"]
     },
     {
       "name": "slaves_vm_health_disk_size_data",
