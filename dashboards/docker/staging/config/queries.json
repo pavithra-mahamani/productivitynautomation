@@ -726,6 +726,52 @@
       "description": "Swap Total",
       "column": "swap_total(kB)",
       "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "mobile_vm_health_mac_address_match",
+      "csv": "mobile_vm_health",
+      "description": "Mac Address Match State",
+      "column": "mac_address_match",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_mac_address_match",
+      "csv": "vm_health",
+      "description": "Mac Address Match State",
+      "column": "mac_address_match",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "slaves_vm_health_disk_size_data",
+      "csv": "slaves_vm_health",
+      "description": "Disk Size /data",
+      "column": "disk_size_data(MB)",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_disk_used_data",
+      "csv": "slaves_vm_health",
+      "description": "Disk Used /data",
+      "column": "disk_used_data(MB)",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_disk_avail_data",
+      "csv": "slaves_vm_health",
+      "description": "Disk Available /data",
+      "column": "disk_avail_data(MB)",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_disk_usage_data",
+      "csv": "slaves_vm_health",
+      "description": "Disk usage /data",
+      "column": "disk_use_data%",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
     }
   ]
 }
