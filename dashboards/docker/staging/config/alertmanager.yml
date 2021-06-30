@@ -8,14 +8,11 @@ route:
   group_wait: 10s
   group_interval: 10s
   repeat_interval: 24h
-  receiver: "email"
+  receiver: "qe-infra-email"
   matchers:
-   - alertname =~ PoolVMOSMismatch
+   - alertname =~ PoolVMDown|PoolVMOSMismatch|PoolVMHighDiskUsage|SlaveVMHighDiskUsage|SlaveVMHighDiskUsageData
 
 receivers:
   - name: "qe-infra-email"
     email_configs:
-      - to: qe-infra@couchbase.com
-  - name: "email"
-    email_configs:
-      - to: jake.rawsthorne@couchbase.com
+      - to: jake.rawsthorne@couchbase.com,jagadesh.munta@couchbase.com,qe-infra@couchbase.com
