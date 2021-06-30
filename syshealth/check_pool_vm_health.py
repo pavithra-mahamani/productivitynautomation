@@ -35,7 +35,7 @@ def get_pool_data(pools):
         print("Error: pool_cb_password environment variable setting is missing!")
         exit(1)
     data = ''
-    query = "SELECT ipaddr, os, state, origin, poolId, username FROM `" + pool_cb_bucket + "` WHERE poolId in [" \
+    query = "SELECT ipaddr, os, state, origin, poolId, username, mac_address FROM `" + pool_cb_bucket + "` WHERE poolId in [" \
                 + ', '.join('"{0}"'.format(p) for p in pools_list) + "] or " \
                 + ' or '.join('"{0}" in poolId'.format(p) for p in pools_list)
     is_debug = os.environ.get('is_debug')
@@ -52,10 +52,10 @@ def get_pool_data(pools):
         csvout = open("pool_vm_health_info.csv", "w")
         print("ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),pool_os,real_os,os_match_state,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," + \
-                "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit,iptables_rules_count,mac_address,swap_total(kB),swap_used(kB),swap_free(kB),swap_use(%),couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status")
+                "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit,iptables_rules_count,pool_mac_address,real_mac_address,mac_address_match,swap_total(kB),swap_used(kB),swap_free(kB),swap_use(%),couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status")
         csv_head = "ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),pool_os,real_os,os_match_state,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," \
-                "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit,iptables_rules_count,mac_address,swap_total(kB),swap_used(kB),swap_free(kB),swap_use(%),couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status"
+                "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit,iptables_rules_count,pool_mac_address,real_mac_address,mac_address_match,swap_total(kB),swap_used(kB),swap_free(kB),swap_use(%),couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status,cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status"
         csvout.write(csv_head)
         os_mappings={"centos":"centos linux 7 (core)", "centosnonroot":"centos linux 7 (core)", "debian10":"debian gnu/linux 10 (buster)", \
                     "oel8":"oracle linux server 8.1", "rhel":"red hat enterprise linux", "rhel8":"red hat enterprise linux 8.3 (ootpa)", \
@@ -83,10 +83,13 @@ def get_pool_data(pools):
                 ssh_status, ssh_error, ssh_resp_time, real_os, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, \
                     fdinfo, iptables_rules_count, mac_address, swapinfo, cb_proc, cb_version, cb_serv, cb_ind_serv = check_vm(row['os'],row['ipaddr'])
                 os_state = 0
+                mac_address_state = 0
+                pool_mac_address = ''
                 if ssh_status == 'ssh_failed':
                     ssh_state = 0
                     ssh_failed += 1
                     os_state = 1 #Marking os_match to ok for ssh_failed to avoid more notifications
+                    mac_address_state = 1
                 else:
                     ssh_state = 1
                     ssh_ok += 1
@@ -99,13 +102,18 @@ def get_pool_data(pools):
                                 os_state = 1
                     else:
                         os_state = 1 # To avoid in case no data like on sometimes with windows
+                    if 'mac_address' in row and mac_address == row['mac_address']:
+                        mac_address_state = 1
+                        pool_mac_address = row['mac_address']
+                    elif 'mac_address' in row:
+                        pool_mac_address = row['mac_address']
                     
-                print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, row['ipaddr'], ssh_status, ssh_error, ssh_resp_time, row['os'], real_os, \
+                print("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(index, row['ipaddr'], ssh_status, ssh_error, ssh_resp_time, row['os'], real_os, \
                     os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']) if isinstance(row['poolId'], list) else row['poolId'], row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, \
-                    fdinfo, iptables_rules_count, mac_address, swapinfo, cb_proc, cb_version, cb_serv, cb_ind_serv))
-                csv_row = "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, ssh_resp_time, row['os'], real_os, \
+                    fdinfo, iptables_rules_count, pool_mac_address, mac_address, mac_address_state, swapinfo, cb_proc, cb_version, cb_serv, cb_ind_serv))
+                csv_row = "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, ssh_resp_time, row['os'], real_os, \
                     os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']) if isinstance(row['poolId'], list) else row['poolId'], row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, \
-                    cpu_proc, fdinfo, iptables_rules_count, mac_address, swapinfo, cb_proc, cb_version, cb_serv, cb_ind_serv)
+                    cpu_proc, fdinfo, iptables_rules_count, pool_mac_address, mac_address, mac_address_state,  swapinfo, cb_proc, cb_version, cb_serv, cb_ind_serv)
                 csvout.write("\n{}".format(csv_row))
                 csvout.flush()
                 ipaddr = row['ipaddr']
@@ -146,7 +154,7 @@ def get_pool_data_parallel(pools):
     if not pool_cb_user_p:
         print("Error: pool_cb_password environment variable setting is missing!")
         exit(1)
-    query = "SELECT ipaddr, os, state, origin, poolId, username FROM `" + pool_cb_bucket + "` WHERE poolId in [" \
+    query = "SELECT ipaddr, os, state, origin, poolId, username, mac_address FROM `" + pool_cb_bucket + "` WHERE poolId in [" \
                 + ', '.join('"{0}"'.format(p) for p in pools_list) + "] or " \
                 + ' or '.join('"{0}" in poolId'.format(p) for p in pools_list)
     is_debug = os.environ.get('is_debug')
@@ -169,11 +177,11 @@ def get_pool_data_parallel(pools):
         csvout = open("pool_vm_health_info.csv", "w")
         print("ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),pool_os,real_os,os_match_state,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," + \
-                "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit,iptables_rules_count,mac_address,swap_total(kB),swap_used(kB),swap_free(kB),swap_use(%),couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status," + \
+                "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit,iptables_rules_count,pool_mac_address,real_mac_address,mac_address_match,swap_total(kB),swap_used(kB),swap_free(kB),swap_use(%),couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status," + \
                 "cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status")
         csv_head = "ipaddr,ssh_status,ssh_error,ssh_resp_time(secs),pool_os,real_os,os_match_state,pool_state,pool_ids,pool_user,cpus,memory_total(kB),memory_free(kB),memory_available(kB),memory_use(%)," + \
                 "disk_size(MB),disk_used(MB),disk_avail(MB),disk_use%,uptime,booted(days),system_time,users,cpu_load_avg_1min,cpu_load_avg_5mins,cpu_load_avg_15mins," + \
-                "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit,iptables_rules_count,mac_address,swap_total(kB),swap_used(kB),swap_free(kB),swap_use(%),couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status," + \
+                "total_processes,total_fd_alloc,total_fd_free,total_fd_max,proc_fd_ulimit,iptables_rules_count,pool_mac_address,real_mac_address,mac_address_match,swap_total(kB),swap_used(kB),swap_free(kB),swap_use(%),couchbase_process,couchbase_version,couchbase_services,cb_data_kv_status," + \
                 "cb_index_status,cb_query_status,cb_search_status,cb_analytics_status,cb_eventing_status,cb_xdcr_status"
         csvout.write(csv_head)
         
@@ -243,9 +251,12 @@ def get_pool_data_vm_parallel(row):
         ssh_status, ssh_error, ssh_resp_time, real_os, cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, fdinfo, \
             iptables_rules_count, mac_address, swapinfo, cb_proc, cb_version, cb_serv, cb_ind_serv = check_vm(row['os'],row['ipaddr'])
         os_state = 0
+        mac_address_state = 0
+        pool_mac_address = ''
         if ssh_status == 'ssh_failed':
             ssh_state=0
             os_state = 1 #Marking os_match to ok for ssh_failed to avoid more notifications
+            mac_address_state = 1
         else:
             ssh_state=1
             if real_os not in (None, '') or real_os.strip():
@@ -257,10 +268,14 @@ def get_pool_data_vm_parallel(row):
                         os_state = 1
             else:
                 os_state = 1 # To avoid the mismatch in case no data like on sometimes with windows
-            
-        return "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, ssh_resp_time, row['os'], real_os, \
+            if 'mac_address' in row and mac_address == row['mac_address']:
+                mac_address_state = 1
+                pool_mac_address = row['mac_address']
+            elif 'mac_address' in row:
+                pool_mac_address = row['mac_address']
+        return "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(row['ipaddr'], ssh_state, ssh_error, ssh_resp_time, row['os'], real_os, \
             os_state, row['state'],  '+'.join("{}".format(p) for p in row['poolId']) if isinstance(row['poolId'], list) else row['poolId'], row['username'], cpus, meminfo, diskinfo, uptime, uptime_days, systime, cpu_load, cpu_proc, \
-            fdinfo, iptables_rules_count, mac_address, swapinfo, cb_proc, cb_version, cb_serv, cb_ind_serv)
+            fdinfo, iptables_rules_count, pool_mac_address, mac_address, mac_address_state, swapinfo, cb_proc, cb_version, cb_serv, cb_ind_serv)
         
     except Exception as ex:
         print(ex)
