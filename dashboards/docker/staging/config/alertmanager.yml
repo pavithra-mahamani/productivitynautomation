@@ -8,10 +8,11 @@ route:
   group_wait: 10s
   group_interval: 10s
   repeat_interval: 24h
-  receiver: "email"
+  receiver: "qe-infra-email"
+  matchers:
+   - alertname =~ PoolVMDown|PoolVMOSMismatch|PoolVMHighDiskUsage|SlaveVMHighDiskUsage|SlaveVMHighDiskUsageData
 
 receivers:
-  - name: "email"
+  - name: "qe-infra-email"
     email_configs:
-      - to: jake.rawsthorne@couchbase.com,jagadesh.munta@couchbase.com
-        html: '{{ template "email.ssh_failed.html" }}
+      - to: jake.rawsthorne@couchbase.com,jagadesh.munta@couchbase.com,qe-infra@couchbase.com
