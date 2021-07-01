@@ -191,7 +191,8 @@
   ],
   "csvs": {
     "vm_health": "http://qa.sc.couchbase.com/view/ProductivityAutomation/job/pool_vm_health_for_dashboard/lastSuccessfulBuild/artifact/pool_vm_health_info.csv/",
-    "slaves_vm_health": "http://qa.sc.couchbase.com/view/ProductivityAutomation/job/vm_health_for_dashboard/lastSuccessfulBuild/artifact/vm_health_info.csv/"
+    "slaves_vm_health": "http://qa.sc.couchbase.com/view/ProductivityAutomation/job/vm_health_for_dashboard/lastSuccessfulBuild/artifact/vm_health_info.csv/",
+    "mobile_vm_health": "http://qa.sc.couchbase.com/view/ProductivityAutomation/job/mobilepool_vm_health_for_dashboard/lastSuccessfulBuild/artifact/pool_vm_health_info.csv"
   },
   "columns": [
     {
@@ -430,21 +431,21 @@
       "csv": "vm_health",
       "description": "OS Match State",
       "column": "os_match_state",
-      "labels": ["ipaddr", "real_os", "pool_os"]
+      "labels": ["ipaddr", "real_os", "pool_os", "pool_ids"]
     },
     {
       "name": "vm_health_booted_days",
       "csv": "vm_health",
       "description": "Booted Days",
       "column": "booted(days)",
-      "labels": ["ipaddr"]
+      "labels": ["ipaddr", "pool_ids"]
     },
     {
       "name": "vm_health_ssh_resp_time",
       "csv": "vm_health",
       "description": "SSH Response Time",
       "column": "ssh_resp_time(secs)",
-      "labels": ["ipaddr"]
+      "labels": ["ipaddr", "pool_ids"]
     },
     {
       "name": "vm_health_cb_data_kv_status",
@@ -494,6 +495,283 @@
       "description": "XDCR Service Active",
       "column": "cb_xdcr_status",
       "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_proc_fd_ulimit",
+      "csv": "vm_health",
+      "description": "Proc fd ulimit",
+      "column": "proc_fd_ulimit",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "slaves_vm_health_proc_fd_ulimit",
+      "csv": "slaves_vm_health",
+      "description": "Proc fd ulimit",
+      "column": "proc_fd_ulimit",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_iptables_rules_count",
+      "csv": "vm_health",
+      "description": "iptables rules count",
+      "column": "iptables_rules_count",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "vm_health_swap_total",
+      "csv": "vm_health",
+      "description": "Swap Total",
+      "column": "swap_total(kB)",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "mobile_memory_usage",
+      "csv": "mobile_vm_health",
+      "description": "Memory usage",
+      "column": "memory_use(%)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_disk_usage",
+      "csv": "mobile_vm_health",
+      "description": "Disk usage",
+      "column": "disk_use%",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_cpu_load_avg_5mins",
+      "csv": "mobile_vm_health",
+      "description": "CPU load average (5mins)",
+      "column": "cpu_load_avg_5mins",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_ssh_status",
+      "csv": "mobile_vm_health",
+      "description": "SSH Status",
+      "column": "ssh_status",
+      "labels": ["ipaddr", "ssh_error", "pool_state", "couchbase_version", "pool_ids"]
+    },
+    {
+      "name": "mobile_vm_health_cpus",
+      "csv": "mobile_vm_health",
+      "description": "CPUs",
+      "column": "cpus",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_memory_total",
+      "csv": "mobile_vm_health",
+      "description": "Memory Total",
+      "column": "memory_total(kB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_memory_free",
+      "csv": "mobile_vm_health",
+      "description": "Memory Free",
+      "column": "memory_free(kB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_memory_available",
+      "csv": "mobile_vm_health",
+      "description": "Memory Available",
+      "column": "memory_available(kB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_disk_size",
+      "csv": "mobile_vm_health",
+      "description": "Disk Size",
+      "column": "disk_size(MB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_disk_used",
+      "csv": "mobile_vm_health",
+      "description": "Disk Used",
+      "column": "disk_used(MB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_disk_avail",
+      "csv": "mobile_vm_health",
+      "description": "Disk Available",
+      "column": "disk_avail(MB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_users",
+      "csv": "mobile_vm_health",
+      "description": "Users",
+      "column": "users",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_cpu_load_avg_1min",
+      "csv": "mobile_vm_health",
+      "description": "CPU load average (1min)",
+      "column": "cpu_load_avg_1min",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_cpu_load_avg_15mins",
+      "csv": "mobile_vm_health",
+      "description": "CPU load average (15mins)",
+      "column": "cpu_load_avg_15mins",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_total_processes",
+      "csv": "mobile_vm_health",
+      "description": "Total Processes",
+      "column": "total_processes",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_couchbase_processes",
+      "csv": "mobile_vm_health",
+      "description": "Couchbase Processes",
+      "column": "couchbase_process",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_os_match_state",
+      "csv": "mobile_vm_health",
+      "description": "OS Match State",
+      "column": "os_match_state",
+      "labels": ["ipaddr", "real_os", "pool_os", "pool_ids"]
+    },
+    {
+      "name": "mobile_vm_health_booted_days",
+      "csv": "mobile_vm_health",
+      "description": "Booted Days",
+      "column": "booted(days)",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "mobile_vm_health_ssh_resp_time",
+      "csv": "mobile_vm_health",
+      "description": "SSH Response Time",
+      "column": "ssh_resp_time(secs)",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "mobile_vm_health_cb_data_kv_status",
+      "csv": "mobile_vm_health",
+      "description": "KV Service Active",
+      "column": "cb_data_kv_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_cb_index_status",
+      "csv": "mobile_vm_health",
+      "description": "Index Service Active",
+      "column": "cb_index_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_cb_query_status",
+      "csv": "mobile_vm_health",
+      "description": "Query Service Active",
+      "column": "cb_query_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_cb_search_status",
+      "csv": "mobile_vm_health",
+      "description": "Search Service Active",
+      "column": "cb_search_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_cb_analytics_status",
+      "csv": "mobile_vm_health",
+      "description": "Analytics Service Active",
+      "column": "cb_analytics_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_cb_eventing_status",
+      "csv": "mobile_vm_health",
+      "description": "Eventing Service Active",
+      "column": "cb_eventing_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_cb_xdcr_status",
+      "csv": "mobile_vm_health",
+      "description": "XDCR Service Active",
+      "column": "cb_xdcr_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_proc_fd_ulimit",
+      "csv": "mobile_vm_health",
+      "description": "Proc fd ulimit",
+      "column": "proc_fd_ulimit",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "mobile_vm_health_iptables_rules_count",
+      "csv": "mobile_vm_health",
+      "description": "iptables rules count",
+      "column": "iptables_rules_count",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "mobile_vm_health_swap_total",
+      "csv": "mobile_vm_health",
+      "description": "Swap Total",
+      "column": "swap_total(kB)",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "mobile_vm_health_mac_address_match",
+      "csv": "mobile_vm_health",
+      "description": "Mac Address Match State",
+      "column": "mac_address_match",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_mac_address_match",
+      "csv": "vm_health",
+      "description": "Mac Address Match State",
+      "column": "mac_address_match",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "slaves_vm_health_disk_size_data",
+      "csv": "slaves_vm_health",
+      "description": "Disk Size /data",
+      "column": "disk_size_data(MB)",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_disk_used_data",
+      "csv": "slaves_vm_health",
+      "description": "Disk Used /data",
+      "column": "disk_used_data(MB)",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_disk_avail_data",
+      "csv": "slaves_vm_health",
+      "description": "Disk Available /data",
+      "column": "disk_avail_data(MB)",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_disk_usage_data",
+      "csv": "slaves_vm_health",
+      "description": "Disk usage /data",
+      "column": "disk_use_data%",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
     }
   ]
 }
