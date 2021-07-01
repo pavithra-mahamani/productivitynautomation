@@ -166,9 +166,11 @@ def check_vm(os_name, host):
         fdinfo = get_file_descriptors(client)
         iptables_rules_count = get_iptables_rules_count(client)
         if os_version and "suse" in os_version.lower():
-            mac_address = get_mac_address_suse(client)    
+            mac_address = get_mac_address_ip(client)    
         else:
             mac_address = get_mac_address(client)
+            if not mac_address or mac_address.strip() == '':
+                mac_address = get_mac_address_ip(client) 
         swapinfo = get_swap_space(client)
 
         while len(meminfo.split(','))<3:
@@ -231,7 +233,7 @@ def get_iptables_rules_count(ssh_client):
 def get_mac_address(ssh_client):
     return ssh_command(ssh_client, "ifconfig `ip link show | egrep eth[0-9]: -A 1 |tail -2 |xargs|cut -f2 -d' '|sed 's/://g'`|egrep ether |xargs|cut -f2 -d' '")
 
-def get_mac_address_suse(ssh_client):
+def get_mac_address_ip(ssh_client):
     return ssh_command(ssh_client, "ip a show `ip link show | egrep eth[0-9]: -A 1 |tail -2 |xargs|cut -f2 -d' '|sed 's/://g'`|egrep ether |xargs|cut -f2 -d' '")
 
 def get_swap_space(ssh_client):
