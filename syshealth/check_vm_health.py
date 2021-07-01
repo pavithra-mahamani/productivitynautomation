@@ -58,7 +58,13 @@ def get_vm_data(servers_list_file):
         is_replace_pool_mac_address = os.environ.get("is_replace_pool_mac_address", 'False').lower() in ('true', '1', 't')
         for ip in vms_list:
             index += 1
-            ipaddr = ip.rstrip()
+            if '=' in ip:
+                ip_docid = ip.rstrip().split('=')
+                ipaddr = ip_docid[0]
+                docid = ip_docid[1]
+            else:
+                ipaddr = ip.rstrip()
+                docid = ipaddr
             os_name = os.environ.get('os','linux')
             try:
                 ssh_status, ssh_error, ssh_resp_time, os_version, cpus, meminfo, diskinfo, uptime, uptime_days, systime,  \
@@ -95,7 +101,7 @@ def get_vm_data(servers_list_file):
                     if is_replace_pool_memory or is_replace_pool_mac_address:
                         print("--Replacing pool with {}".format(str(new_doc)))
                         rcb_doc = CBDoc(pool_cb_host, pool_cb_bucket, pool_cb_user, pool_cb_user_p)
-                        rcb_doc.replace_doc(ipaddr,new_doc)
+                        rcb_doc.replace_doc(docid,new_doc)
                 if is_save_cb:
                     doc_val = {}
                     keys = csv_head.split(",")
