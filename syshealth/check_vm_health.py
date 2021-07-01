@@ -53,6 +53,9 @@ def get_vm_data(servers_list_file):
                     print("NOTE: Data is not saving again for Today into cb because is_daily_save_only set!")
                     is_save_cb = False
                     break     
+        is_replace_pool = os.environ.get("is_replace_pool", 'False').lower() in ('true', '1', 't')
+        is_replace_pool_memory = os.environ.get("is_replace_pool_memory", 'False').lower() in ('true', '1', 't')
+        is_replace_pool_mac_address = os.environ.get("is_replace_pool_mac_address", 'False').lower() in ('true', '1', 't')
         for ip in vms_list:
             index += 1
             ipaddr = ip.rstrip()
@@ -75,7 +78,7 @@ def get_vm_data(servers_list_file):
                 csvout.write("\n{}".format(csv_row))
                 csvout.flush()
                 # replace memory and add macaddress
-                is_replace_pool = os.environ.get("is_replace_pool", 'False').lower() in ('true', '1', 't')
+                
                 if is_replace_pool:
                     pool_cb_host = os.environ.get('pool_cb_host', "172.23.96.189")
                     pool_cb_bucket = os.environ.get('pool_cb_bucket', "QE-server-pool")
@@ -84,12 +87,15 @@ def get_vm_data(servers_list_file):
                     if not pool_cb_user_p:
                         print("Error: pool_cb_password environment variable setting is missing!")
                         exit(1)
-                    rcb_doc = CBDoc(pool_cb_host, pool_cb_bucket, pool_cb_user, pool_cb_user_p)
                     new_doc = {}
-                    new_doc['memory'] = meminfo.split(',')[0]
-                    new_doc['mac_address'] = mac_address
-                    print("--Replacing pool with {}".format(str(new_doc)))
-                    rcb_doc.replace_doc(ipaddr,new_doc)
+                    if is_replace_pool_memory:
+                        new_doc['memory'] = meminfo.split(',')[0]
+                    if is_replace_pool_mac_address:
+                        new_doc['mac_address'] = mac_address
+                    if is_replace_pool_memory or is_replace_pool_mac_address:
+                        print("--Replacing pool with {}".format(str(new_doc)))
+                        rcb_doc = CBDoc(pool_cb_host, pool_cb_bucket, pool_cb_user, pool_cb_user_p)
+                        rcb_doc.replace_doc(ipaddr,new_doc)
                 if is_save_cb:
                     doc_val = {}
                     keys = csv_head.split(",")
