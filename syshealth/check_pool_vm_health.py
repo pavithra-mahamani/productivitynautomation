@@ -342,7 +342,12 @@ def check_vm(os_name, host):
             real_os_version = get_os_version(client)
         fdinfo = get_file_descriptors(client)
         iptables_rules_count = get_iptables_rules_count(client)
-        mac_address = get_mac_address(client)
+        if real_os_version and "suse" in real_os_version.lower():
+            mac_address = get_mac_address_ip(client)    
+        else:
+            mac_address = get_mac_address(client)
+            if not mac_address or mac_address.strip() == '':
+                mac_address = get_mac_address_ip(client) 
         swapinfo = get_swap_space(client)
         cb_processes = get_cb_processes(client)
         cb_running_serv = get_cb_running_services(client)
@@ -458,6 +463,9 @@ def get_iptables_rules_count(ssh_client):
 
 def get_mac_address(ssh_client):
     return ssh_command(ssh_client, "ifconfig `ip link show | egrep eth[0-9]: -A 1 |tail -2 |xargs|cut -f2 -d' '|sed 's/://g'`|egrep ether |xargs|cut -f2 -d' '")
+
+def get_mac_address_ip(ssh_client):
+    return ssh_command(ssh_client, "ip a show `ip link show | egrep eth[0-9]: -A 1 |tail -2 |xargs|cut -f2 -d' '|sed 's/://g'`|egrep ether |xargs|cut -f2 -d' '")
 
 def get_swap_space(ssh_client):
     swap_total_free_use = ssh_command(ssh_client, "free |egrep Swap |cut -f2 -d':'|xargs|sed 's/ /,/g'")
