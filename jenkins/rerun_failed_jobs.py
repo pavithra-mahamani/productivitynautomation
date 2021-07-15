@@ -284,7 +284,7 @@ def newer_build_in_jenkins(job_name, job, parameters, latest_jenkins_builds, opt
 
 
 def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
-    jobs = list(cluster.query("SELECT name, component, url, build_id, `build` FROM server WHERE `build`= '{}' AND url LIKE '{}/job/%'".format(options.previous_builds[0], options.jenkins_url)))
+    jobs = list(cluster.query("SELECT NVL(displayName, name) name, component, url, build_id, `build` FROM server WHERE `build`= '{}' AND url LIKE '{}/job/%'".format(options.previous_builds[0], options.jenkins_url)))
     previous_jobs = set()
 
     # filter out components not in options.components
@@ -304,7 +304,7 @@ def get_jobs_still_to_run(options, cluster: Cluster, server: Jenkins):
     else:
         previous_jobs = set([job["name"] for job in jobs])
 
-    current_jobs = set(cluster.query("SELECT raw name FROM server WHERE `build`= '{}' AND url LIKE '{}/job/%'".format(options.build, options.jenkins_url)))
+    current_jobs = set(cluster.query("SELECT raw NVL(displayName, name) FROM server WHERE `build`= '{}' AND url LIKE '{}/job/%'".format(options.build, options.jenkins_url)))
     still_to_run = previous_jobs.difference(current_jobs)
 
     components_in_last_run = list(cluster.query("SELECT component, count(*) count from server where `build` = '{}' AND url LIKE '{}/job/%' group by component".format(options.previous_builds[0], options.jenkins_url)))
