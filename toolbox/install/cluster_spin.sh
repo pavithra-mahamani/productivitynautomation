@@ -541,7 +541,7 @@ case "${action}" in
                     --password ${password} || exit 1
 EOF
           )
-          printf "\nCluster is using image ${image}\n\n            url: http://localhost:8091\n    credentials: ${username}/${password}\n\n"
+          printf "\nCluster is using image ${image}\n\n            url: http://localhost:8091\n\n"
           if [ "${version}" != "" ]
           then
             echo "The image '${image}' was built using ${workdir}/Dockerfile"
