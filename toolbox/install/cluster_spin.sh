@@ -19,7 +19,7 @@ set -x
 ###    -s --services      Couchbase services to configure (default: data,index,query,eventing,fts)
 ###    -C --cpu-limit     Number of cores per container (default: unspecified)
 ###    -c --cidr          CIDR block (default: 172.18.0.0/16)
-###    -M --memory-limit  Container memory limit
+###    -M --mem-limit  Container memory limit
 ###    -n --nodes         List of nodes (default: master:172.18.0.2,node1:172.18.0.3,node2:172.18.0.4,node3:172.18.0.5)
 ###    -r --restart       Restart policy (no, always, on-failure, default: unless-stopped)
 ###    -w --workdir       Directory to save content (Dockerfile/docker-compose.yml and packages default: /tmp/cluster-setup-files)
@@ -83,8 +83,8 @@ while [ $# -gt 0 ]; do
     --cpu-limit|-C)
       cpu_limit="'${2}'"; shift
       ;;
-    --memory-limit|-M)
-      memory_limit="'${2}'"; shift
+    --mem-limit|-M)
+      mem_limit="'${2}'"; shift
       ;;
     --cidr|-c)
       cidr_block="${2}"; shift
@@ -418,9 +418,9 @@ then
     cpu_limit="cpus: ${cpu_limit}"
 fi
 
-if [ "${memory_limit}" != "" ]
+if [ "${mem_limit}" != "" ]
 then
-    memory_limit="memory: ${memory_limit}"
+    mem_limit="mem_limit: ${mem_limit}"
 fi
 
 fatal() {
@@ -457,7 +457,7 @@ get_node() {
         image: ${image}
         restart: ${restart_policy}"
     [ "${cpu_limit}" != "" ] && echo "        ${cpu_limit}"
-    [ "${memory_limit}" != "" ] && echo "        ${memory_limit}"
+    [ "${mem_limit}" != "" ] && echo "        ${mem_limit}"
     [ "$ports" != "" ] && echo "        $ports"
     echo "        $networks"
 }
