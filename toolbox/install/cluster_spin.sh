@@ -18,7 +18,7 @@ set -x
 ###    -e --edition       Edition: community/enterprise (default: enterprise, has no effect unless used with --version)
 ###    -s --services      Couchbase services to configure (default: data,index,query,eventing,fts)
 ###    -C --cpu-limit     Number of cores per container (default: unspecified)
-###    -c --cidr          CIDR block (default: 172.18.0.0/16)
+###    -c --cidr          CIDR block (default: 172.18.0.0/24)
 ###    -M --mem-limit  Container memory limit
 ###    -n --nodes         List of nodes (default: master:172.18.0.2,node1:172.18.0.3,node2:172.18.0.4,node3:172.18.0.5)
 ###    -r --restart       Restart policy (no, always, on-failure, default: unless-stopped)
@@ -126,7 +126,7 @@ edition=${edition:-enterprise}
 base_image=${base_image:-ubuntu:18.04}
 username=${username:-Administrator}
 password=${password:-password}
-cidr_block=${cidr_block:-172.18.0.0/16}
+cidr_block=${cidr_block:-172.18.0.0/24}
 services=${services:-data,index,query,eventing,fts}
 [ "${nodes}" = "" ] && nodes=(master:172.18.0.2 node1:172.18.0.3 node2:172.18.0.4 node3:172.18.0.5)
 node_names="$(for node in ${nodes[@]:1}; do printf "$(echo $node | sed 's/\:.*//') "; done)"
@@ -446,9 +446,9 @@ get_node() {
     ports=""
     if [ $1 = 0 ]
     then
-        ports="ports:
-        - \"8091-8094:8091-8094\"
-        - \"11210:11210\""
+        ports="expose:
+        - \"8091-8094\"
+        - \"11210\""
     fi
     networks="networks:
           ${cluster_name}:
