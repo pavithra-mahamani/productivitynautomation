@@ -107,15 +107,15 @@ def get_inventory_global(profile,service_class,class_name):
 def get_s3_inventory(profile):
 
     inventory  = collections.defaultdict(list)
-
-    s3 = boto3.resource('s3')
+    session = boto3.session.Session(profile_name=profile)
+    s3 = session.resource('s3')
 
     for bucket in s3.buckets.all():
         total_size = 0
         for object in bucket.objects.all():
             total_size += object.size
         print("bucket " + getattr(bucket, 'name') + ":" + str(total_size/1024/1024/1024) + "GB")
-        inventory['s3'].append({'name': getattr(bucket, 'name'), 'size': str(total_size/1024/1024/1024) + "GB", 'region': region['RegionName']})
+        inventory['s3'].append({'name': getattr(bucket, 'name'), 'size': str(total_size/1024/1024/1024) + "GB"})
 
     return inventory
 

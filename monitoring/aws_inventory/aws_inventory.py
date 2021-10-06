@@ -17,23 +17,25 @@ import utils
 def get_inventories_by_class(profile, service_classes):
     regions =utils.get_aws_service_regions(profile,'ec2')
     for service_class in service_classes:
-        inventory = utils.get_inventory_regional(profile, regions, config.AWS_CLASSES[service_class], service_class)
-        if 'instance' in inventory:
-            ec2_events=utils.get_cloudtrail_start_ec2_events(profile, regions)
-            #for i in inventory['instance']:
-            for index in range(len(inventory['instance'])):
-                if inventory['instance'][index]['InstanceId'] in ec2_events:
-                    inventory['instance'][index]['Username']=ec2_events[inventory['instance'][index]['InstanceId']]
-                else:
-                    inventory['instance'][index]['Username']="Unknown"
-        with open('result.txt', 'w') as f:
-            f.write(f"{service_class}:\n")
-            for key in inventory.keys():
-                f.write(f"{key}:\n")
-                header = inventory[key][0].keys()
-                rows =  [x.values() for x in inventory[key]]
-                f.write(tabulate.tabulate(rows, header))
-                f.write(f"\n")
+        if (service_class == "s3"):
+            inventory =utils.get_s3_inventory(profile)
+        else:
+            inventory = utils.get_inventory_regional(profile, regions, config.AWS_CLASSES[service_class], service_class)
+            if 'instance' in inventory:
+                ec2_events=utils.get_cloudtrail_start_ec2_events(profile, regions)
+                for index in range(len(inventory['instance'])):
+                    if inventory['instance'][index]['InstanceId'] in ec2_events:
+                        inventory['instance'][index]['Username']=ec2_events[inventory['instance'][index]['InstanceId']]
+                    else:
+                        inventory['instance'][index]['Username']="Unknown"
+    with open('result.txt', 'w') as f:
+        f.write(f"{service_class}:\n")
+        for key in inventory.keys():
+            f.write(f"{key}:\n")
+            header = inventory[key][0].keys()
+            rows =  [x.values() for x in inventory[key]]
+            f.write(tabulate.tabulate(rows, header))
+            f.write(f"\n")
     
 def parse_args():
     parser = argparse.ArgumentParser(description="Checking current AWS inventories\n\n")
