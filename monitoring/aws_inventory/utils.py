@@ -114,7 +114,6 @@ def get_s3_inventory(profile):
         total_size = 0
         for object in bucket.objects.all():
             total_size += object.size
-        print("bucket " + getattr(bucket, 'name') + ":" + str(total_size/1024/1024/1024) + "GB")
         inventory['s3'].append({'name': getattr(bucket, 'name'), 'size': str(total_size/1024/1024/1024) + "GB"})
 
     return inventory
