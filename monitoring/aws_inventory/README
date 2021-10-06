@@ -1,6 +1,6 @@
 Prerequisites:
   Python 3.7+
-  pip3 install argparse json tabulate boto3
+  pip3 install argparse tabulate boto3
 
 Usage:
   python3 aws_inventory.py -p <profile name> -c <comma separated aws sdk class names>

@@ -15,9 +15,9 @@ import utils
 #   service-classes:     a list of aws sdk classes the script is going to check.
 #                        a full list is defined in config.py as AWS_CLASSES.keys()
 def get_inventories_by_class(profile, service_classes):
+    regions =utils.get_aws_service_regions(profile,'ec2')
     for service_class in service_classes:
-        regions =utils.get_aws_service_regions(profile,service_class)
-        inventory = utils.get_inventory(profile, regions, config.AWS_CLASSES[service_class], service_class)
+        inventory = utils.get_inventory_regional(profile, regions, config.AWS_CLASSES[service_class], service_class)
         if 'instance' in inventory:
             ec2_events=utils.get_cloudtrail_start_ec2_events(profile, regions)
             #for i in inventory['instance']:
