@@ -7,6 +7,11 @@
 #                                                                               'subkey'  : 2nd level key of the result, i.e. ec2 returns result['Reservations']['Instances']
 #                                                                               'filter'  : Sometime, we don't need all the results.  filter can be used to narrow down returned values
 #                                                                               'dataset' : Desired data to be print to the result.txt
+#                                                                            }
+#                                 }
+# }
+#
+# Available classes are: ec2, batch, lightsail, lambda, autoscaling, eks, ecs, elasticbeanstalk, efs, s3, rds, dynamodb, neptune, redshift, elasticache
 
 AWS_CLASSES={
     'ec2': {
