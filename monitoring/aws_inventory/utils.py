@@ -126,7 +126,15 @@ def get_cloudtrail_start_ec2_events(profile, regions):
     for region in regions:
         session = boto3.Session(profile_name=profile, region_name=region['RegionName'])
         client = session.client('cloudtrail')
-        response = client.lookup_events(
+        startedInstances = client.lookup_events(
+            LookupAttributes=[
+                {
+                    'AttributeKey': 'EventName',
+                    'AttributeValue': 'StartInstances'
+                },
+            ]
+        )
+        createdInstances = client.lookup_events(
             LookupAttributes=[
                 {
                     'AttributeKey': 'EventName',
@@ -135,9 +143,15 @@ def get_cloudtrail_start_ec2_events(profile, regions):
             ]
         )
 
-        for e in response['Events']:
+        for e in createdInstances['Events']:
             for resource in e['Resources']:
                 if (resource.get('ResourceType') == "AWS::EC2::Instance"):
                     events[resource.get('ResourceName')]=e.get('Username')
+
+        for e in startedInstances['Events']:
+            for resource in e['Resources']:
+                if (resource.get('ResourceType') == "AWS::EC2::Instance"):
+                    events[resource.get('ResourceName')]=e.get('Username')
+
     return events
 

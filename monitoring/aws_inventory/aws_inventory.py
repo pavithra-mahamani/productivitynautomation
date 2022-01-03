@@ -29,6 +29,15 @@ def get_inventories_by_class(profile, service_classes):
                         inventory[service_class]['instance'][index]['Username']=ec2_events[inventory[service_class]['instance'][index]['InstanceId']]
                     else:
                         inventory[service_class]['instance'][index]['Username']="Unknown"
+            #CBD-4534, associate EBS with corresponding EC2.
+            #No need to print out the whole attachments information, only EC2 instance id.
+            if 'ebs' in inventory[service_class]:
+                for index in range(len(inventory[service_class]['ebs'])):
+                    if len(inventory[service_class]['ebs'][index]['Attachments']) == 0:
+                        inventory[service_class]['ebs'][index]['InstanceId']= None
+                    else:
+                        inventory[service_class]['ebs'][index]['InstanceId']=inventory[service_class]['ebs'][index]['Attachments'][0]['InstanceId']
+                    del inventory[service_class]['ebs'][index]['Attachments']
     with open('result.txt', 'w') as f:
         for service_class in service_classes:
             f.write(f"\n{service_class}:\n")

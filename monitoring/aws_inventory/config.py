@@ -19,7 +19,7 @@ AWS_CLASSES={
                             'method': 'describe_instances',
                             'key'  :  'Reservations',
                             'subkey': 'Instances',
-                            'dataset': ['InstanceId', 'LaunchTime', 'State', 'region']
+                            'dataset': ['InstanceId', 'InstanceType', 'LaunchTime', 'State', 'region']
                            },
              'network_interface': {
                                   'method': 'describe_network_interfaces',
@@ -33,7 +33,7 @@ AWS_CLASSES={
              'ebs': {
                       'method': 'describe_volumes',
                       'key':  'Volumes',
-                      'dataset': ['VolumeId', 'CreateTime', 'State', 'Size', 'region']
+                      'dataset': ['VolumeId', 'Attachments', 'CreateTime', 'State', 'Size', 'region']
                     },
              'eip': {
                       'method': 'describe_addresses',
