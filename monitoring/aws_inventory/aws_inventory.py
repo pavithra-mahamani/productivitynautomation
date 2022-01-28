@@ -35,8 +35,8 @@ def get_inventories_by_class(profile, service_classes):
                         if item['Key'] == "Name":
                             inventory[service_class]['instance'][index]['Instance_Name']=item['Value']
                     for item in inventory[service_class]['instance'][index]['Tags']:
-                        if "owner" in item.values():
-                            if item['Key'] == "owner":
+                        if "Owner" in item.values():
+                            if item['Key'] == "Owner":
                                 inventory[service_class]['instance'][index]['Cost_Group']=item['Value']
                         else:
                             inventory[service_class]['instance'][index]['Cost_Group']="Unknown"
