@@ -19,7 +19,7 @@ AWS_CLASSES={
                             'method': 'describe_instances',
                             'key'  :  'Reservations',
                             'subkey': 'Instances',
-                            'dataset': ['InstanceId', 'InstanceType', 'LaunchTime', 'State', 'region']
+                            'dataset': ['InstanceId', 'InstanceType', 'LaunchTime', 'State', 'region', 'Tags']
                            },
              'network_interface': {
                                   'method': 'describe_network_interfaces',

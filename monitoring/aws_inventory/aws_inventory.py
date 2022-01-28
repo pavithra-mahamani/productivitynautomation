@@ -26,9 +26,21 @@ def get_inventories_by_class(profile, service_classes):
                 ec2_events=utils.get_cloudtrail_start_ec2_events(profile, regions)
                 for index in range(len(inventory[service_class]['instance'])):
                     if inventory[service_class]['instance'][index]['InstanceId'] in ec2_events:
-                        inventory[service_class]['instance'][index]['Username']=ec2_events[inventory[service_class]['instance'][index]['InstanceId']]
+                        inventory[service_class]['instance'][index]['Last_Username']=ec2_events[inventory[service_class]['instance'][index]['InstanceId']]
                     else:
-                        inventory[service_class]['instance'][index]['Username']="Unknown"
+                        inventory[service_class]['instance'][index]['Last_Username']="Unknown"
+
+                for index in range(len(inventory[service_class]['instance'])):
+                    for item in inventory[service_class]['instance'][index]['Tags']:
+                        if item['Key'] == "Name":
+                            inventory[service_class]['instance'][index]['Instance_Name']=item['Value']
+                    for item in inventory[service_class]['instance'][index]['Tags']:
+                        if "owner" in item.values():
+                            if item['Key'] == "owner":
+                                inventory[service_class]['instance'][index]['Cost_Group']=item['Value']
+                        else:
+                            inventory[service_class]['instance'][index]['Cost_Group']="Unknown"
+                    inventory[service_class]['instance'][index].pop('Tags', None)
             #CBD-4534, associate EBS with corresponding EC2.
             #No need to print out the whole attachments information, only EC2 instance id.
             if 'ebs' in inventory[service_class]:
