@@ -790,7 +790,7 @@ def create_vm(session, os_name, template, network, new_vm_name, cpus="default", 
                 res_type = "Template"
                 all_templates.append(vm)
                 # Look for a given template
-                if record["name_label"].startswith(template):
+                if record["name_label"] == template:
                     templates.append(vm)
                     log.debug(" Found %8s with name_label = %s" % (res_type, record["name_label"]))
 
