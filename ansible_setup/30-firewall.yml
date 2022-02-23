@@ -1,0 +1,23 @@
+---
+- name: Setup Firewall
+  hosts: all
+  tasks:
+  - include_vars: port_vars.yml
+  - name: Start firewallD
+    service:
+      name: firewalld
+      state: restarted
+  - name: Enable ports on public zone
+    firewalld:
+      permanent: yes
+      immediate: yes
+      port: "{{ item }}"
+      state: enabled
+      zone: public
+    with_items:
+     - "{{ ports }}"
+  - name: Add cluster nodes IP to trusted zone (for local traffic)
+    shell: firewall-cmd --zone=trusted --add-source={{ hostvars[item].ansible_default_ipv4.address }}/32 --permanent
+    with_items: "{{ groups.all }}"
+  - name: Firewalld reload
+    shell: firewall-cmd --reload

@@ -1,0 +1,15 @@
+---
+- name: Init cluster and add nodes
+  hosts: couchbase_main
+  tasks:
+   - name: Configure main node
+     shell: /opt/couchbase/bin/couchbase-cli cluster-init -c localhost:8091 --cluster-name {{ cluster_name }} --cluster-username={{ admin_user }} --cluster-password={{ admin_password }} --cluster-port=8091 --cluster-ramsize={{ cluster_ram_quota }} --services {{ services }}
+   - name: Create shell script for adding nodes
+     template:
+       src=./files/add-node.j2
+       dest=/tmp/addnodes.sh
+       mode=750
+   - name: Add nodes
+     shell: /tmp/addnodes.sh
+   - name: Rebalance the cluster
+     shell: /opt/couchbase/bin/couchbase-cli rebalance -c 127.0.0.1:8091 -u {{ admin_user }} -p {{ admin_password }}

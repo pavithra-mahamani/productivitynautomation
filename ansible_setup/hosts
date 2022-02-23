@@ -1,0 +1,16 @@
+[all:vars]
+ansible_connection=ssh
+ansible_ssh_pass=<your password>
+ansible_ssh_user=<your username>
+
+[couchbase_main]
+cb_172_23_105_11.qe.couchbase.com services=data,index,query
+
+[couchbase_nodes]
+cb_172_23_105_12.qe.couchbase.com services=data,index,query,fts
+cb_172_23_105_13.qe.couchbase.com services=data,index
+
+[couchbase_new_nodes]
+cb_172_23_105_14.qe.couchbase.com services=data
+
+

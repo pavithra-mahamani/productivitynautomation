@@ -1,0 +1,10 @@
+basicConstraints=CA:FALSE
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer:always
+extendedKeyUsage=serverAuth
+keyUsage = digitalSignature,keyEncipherment
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.1 = {{ inventory_hostname }}
+IP.1 = {{ ansible_default_ipv4.address }}
