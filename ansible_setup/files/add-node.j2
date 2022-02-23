@@ -1,0 +1,5 @@
+{% for host in groups['couchbase_nodes'] %}
+
+ /opt/couchbase/bin/couchbase-cli server-add -c localhost:8091 -u {{ admin_user }} -p {{ admin_password }} --server-add={{ hostvars[host]['inventory_hostname'] }} --server-add-username={{ admin_user }} --server-add-password={{ admin_password }} --services {{ hostvars[host]['services'] }}
+
+{% endfor %}

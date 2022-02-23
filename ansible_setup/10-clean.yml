@@ -1,0 +1,21 @@
+---
+- name: clean up couchbase
+  gather_facts: false
+  hosts: all
+  tasks:
+    - name: Stop firewall
+      service: name=firewalld state=stopped
+    - name: Stop service if running
+      service: name=couchbase-server state=stopped
+    - name: Remove the couchbase-server package
+      yum:
+        name: couchbase-server*
+        state: absent
+    - name: Delete content & directory
+      file:
+        state: absent
+        path: '{{ item }}'
+      with_items:
+        - /opt/couchbase
+        - '{{ data_path }}'
+        - '{{ index_path }}'

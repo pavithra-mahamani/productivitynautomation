@@ -1,0 +1,54 @@
+---
+- name: Cluster settings
+  hosts: couchbase_main
+  tasks:
+   - name: Disable autofailover
+     shell: /opt/couchbase/bin/couchbase-cli setting-autofailover -c 127.0.0.1:8091 -u {{ admin_user }} -p {{ admin_password }} --enable-auto-failover 0
+
+   - name: Enable Node to Node encryption
+     shell: /opt/couchbase/bin/couchbase-cli node-to-node-encryption -c 127.0.0.1:8091 -u {{ admin_user }} -p {{ admin_password }} --enable
+
+   - name: Config autofailover
+     uri:
+       url: http://127.0.0.1:8091/settings/autoFailover
+       user: "{{ admin_user }}"
+       password: "{{ admin_password }}"
+       method: POST
+       body_format: form-urlencoded
+       body: 
+         enabled: "true"
+         timeout: 10
+         failoverServerGroup: "true"
+         maxCount: 3
+         failoverOnDataDiskIssues[enabled]: "true"
+         failoverOnDataDiskIssues[timePeriod]: 15
+
+   - name: Config index setting
+     shell: /opt/couchbase/bin/couchbase-cli setting-index -c 127.0.0.1:8091 -u {{ admin_user }} -p {{ admin_password }} --replicas 1 --optimize-placement 1 --index-storage-setting default
+
+   - name: Config indexer.settings.rebalance.redistribute_indexes
+     uri:
+       url: http://127.0.0.1:9102/settings
+       user: "{{ admin_user }}"
+       password: "{{ admin_password }}"
+       method: POST
+       body: {"indexer.settings.rebalance.redistribute_indexes": "true"}
+       body_format: json
+       force_basic_auth: yes
+
+   - name: Disable UI over HTTP
+     shell: /opt/couchbase/bin/couchbase-cli setting-security -c 127.0.0.1:8091 -u {{ admin_user }} -p {{ admin_password }} --set --disable-http-ui 1
+
+- name: Node settings
+  hosts: all
+  tasks:
+   - name: Config query profile
+     uri:
+       url: http://127.0.0.1:8093/admin/settings
+       method: POST
+       user: "{{ admin_user }}"
+       password: "{{ admin_password }}"
+       body: {"profile": "timings", "controls": true}
+       body_format: json
+       force_basic_auth: yes
+     when: '"query" in services'

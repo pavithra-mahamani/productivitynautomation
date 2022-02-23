@@ -1,0 +1,8 @@
+---
+- name: FirewallD
+  hosts: all
+  tasks:
+  - name: Stop firewallD
+    service:
+      name: firewalld
+      state: started

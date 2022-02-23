@@ -1,0 +1,14 @@
+---    
+- name: Add new nodes
+  hosts: couchbase_main
+  tasks:
+   - name: Create shell script for adding nodes
+     template:
+       src=./files/add-new-node.j2
+       dest=/tmp/add-new-nodes.sh
+       mode=750
+   - name: Add nodes
+     shell: /tmp/add-new-nodes.sh
+   - name: Rebalance the cluster
+     shell: /opt/couchbase/bin/couchbase-cli rebalance -c 127.0.0.1:8091 -u {{ admin_user }} -p {{ admin_password }}
+

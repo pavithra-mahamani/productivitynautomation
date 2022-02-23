@@ -1,0 +1,84 @@
+---
+- name: Setup Dir/Files
+  hosts: all
+  tasks:
+   - name: Remove cert
+     file:
+       path: "{{ certpath }}"
+       state: absent
+   - name: Create files
+     file:
+       path: '{{ item }}'
+       state: directory
+     with_items:
+       - "{{ certpath }}/public"
+       - "{{ certpath }}/private"
+       - "{{ certpath }}/requests"
+   - name: copy ext file
+     template:
+       src: ./files/server.ext.j2
+       dest: "{{ certpath }}/server.ext"
+
+- name: Setup Root CA
+  hosts: couchbase_main
+  tasks:
+   - name: Create ROOT key
+     shell: openssl genrsa -out {{ certpath }}/ca.key 2048
+   - name: Create ROOT ca
+     shell: openssl req -new -x509 -days 3650 -sha256 -key {{ certpath }}/ca.key -out {{ certpath }}/ca.pem -subj "/CN=RootCA"
+   - name: Get root cert/key
+     fetch:
+       src: "{{ item }}"
+       dest: ./files/
+       flat: yes
+     with_items:
+       - "{{ certpath }}/ca.key"
+       - "{{ certpath }}/ca.pem"
+
+- name: Setup Node Certificate
+  hosts: all
+  tasks:
+   - name: Copy ca.pem
+     copy:
+       src: ./files/ca.pem
+       dest: "{{ certpath }}/ca.pem"
+   - name: Copy ca.key
+     copy:
+       src: ./files/ca.key
+       dest: "{{ certpath }}/ca.key"
+   - name: Create node key
+     shell: openssl genrsa -out {{ certpath }}/private/pkey.key 2048
+   - name: Create csr
+     shell: openssl req -new -key {{ certpath }}/private/pkey.key -out {{ certpath }}/requests/couchbase.default.svc.csr -subj "/CN=Couchbase Server"
+   - name: Create node cert
+     shell: openssl x509 -CA {{ certpath }}/ca.pem -CAkey {{ certpath }}/ca.key -CAcreateserial -days 365 -req -in {{ certpath }}/requests/couchbase.default.svc.csr -out {{ certpath }}/public/chain.pem -extfile {{ certpath }}/server.ext
+
+- name: Copy certificate to inbox
+  hosts: all
+  tasks:
+   - name: Create inbox
+     file:
+       path: /opt/couchbase/var/lib/couchbase/inbox
+       state: directory
+       owner: couchbase
+   - name: Copy key and certificate to inbox
+     copy:
+       src: "{{ item }}"
+       dest: /opt/couchbase/var/lib/couchbase/inbox/
+       remote_src: yes
+       owner: couchbase
+     with_items:
+       - "{{ certpath }}/public/chain.pem"
+       - "{{ certpath }}/private/pkey.key"
+
+- name: Upload certificate to cluster
+  hosts: all
+  tasks:
+   - name: Upload Cluster CA
+     shell: curl -X POST --data-binary "@{{ certpath }}/ca.pem" http://{{ admin_user }}:{{ admin_password }}@127.0.0.1:8091/controller/uploadClusterCA
+   - name: Reload Certificate
+     uri:
+       url: http://127.0.0.1:8091/node/controller/reloadCertificate
+       method: POST
+       user: "{{ admin_user }}"
+       password: "{{ admin_password }}"

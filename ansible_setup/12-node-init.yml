@@ -1,0 +1,14 @@
+---
+- name: Init nodes
+  hosts: all
+  tasks:
+   - name: Create data / index path
+     file:
+       path: '{{ item }}'
+       state: directory
+       owner: couchbase
+     with_items:
+       - '{{ data_path }}'
+       - '{{ index_path }}'
+   - name: Init node
+     shell: /opt/couchbase/bin/couchbase-cli node-init -c 127.0.0.1:8091 -u {{ admin_user }} -p {{ admin_password }} --node-init-data-path {{ data_path }} --node-init-index-path {{ index_path }} --node-init-hostname {{ inventory_hostname }}
