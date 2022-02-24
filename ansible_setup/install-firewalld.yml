@@ -1,0 +1,9 @@
+---
+- name: Install firewalld
+  gather_facts: false
+  hosts: all
+  tasks:
+    - name: Install firewalld firewall
+      yum:
+        name: firewalld
+        state: present
