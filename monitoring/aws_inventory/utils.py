@@ -33,7 +33,6 @@ def json_serial_datetime(obj):
 
 def get_inventory_regional(profile,regions,service_class,class_name):
     inventory = collections.defaultdict(list)
-
     for region in regions:
         session = boto3.Session(profile_name=profile, region_name=region['RegionName'])
         client = session.client(class_name)
@@ -43,27 +42,38 @@ def get_inventory_regional(profile,regions,service_class,class_name):
             key=service_class[service_name]['key']
             try:
                 result=getattr(client,method)()
-
-                if 'subkey' in service_class[service_name].keys():
-                    subkey=service_class[service_name]['subkey']
-                    for r in result[key]:
-                        for i in r[subkey]:
-                            i['region']=region['RegionName']
-                            inventory[service_name].append({key:i[key] for key in service_class[service_name]['dataset']})
-                elif 'filter' in service_class[service_name].keys():
-                    for r in result[key]:
-                        filterkey=service_class[service_name]['filter']['key']
-                        filtervalue=service_class[service_name]['filter']['value']
-                        if (r[filterkey] != filtervalue):
-                            r['region']=region['RegionName']
-                            inventory[service_name].append({key:r[key] for key in service_class[service_name]['dataset']})
-                else:
-                    for r in result[key]:
-                        r['region']=region['RegionName']
-                        inventory[service_name].append({k:r[k] for k in service_class[service_name]['dataset']})
-
             except:
                 print(f"No result or fail to fetch result for {service_name} in {region['RegionName']}")
+
+            if 'subkey' in service_class[service_name].keys():
+                subkey=service_class[service_name]['subkey']
+                for r in result[key]:
+                    for i in r[subkey]:
+                        i['region']=region['RegionName']
+                        a_dict = collections.defaultdict(str)
+                        for k in service_class[service_name]['dataset']:
+                            if i.get(k):
+                                a_dict[k]=i.get(k)
+                        inventory[service_name].append(a_dict)
+            elif 'filter' in service_class[service_name].keys():
+                for f in result[key]:
+                    filterkey=service_class[service_name]['filter']['key']
+                    filtervalue=service_class[service_name]['filter']['value']
+                    if (f[filterkey] != filtervalue):
+                        f['region']=region['RegionName']
+                        a_dict = collections.defaultdict(str)
+                        for k in service_class[service_name]['dataset']:
+                            if f.get(k):
+                                a_dict[k]=f.get(k)
+                        inventory[service_name].append(a_dict)
+            else:
+                for r in result[key]:
+                    r['region']=region['RegionName']
+                    a_dict = collections.defaultdict(str)
+                    for k in service_class[service_name]['dataset']:
+                        if r.get(k):
+                            a_dict[k]=r.get(k)
+                    inventory[service_name].append(a_dict)
 
     return inventory
 
@@ -87,19 +97,30 @@ def get_inventory_global(profile,service_class,class_name):
                 for r in result[key]:
                     for i in r[subkey]:
                         i['region']=region['RegionName']
-                        inventory[service_name].append({key:i[key] for key in service_class[service_name]['dataset']})
+                        a_dict = collections.defaultdict(str)
+                        for k in service_class[service_name]['dataset']:
+                            if i.get(k):
+                                a_dict[k]=i.get(k)
+                        inventory[service_name].append(a_dict)
             elif 'filter' in service_class[service_name].keys():
-                for r in result[key]:
+                for f in result[key]:
                     filterkey=service_class[service_name]['filter']['key']
                     filtervalue=service_class[service_name]['filter']['value']
-                    if (r[filterkey] != filtervalue):
-                        r['region']=region['RegionName']
-                        inventory[service_name].append({key:r[key] for key in service_class[service_name]['dataset']})
+                    if (f[filterkey] != filtervalue):
+                        f['region']=region['RegionName']
+                        a_dict = collections.defaultdict(str)
+                        for k in service_class[service_name]['dataset']:
+                            if f.get(k):
+                                a_dict[k]=f.get(k)
+                        inventory[service_name].append(a_dict)
             else:
                 for r in result[key]:
                     r['region']=region['RegionName']
-                    inventory[service_name].append({key:r[key] for key in service_class[service_name]['dataset']})
-
+                    a_dict = collections.defaultdict(str)
+                    for k in service_class[service_name]['dataset']:
+                        if r.get(k):
+                            a_dict[k]=r.get(k)
+                    inventory[service_name].append(a_dict)
         except:
             print(f"No result or fail to fetch result for {service_name} in {region['RegionName']}")
     return inventory

@@ -31,25 +31,28 @@ def get_inventories_by_class(profile, service_classes):
                         inventory[service_class]['instance'][index]['Last_Username']="Unknown"
 
                 for index in range(len(inventory[service_class]['instance'])):
-                    for item in inventory[service_class]['instance'][index]['Tags']:
-                        if item['Key'] == "Name":
-                            inventory[service_class]['instance'][index]['Instance_Name']=item['Value']
-                    for item in inventory[service_class]['instance'][index]['Tags']:
-                        if "Owner" in item.values():
-                            if item['Key'] == "Owner":
-                                inventory[service_class]['instance'][index]['Cost_Group']=item['Value']
-                        else:
-                            inventory[service_class]['instance'][index]['Cost_Group']="Unknown"
+                    if inventory[service_class]['instance'][index].get('Tags'):
+                        for item in inventory[service_class]['instance'][index]['Tags']:
+                            if item['Key'] == "Name":
+                                inventory[service_class]['instance'][index]['Instance_Name']=item['Value']
+                        for item in inventory[service_class]['instance'][index]['Tags']:
+                            if "Owner" in item.values():
+                                if item['Key'] == "Owner":
+                                    inventory[service_class]['instance'][index]['Cost_Group']=item['Value']
+                            else:
+                                inventory[service_class]['instance'][index]['Cost_Group']="Unknown"
                     inventory[service_class]['instance'][index].pop('Tags', None)
             #CBD-4534, associate EBS with corresponding EC2.
             #No need to print out the whole attachments information, only EC2 instance id.
             if 'ebs' in inventory[service_class]:
                 for index in range(len(inventory[service_class]['ebs'])):
-                    if len(inventory[service_class]['ebs'][index]['Attachments']) == 0:
+                    if not inventory[service_class]['ebs'][index].get('Attachments'):
                         inventory[service_class]['ebs'][index]['InstanceId']= None
                     else:
-                        inventory[service_class]['ebs'][index]['InstanceId']=inventory[service_class]['ebs'][index]['Attachments'][0]['InstanceId']
-                    del inventory[service_class]['ebs'][index]['Attachments']
+                        print(inventory[service_class]['ebs'][index]['InstanceId'])
+                        inventory[service_class]['ebs'][index]['InstanceId'] = inventory[service_class]['ebs'][index]['Attachments'][0]['InstanceId']
+                        del inventory[service_class]['ebs'][index]['Attachments']
+               
     with open('result.txt', 'w') as f:
         for service_class in service_classes:
             f.write(f"\n{service_class}:\n")
