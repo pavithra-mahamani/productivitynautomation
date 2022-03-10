@@ -29,6 +29,9 @@
    - name: FTS index bleveMaxResultWindow setting
      shell: curl -X PUT -u {{ admin_user }}:{{ admin_password }} -H Content-Type:application/json http://127.0.0.1:8094/api/managerOptions -d '{"bleveMaxResultWindow":"100000000"}'
 
+   - name: FTS memory quota
+     shell: curl -X POST -u {{ admin_user }}:{{ admin_password }} http://127.0.0.1:8091/pools/default -d 'ftsMemoryQuota=1200'
+
    - name: Config indexer.settings.rebalance.redistribute_indexes
      uri:
        url: http://127.0.0.1:9102/settings
