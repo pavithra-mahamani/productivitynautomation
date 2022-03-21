@@ -1,7 +1,7 @@
 import configparser
 import sys
 
-def main(confFile):
+def main(confFile, inventory_template):
     src_config = configparser.ConfigParser()
     src_config.read(confFile)
     options = src_config.options("servers")
@@ -11,7 +11,7 @@ def main(confFile):
         servers.append(src_config.get(src_config.get("servers", option), 'ip'))
     print(servers)
 
-    with open('hosts_template','r') as firstfile, open('/root/cloud/hosts','w') as secondfile: #/root/cloud/hosts
+    with open(inventory_template,'r') as firstfile, open('/root/cloud/hosts','w') as secondfile: #/root/cloud/hosts
 
         # read content from first file
         for line in firstfile:
@@ -29,5 +29,6 @@ def main(confFile):
 
 if __name__ == '__main__':
     confFile = sys.argv[1]
+    inventory_template = sys.argv[2]
     print(confFile)
-    main(confFile)
+    main(confFile, inventory_template)
