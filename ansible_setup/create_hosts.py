@@ -8,7 +8,13 @@ def main(confFile, inventory_template):
     print(options)
     servers = []
     for option in options:
-        servers.append(src_config.get(src_config.get("servers", option), 'ip'))
+        ip = src_config.get(src_config.get("servers", option), 'ip')
+        try:
+            services = src_config.get(src_config.get("servers", option), 'services')
+        except configparser.NoOptionError:
+            services = "kv,index,n1ql,fts"
+
+        servers.append({"ip": ip, "services": services})
     print(servers)
 
     with open(inventory_template,'r') as firstfile, open('/root/cloud/hosts','w') as secondfile: #/root/cloud/hosts
@@ -19,11 +25,11 @@ def main(confFile, inventory_template):
             # append content to second file
             secondfile.write(line)
             if "couchbase_main" in line:
-                secondfile.write(f"{servers[0]} services=data,index,query,fts,eventing")
+                secondfile.write(f"{servers[0].get('ip')} services={servers[0].get('services')}")
 
             if "couchbase_nodes" in line:
                 for i in range(1,len(servers)):
-                    secondfile.write(f"{servers[i]} services=data,index,query,fts\n")
+                    secondfile.write(f"{servers[i].get('ip')} services={servers[i].get('services')}\n")
 
 
 
