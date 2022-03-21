@@ -12,8 +12,9 @@ def create_hosts_file(confFile, inventory_template, hosts_file):
         try:
             services = src_config.get(src_config.get("servers", option), 'services')
             services = services.replace("kv", "data")
+            services = services.replace("n1ql", "query")
         except configparser.NoOptionError:
-            services = "data,index,n1ql,fts"
+            services = "data,index,query,fts"
 
         servers.append({"ip": ip, "services": services})
     print(servers)
