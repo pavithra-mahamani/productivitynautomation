@@ -1,7 +1,7 @@
 import configparser
 import sys
 
-def main(confFile, inventory_template):
+def create_hosts_file(confFile, inventory_template, hosts_file):
     src_config = configparser.ConfigParser()
     src_config.read(confFile)
     options = src_config.options("servers")
@@ -11,13 +11,14 @@ def main(confFile, inventory_template):
         ip = src_config.get(src_config.get("servers", option), 'ip')
         try:
             services = src_config.get(src_config.get("servers", option), 'services')
+            services.replace("kv", "data")
         except configparser.NoOptionError:
-            services = "kv,index,n1ql,fts"
+            services = "data,index,n1ql,fts"
 
         servers.append({"ip": ip, "services": services})
     print(servers)
 
-    with open(inventory_template,'r') as firstfile, open('/root/cloud/hosts','w') as secondfile: #/root/cloud/hosts
+    with open(inventory_template,'r') as firstfile, open(hosts_file,'w') as secondfile: #/root/cloud/hosts
 
         # read content from first file
         for line in firstfile:
@@ -31,10 +32,9 @@ def main(confFile, inventory_template):
                 for i in range(1,len(servers)):
                     secondfile.write(f"{servers[i].get('ip')} services={servers[i].get('services')}\n")
 
-
-
 if __name__ == '__main__':
     confFile = sys.argv[1]
     inventory_template = sys.argv[2]
+    hosts_file = sys.argv[3]
     print(confFile)
-    main(confFile, inventory_template)
+    create_hosts_file(confFile, inventory_template, hosts_file)
