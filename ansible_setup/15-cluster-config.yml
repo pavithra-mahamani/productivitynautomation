@@ -8,6 +8,9 @@
    - name: Enable Node to Node encryption
      shell: /opt/couchbase/bin/couchbase-cli node-to-node-encryption -c 127.0.0.1:8091 -u {{ admin_user }} -p {{ admin_password }} --enable
 
+   - name: Enable strict mode
+     shell: /opt/couchbase/bin/couchbase-cli setting-security -c 127.0.0.1:8091 -u {{ admin_user }} -p {{ admin_password }} --set --cluster-encryption-level strict
+
    - name: Config autofailover
      uri:
        url: http://127.0.0.1:8091/settings/autoFailover
