@@ -26,25 +26,6 @@
          failoverOnDataDiskIssues[enabled]: "true"
          failoverOnDataDiskIssues[timePeriod]: 15
 
-   - name: Config index setting
-     shell: /opt/couchbase/bin/couchbase-cli setting-index -c 127.0.0.1:8091 -u {{ admin_user }} -p {{ admin_password }} --replicas 1 --optimize-placement 1 --index-storage-setting default
-
-   - name: FTS index bleveMaxResultWindow setting
-     shell: curl -X PUT -u {{ admin_user }}:{{ admin_password }} -H Content-Type:application/json http://127.0.0.1:8094/api/managerOptions -d '{"bleveMaxResultWindow":"100000000"}'
-
-   - name: FTS memory quota
-     shell: curl -X POST -u {{ admin_user }}:{{ admin_password }} http://127.0.0.1:8091/pools/default -d 'ftsMemoryQuota=1200'
-
-   - name: Config indexer.settings.rebalance.redistribute_indexes
-     uri:
-       url: http://127.0.0.1:9102/settings
-       user: "{{ admin_user }}"
-       password: "{{ admin_password }}"
-       method: POST
-       body: {"indexer.settings.rebalance.redistribute_indexes": "true"}
-       body_format: json
-       force_basic_auth: yes
-
    - name: Disable UI over HTTP
      shell: /opt/couchbase/bin/couchbase-cli setting-security -c 127.0.0.1:8091 -u {{ admin_user }} -p {{ admin_password }} --set --disable-http-ui 1
 
@@ -61,3 +42,22 @@
        body_format: json
        force_basic_auth: yes
      when: '"query" in services'
+   - name: Index settings redistribute indexes
+     uri:
+       url: http://127.0.0.1:9102/settings
+       user: "{{ admin_user }}"
+       password: "{{ admin_password }}"
+       method: POST
+       body: {"indexer.settings.rebalance.redistribute_indexes": "true"}
+       body_format: json
+       force_basic_auth: yes
+     when: '"index" in services'
+   - name: Config index setting
+     shell: /opt/couchbase/bin/couchbase-cli setting-index -c 127.0.0.1:8091 -u {{ admin_user }} -p {{ admin_password }} --replicas 1 --optimize-placement 1 --index-storage-setting default
+     when: '"index" in services'
+   - name: FTS index bleveMaxResultWindow setting
+     shell: curl -X PUT -u {{ admin_user }}:{{ admin_password }} -H Content-Type:application/json http://127.0.0.1:8094/api/managerOptions -d '{"bleveMaxResultWindow":"100000000"}'
+     when: '"fts" in services'
+   - name: FTS memory quota
+     shell: curl -X POST -u {{ admin_user }}:{{ admin_password }} http://127.0.0.1:8091/pools/default -d 'ftsMemoryQuota=1200'
+     when: '"fts" in services'
