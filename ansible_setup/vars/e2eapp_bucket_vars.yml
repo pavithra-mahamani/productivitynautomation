@@ -1,5 +1,9 @@
 buckets:
 - { "name": "e2e", "ram":200, "replicas":2, "eviction": "fullEviction" }
+scopes:
+- { "bucket_name": "e2e", "scope_name": "bookings" }
+- { "bucket_name": "e2e", "scope_name": "inventory"}
+- { "bucket_name": "e2e", "scope_name": "profiles" }
 scope_collection:
 - { "bucket_name": "e2e", "scope_name": "bookings", "collection_name": "flight" }
 - { "bucket_name": "e2e", "scope_name": "inventory", "collection_name": "flight_schedules" }
