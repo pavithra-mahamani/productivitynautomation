@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -154,6 +155,7 @@ type TestResult struct {
 	Result     string
 	TotalCount int
 	URL        string
+	SkipCount  int
 }
 
 //const url = "http://172.23.109.245:8093/query/service"
@@ -180,6 +182,8 @@ var defaultSuiteType string
 var qaJenkinsURL string
 var requiredServerPools string
 var requiredStates string
+var component string
+var jobNameRegex *regexp.Regexp
 
 func main() {
 	fmt.Println("*** Helper Tool ***")
@@ -189,6 +193,7 @@ func main() {
 	overwriteInput := flag.String("overwrite", "no", usage())
 	updateURLInput := flag.String("updateurl", "no", usage())
 	cbplatformInput := flag.String("os", "centos", usage())
+	componentInput := flag.String("component", "", usage())
 	cbbucketInput := flag.String("cbbucket", "server", usage())
 	s3bucketInput := flag.String("s3bucket", "cb-logs-qe", usage())
 	s3urlInput := flag.String("s3url", "http://cb-logs-qe.s3-website-us-west-2.amazonaws.com/", usage())
@@ -206,6 +211,7 @@ func main() {
 	requiredServerPoolsInput := flag.String("reqserverpools",
 		"regression,durability,ipv6,ipv6-raw,ipv6-fqdn,ipv6-mix,jre-less,jre,security,elastic-fts,elastic-xdcr", usage())
 	requiredStatesInput := flag.String("reqstates", "available,booked", usage())
+	jobNameRegexInput := flag.String("jobname", "", usage())
 
 	flag.Parse()
 	dest = *destInput
@@ -229,6 +235,10 @@ func main() {
 	qaJenkinsURL = *qaJenkinsURLInput
 	requiredServerPools = *requiredServerPoolsInput
 	requiredStates = *requiredStatesInput
+	component = *componentInput
+	if *jobNameRegexInput != "" {
+		jobNameRegex = regexp.MustCompile(*jobNameRegexInput)
+	}
 
 	//fmt.Println("original dest=", dest, "--", *destInput)
 	//time.Sleep(10 * time.Second)
@@ -554,13 +564,13 @@ func getreruntotalbuildcycleduration(buildN string) int {
 
 	fmt.Println("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
 	//fmt.Println("S.No.\tBuild\t\tOS\tTestCount\tFailedCount\tPassedCount\tPassrate\tJobcount(A,F,U,S)\tTotaltime\tTotalComponents\tTotalJobs\tTotalRuns\tTotalReruns\tTotalRerunJobs")
-	fmt.Println("S.No.\tBuild\t\tOS\tTC\tFC\tPC\tRate\tAborted,Failed,Unstable,Succ\tTotalTime\t#Comp\t#Jobs\t#Runs\t#Reruns\t#RerunJobs RerunRate\tRerunTime")
+	fmt.Println("S.No.\tBuild\t\tOS\tTC\tFC\tPC\tSC\tRate\tAborted,Failed,Unstable,Succ\tTotalTime\t#Comp\t#Jobs\t#Runs\t#Reruns\t#RerunJobs RerunRate\tRerunTime")
 	fmt.Println("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
 	fmt.Fprintln(outW, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
-	fmt.Fprintln(outW, "S.No.\tBuild\t\tOS\tTC\tFC\tPC\tRate\tAborted,Failed,Unstable,Succ\tTotalTime\t#Comp\t#Jobs\t#Runs\t#Reruns\t#RerunJobs RerunRate\tRerunTime")
+	fmt.Fprintln(outW, "S.No.\tBuild\t\tOS\tTC\tFC\tPC\tSC\tRate\tAborted,Failed,Unstable,Succ\tTotalTime\t#Comp\t#Jobs\t#Runs\t#Reruns\t#RerunJobs RerunRate\tRerunTime")
 	fmt.Fprintln(outW, "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
 
-	fmt.Fprintln(outWCsv, "S.No.,Build,GrandTC,GrandFC,OS,TC,FC,PC,Rate,Aborted,Failed,Unstable,Succ,TotalTime(hrs),FreshTotalTime(hrs),#Comp,#Jobs,#FreshJobs,#Runs,#FreshRuns,#Reruns,#RerunJobs,RerunRate,RerunTime(hrs)")
+	fmt.Fprintln(outWCsv, "S.No.,Build,GrandTC,GrandFC,OS,TC,FC,PC,SC,Rate,Aborted,Failed,Unstable,Succ,TotalTime(hrs),FreshTotalTime(hrs),#Comp,#Jobs,#FreshJobs,#Runs,#FreshRuns,#Reruns,#RerunJobs,RerunRate,RerunTime(hrs)")
 
 	sno := 1
 	//for i := 0; i < len(cbbuilds); i++ {
@@ -570,7 +580,7 @@ func getreruntotalbuildcycleduration(buildN string) int {
 	//qry := "select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" " + qryfilter
 	//qry := "select numofjobs, totaltime, failcount, totalcount from (select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b " +
 	//	"where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" ) as result " + qryfilter + " limit " + finallimits
-	qry := "select `build`, totalCount, failCount, `type`, os as buildOS from test_eventing b " +
+	qry := "select `build`, totalCount, failCount, `type`, os as buildOS from greenboard b " +
 		"where  b.`build` like \"" + cbbuild + "%\" " + qryfilter + " order by `build` desc"
 	//qry := "select `build`, numofjobs, totaltime, failcount, totalcount from (select b.`build`, count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like "centos" and b.`build` like "6.5%" group by b.`build` order by b.`build` desc) as result where numofjobs>500 limit 30"
 	//fmt.Println("\nquery=" + qry)
@@ -612,17 +622,45 @@ func getreruntotalbuildcycleduration(buildN string) int {
 				totalFailed := 0
 				totalUnstable := 0
 				totalSuccess := 0
+				totalComps := 0
+				totalSkipCount := 0
 				var totalRerunOnlyDuration int64
 				var totalGrandDuration int64
 				var totalDuration int64
 				var reranJobsList string
 				for key1, value1 := range value {
+					if component != "" && strings.ToUpper(component) != key1 {
+						continue
+					}
+					totalComps++
 					//fmt.Println("\nComponent:", key1, "Value1:", value1)
-					totalJobs += len(value1)
 					for key2, value2 := range value1 {
+						if jobNameRegex != nil && !jobNameRegex.MatchString(key2) {
+							continue
+						}
 						//fmt.Println("\nJob/Suite:", key2, "Value2:", value2)
-						tests := make([]TestResult, 10)
-						rerunCount := copy(tests, value2)
+						tests := []TestResult{}
+						// skip deleted runs
+						for _, run := range value2 {
+							if !run.Deleted {
+								tests = append(tests, run)
+							}
+						}
+						rerunCount := len(tests)
+						if rerunCount == 0 {
+							continue
+						}
+						var bestRun TestResult = tests[0]
+						for i := range tests {
+							if !tests[i].OlderBuild {
+								bestRun = tests[i]
+								break
+							}
+						}
+						if bestRun.OlderBuild {
+							continue
+						}
+						totalJobs++
 						if rerunCount > 1 {
 							reranJobCount++
 							reranJobsList += fmt.Sprintf("\n\t%d. %s: %s -- %d ", reranJobCount, key1, key2, (rerunCount - 1))
@@ -633,10 +671,11 @@ func getreruntotalbuildcycleduration(buildN string) int {
 						for i := 0; i < len(tests); i++ {
 							totalGrandDuration += tests[i].Duration
 						}
-						totalDuration += tests[0].Duration
-						totalFailCount += tests[0].FailCount
-						totalTestCount += tests[0].TotalCount
-						switch tests[0].Result {
+						totalDuration += bestRun.Duration
+						totalFailCount += bestRun.FailCount
+						totalTestCount += bestRun.TotalCount
+						totalSkipCount += bestRun.SkipCount
+						switch bestRun.Result {
 						case "ABORTED":
 							totalAborted++
 							break
@@ -658,49 +697,56 @@ func getreruntotalbuildcycleduration(buildN string) int {
 				//fmt.Printf("\nOS:%s \t%d \t%d \t%d \t%d \t%d \t%d \t%d \tComponents=%d \tJobs=%d \tTotal Runs=%d \tReruns=%d \tRerun jobs=%d",
 				//	key, totalTestCount, totalFailCount, totalAborted, totalFailed, totalUnstable, totalSuccess, totalDuration, len(value), totalJobs,
 				//	totalRuns, totalReruns, reranJobCount)
-				var totalPassCount = totalTestCount - totalFailCount
-				var totalPassRate = (totalPassCount * 100) / totalTestCount
-				var totalComps = len(value)
-				hours := math.Floor(float64(totalGrandDuration) / 1000 / 60 / 60)
+				var totalPassCount = totalTestCount - totalFailCount - totalSkipCount
+				var totalPassRate = float64(0)
+				// prevent divide by zero
+				if totalPassCount > 0 {
+					totalPassRate = (float64(totalPassCount) * 100.0) / (float64(totalTestCount - totalSkipCount))
+				}
+				hours := float64(totalGrandDuration) / 1000 / 60 / 60
 				secs := totalDuration % (1000 * 60 * 60)
 				mins := math.Floor(float64(secs) / 60 / 1000)
 				//totalMins := math.Floor(float64(totalGrandDuration) / 1000 / 60)
 
-				rerunHours := math.Floor(float64(totalRerunOnlyDuration) / 1000 / 60 / 60)
+				rerunHours := float64(totalRerunOnlyDuration) / 1000 / 60 / 60
 				rerunSecs := totalRerunOnlyDuration % (1000 * 60 * 60)
 				rerunMins := math.Floor(float64(rerunSecs) / 60 / 1000)
 				//totalRerunMins := math.Floor(float64(totalRerunOnlyDuration) / 1000 / 60)
 
 				freshTotalRuns := totalRuns - totalReruns
-				freshTotaltime := int64(hours) - int64(rerunHours)
+				freshTotaltime := hours - rerunHours
 				freshTotalJobs := totalJobs - reranJobCount
 
-				var rerunsRate = (totalReruns * 100) / totalRuns
-				if totalJobs > 100 {
+				var rerunsRate = 0
+				if totalRuns > 0 {
+					rerunsRate = (totalReruns * 100) / totalRuns
+				}
+
+				if totalJobs > 100 || (component != "" && totalJobs > 0) {
 					fmt.Printf("\n%d\t%s \t\t%d \t%d", (sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount)
 					fmt.Fprintf(outW, "\n%d\t%s \t\t%d \t%d", (sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount)
 					if rerunHours > 0 || rerunMins > 0 {
-						fmt.Printf("\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%3d%% \t\t%4dhrs:%2dmins",
-							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
+						fmt.Printf("\n\t\t\t%s \t%5d \t%5d \t%5d \t%5d \t%.2f%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%3d%% \t\t%4dhrs:%2dmins",
+							key, totalTestCount, totalFailCount, totalPassCount, totalSkipCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
 							totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins))
-						fmt.Fprintf(outW, "\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%3d%% \t\t%4dhrs:%2dmins",
-							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
+						fmt.Fprintf(outW, "\n\t\t\t%s \t%5d \t%5d \t%5d \t%5d \t%.2f%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d \t%3d%% \t\t%4dhrs:%2dmins",
+							key, totalTestCount, totalFailCount, totalPassCount, totalSkipCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
 							totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins))
 						fmt.Fprintf(outW, "\n%s", reranJobsList)
 					} else {
-						fmt.Printf("\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d",
-							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
+						fmt.Printf("\n\t\t\t%s \t%5d \t%5d \t%5d \t%5d \t%.2f%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d",
+							key, totalTestCount, totalFailCount, totalPassCount, totalSkipCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
 							totalRuns, totalReruns, reranJobCount)
-						fmt.Fprintf(outW, "\n\t\t\t%s \t%5d \t%5d \t%5d \t%3d%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d",
-							key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
+						fmt.Fprintf(outW, "\n\t\t\t%s \t%5d \t%5d \t%5d \t%5d \t%.2f%% \t%4d \t%4d \t%4d \t%4d \t%4dhrs:%2dmins \t%3d \t%3d \t%3d \t%3d \t%3d",
+							key, totalTestCount, totalFailCount, totalPassCount, totalSkipCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
 							totalRuns, totalReruns, reranJobCount)
 					}
 					//fmt.Fprintf(outWCsv, "%d,%s,%d,%d,%s,%d,%d,%d,%d%%,%d,%d,%d,%d,%dhrs:%dmins,%d,%d,%d,%d,%d,%d%%,%dhrs:%dmins\n",
 					//	(sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount, key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), int64(mins), totalComps, totalJobs,
 					//	totalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours), int64(rerunMins))
-					fmt.Fprintf(outWCsv, "%d,%s,%d,%d,%s,%d,%d,%d,%d%%,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d%%,%d\n",
-						(sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount, key, totalTestCount, totalFailCount, totalPassCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, int64(hours), freshTotaltime, totalComps, totalJobs, freshTotalJobs,
-						totalRuns, freshTotalRuns, totalReruns, reranJobCount, rerunsRate, int64(rerunHours))
+					fmt.Fprintf(outWCsv, "%d,%s,%d,%d,%s,%d,%d,%d,%d,%.2f,%d,%d,%d,%d,%.1f,%.1f,%d,%d,%d,%d,%d,%d,%d,%d,%.1f\n",
+						(sno), cbbuild, result.Results[i].TotalCount, result.Results[i].FailCount, key, totalTestCount, totalFailCount, totalPassCount, totalSkipCount, totalPassRate, totalAborted, totalFailed, totalUnstable, totalSuccess, hours, freshTotaltime, totalComps, totalJobs, freshTotalJobs,
+						totalRuns, freshTotalRuns, totalReruns, reranJobCount, rerunsRate, rerunHours)
 
 					sno++
 				}
@@ -797,7 +843,7 @@ func getreruntotalbuildcycledurationclocktime(buildN string) int {
 	//qry := "select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" " + qryfilter
 	//qry := "select numofjobs, totaltime, failcount, totalcount from (select count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b " +
 	//	"where lower(b.os) like \"" + cbplatform + "\" and b.`build`=\"" + cbbuild + "\" ) as result " + qryfilter + " limit " + finallimits
-	qry := "select `build`, totalCount, failCount, `type`, os as buildOS from test_eventing b " +
+	qry := "select `build`, totalCount, failCount, `type`, os as buildOS from greenboard b " +
 		"where  b.`build` like \"" + cbbuild + "%\" " + qryfilter + " order by `build` desc"
 	//qry := "select `build`, numofjobs, totaltime, failcount, totalcount from (select b.`build`, count(*) as numofjobs, sum(duration) as totaltime, sum(failCount) as failcount, sum(totalCount) as totalcount from server b where lower(b.os) like "centos" and b.`build` like "6.5%" group by b.`build` order by b.`build` desc) as result where numofjobs>500 limit 30"
 	//fmt.Println("\nquery=" + qry)
@@ -964,7 +1010,11 @@ func getreruntotalbuildcycledurationclocktime(buildN string) int {
 				//	key, totalTestCount, totalFailCount, totalAborted, totalFailed, totalUnstable, totalSuccess, totalDuration, len(value), totalJobs,
 				//	totalRuns, totalReruns, reranJobCount)
 				var totalPassCount = totalTestCount - totalFailCount
-				var totalPassRate = (totalPassCount * 100) / totalTestCount
+				var totalPassRate = 0
+				// prevent divide by zero
+				if totalPassCount > 0 {
+					totalPassRate = (totalPassCount * 100) / totalTestCount
+				}
 				var totalComps = len(value)
 				hours := math.Floor(float64(totalGrandDuration) / 1000 / 60 / 60)
 				secs := totalGrandDuration % (1000 * 60 * 60)

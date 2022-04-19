@@ -1,0 +1,12 @@
+[all:vars]
+ansible_connection=ssh
+ansible_ssh_pass=couchbase
+ansible_ssh_user=root
+
+[couchbase_main]
+
+[couchbase_nodes]
+
+[couchbase_new_nodes]
+
+

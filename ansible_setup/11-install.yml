@@ -1,0 +1,9 @@
+---
+- name: Install couchbase
+  gather_facts: false
+  hosts: all
+  tasks:
+    - name: Install the couchbase server rpm from a remote repo
+      yum:
+        name: '{{ build_url }}'
+        state: present

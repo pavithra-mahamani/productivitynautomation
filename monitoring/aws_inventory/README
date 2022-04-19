@@ -1,0 +1,13 @@
+Prerequisites:
+  Python 3.7+
+  pip3 install argparse tabulate boto3
+
+Usage:
+  python3 aws_inventory.py -p <profile name> -c <comma separated aws sdk class names>
+  i.e. python3 aws_inventory.py -p "cb-qe" -c ec2
+
+Note:
+  Not all aws sdk classes have been implemented.  Available SDK class names are listed in config.py:
+ec2, batch, lightsail, lambda, autoscaling, eks, ecs, elasticbeanstalk, efs, s3, rds, dynamodb,
+neptune, redshift, elasticache.
+

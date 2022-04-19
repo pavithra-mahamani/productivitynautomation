@@ -1,0 +1,11 @@
+# Roles
+read_all_bucket: "query_execute_functions[*],query_execute_external_functions[*],data_reader[*],data_monitoring[*],query_select[*],fts_searcher[*],data_dcp_reader[*],"
+read_global: "query_system_catalog,query_execute_global_functions,query_execute_global_external_functions,"
+write_all_bucket: "query_manage_functions[*],query_manage_external_functions[*],scope_admin[*],data_writer[*],query_update[*],query_insert[*],query_delete[*],query_manage_index[*],fts_admin[*],eventing_manage_functions[*],"
+write_global: "query_manage_global_functions,query_manage_global_external_functions,"
+
+# Users
+users:
+- { "id":"user1", "password":"password", "roles":"{{ read_all_bucket }}{{ read_global }}{{ write_all_bucket }}{{ write_global }}" }
+- { "id":"user2", "password":"password", "roles":"{{ read_all_bucket }}{{ read_global }}" }
+- { "id":"john", "password":"asdasd", "roles":"{{ read_all_bucket }}{{ write_all_bucket }}" }

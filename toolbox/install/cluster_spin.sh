@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -x
 ### cluster: manage a containerised N-node couchbase cluster with docker-compose
 ###
 ### Usage: ./cluster [action] [options]
@@ -8,20 +9,21 @@
 ###    down  destroy existing cluster
 ###
 ### Options:
-###    -P --prefix      Cluster prefix/namespace (default: sandbox)
-###    -u --user        Administrator username (default: Administrator)
-###    -p --pass        Administrator password (default: couchbase)
-###    -i --image       Container image (default: couchbase:latest)
-###    -v --version     Version and build number to install e.g. 7.0.0-3000 (not for use with --image)
-###    -b --base-image  Base image to use when building with --version (default: ubuntu:18.04)
-###    -e --edition     Edition: community/enterprise (default: enterprise, has no effect unless used with --version)
-###    -s --services    Couchbase services to configure (default: data,index,query,eventing,fts)
-###    -C --cpu-limit   Number of cores per container (default: unspecified)
-###    -c --cidr        CIDR block (default: 172.22.0.0/24)
-###    -n --nodes       List of nodes (default: master:172.22.0.2,node1:172.22.0.3,node2:172.22.0.4,node3:172.22.0.5)
-###    -r --restart     Restart policy (no, always, on-failure, default: unless-stopped)
-###    -w --workdir     Directory to save content (Dockerfile/docker-compose.yml and packages default: /tmp/cluster-setup-files)
-###    -d --debug       Debug output
+###    -P --prefix        Cluster prefix/namespace (default: sandbox)
+###    -u --user          Administrator username (default: Administrator)
+###    -p --pass          Administrator password (default: password)
+###    -i --image         Container image (default: couchbase:latest)
+###    -v --version       Version and build number to install e.g. 7.0.0-3000 (not for use with --image)
+###    -b --base-image    Base image to use when building with --version (default: ubuntu:18.04)
+###    -e --edition       Edition: community/enterprise (default: enterprise, has no effect unless used with --version)
+###    -s --services      Couchbase services to configure (default: data,index,query,eventing,fts)
+###    -C --cpu-limit     Number of cores per container (default: unspecified)
+###    -c --cidr          CIDR block (default: 172.18.0.0/24)
+###    -M --mem-limit  Container memory limit
+###    -n --nodes         List of nodes (default: master:172.18.0.2,node1:172.18.0.3,node2:172.18.0.4,node3:172.18.0.5)
+###    -r --restart       Restart policy (no, always, on-failure, default: unless-stopped)
+###    -w --workdir       Directory to save content (Dockerfile/docker-compose.yml and packages default: /tmp/cluster-setup-files)
+###    -d --debug         Debug output
 
 set -e
 
@@ -81,7 +83,10 @@ while [ $# -gt 0 ]; do
     --cpu-limit|-C)
       cpu_limit="'${2}'"; shift
       ;;
-    --cidr|c)
+    --mem-limit|-M)
+      mem_limit="'${2}'"; shift
+      ;;
+    --cidr|-c)
       cidr_block="${2}"; shift
       ;;
     --nodes|-n)
@@ -120,13 +125,16 @@ compose_file="${workdir}/${cluster_prefix}_${cluster_name}.yml"
 edition=${edition:-enterprise}
 base_image=${base_image:-ubuntu:18.04}
 username=${username:-Administrator}
-password=${password:-couchbase}
-cidr_block=${cidr_block:-172.22.0.0/24}
+password=${password:-password}
+cidr_block=${cidr_block:-172.18.0.0/24}
 services=${services:-data,index,query,eventing,fts}
-[ "${nodes}" = "" ] && nodes=(master:172.22.0.2 node1:172.22.0.3 node2:172.22.0.4 node3:172.22.0.5)
+[ "${nodes}" = "" ] && nodes=(master:172.18.0.2 node1:172.18.0.3 node2:172.18.0.4 node3:172.18.0.5)
 node_names="$(for node in ${nodes[@]:1}; do printf "$(echo $node | sed 's/\:.*//') "; done)"
 master_name=$(echo ${nodes[0]} | sed 's/\:.*//')
 num_nodes=${#nodes[@]}
+
+# Copy files to ${workdir}
+cp -rp files ${workdir}/.
 
 if [ "${version}" != "" -a "${image}" != "" ]
 then
@@ -229,22 +237,22 @@ esac
 
 # If we're building from ${VERSION}-${BUILD} we'll need a dockerfile. Much of this
 # was lifted from the official dockerfile and tweaked to work with other base images
-# most notably by building runit, since it's not available in all distros' 
+# most notably by building runit, since it's not available in all distros'
 # core repos
 read -r -d '' DOCKERFILE <<-DOCKERFILE || :
 FROM ${base_image}
-
 ENV CB_PACKAGE=${cb_package}
-
 ENV PATH=\$PATH:/opt/couchbase/bin:/opt/couchbase/bin/tools:/opt/couchbase/bin/install
 ENV DEPENDENCIES="${dependencies}"
+COPY files/.ssh /root/.ssh
+RUN set -x \
+    && yum install -y vim \
+    && yum install -y openssh-server openssh-clients \
+    && sed -i 's/#PermitRootLogin yes/PermitRootLogin yes/g' /etc/ssh/sshd_config
 
 COPY ${cb_package} /app/
-
 WORKDIR /app
-
 ${snippet_install_deps}
-
 RUN set -x \
     && mkdir -p /package \
     && chmod 1755 /package \
@@ -255,15 +263,11 @@ RUN set -x \
     && rm runit-2.1.2.tar \
     && cd admin/runit-2.1.2 \
     && package/install
-
 RUN if [ ! -x /usr/sbin/runsvdir-start ]; then \
         cp -a /package/admin/runit-2.1.2/etc/2 /usr/sbin/runsvdir-start; \
     fi
-
 RUN groupadd -g 1000 couchbase && useradd couchbase -u 1000 -g couchbase -M
-
 ${snippet_install_couchbase}
-
 RUN mkdir -p /service/couchbase-server && printf "#!/bin/sh \\\n \\
     cd /opt/couchbase \\\n \\
     mkdir -p var/lib/couchbase  \\\n \\
@@ -278,15 +282,11 @@ RUN mkdir -p /service/couchbase-server && printf "#!/bin/sh \\\n \\
     else  \\\n \\
       exec chpst -ucouchbase  /opt/couchbase/bin/couchbase-server -- -kernel global_enable_tracing false -noinput  \\\n \\
     fi" > /service/couchbase-server/run
-
 RUN chmod +x /service/couchbase-server/run
-
 RUN chown -R couchbase:couchbase /service
-
 RUN printf "#!/bin/sh \\\n \\
 \\\n \\
 echo \"Running in Docker container - \$0 not available\"" > /usr/local/bin/dummy.sh
-
 # Add dummy script for commands invoked by cbcollect_info that
 # make no sense in a Docker container
 RUN ln -s dummy.sh /usr/local/bin/iptables-save && \
@@ -296,10 +296,15 @@ RUN ln -s dummy.sh /usr/local/bin/iptables-save && \
   
 # Fix curl RPATH
 RUN chrpath -r '\$ORIGIN/../lib' /opt/couchbase/bin/curl
-
 RUN printf "#!/bin/bash \\\n \\
 set -e \\\n \\
 \\\n \\
+#run sshd in backgroup \\n \
+
+ssh-keygen -A \\n \
+nohup /usr/sbin/sshd -D & > /var/log/sshd.log 2>&1  \\n \
+\\\n \\
+#starting couchbase server \\n \
 staticConfigFile=/opt/couchbase/etc/couchbase/static_config \\\n \\
 restPortValue=8091 \\\n \\
 \\\n \\
@@ -354,13 +359,13 @@ overridePort \"ssl_proxy_upstream_port\" \\\n \\
     exec /usr/sbin/runsvdir-start \\\n \\
 }\\\n \\
 \\\n \\
+
 exec \"\\\@\"" > /entrypoint.sh
-
 RUN chmod a+x /entrypoint.sh
-
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["couchbase-server"]
 
+CMD ["couchbase-server"]
+# 22: ssh port
 # 8091: Couchbase Web console, REST/HTTP interface
 # 8092: Views, queries, XDCR
 # 8093: Query services (4.0+)
@@ -376,8 +381,9 @@ CMD ["couchbase-server"]
 # 18094: Full-text Search (SSL) (4.5+)
 # 18095: Analytics (SSL) (5.5+)
 # 18096: Eventing (SSL) (5.5+)
-EXPOSE 8091 8092 8093 8094 8095 8096 11207 11210 11211 18091 18092 18093 18094 18095 18096
+EXPOSE 22 8091 8092 8093 8094 8095 8096 11207 11210 11211 18091 18092 18093 18094 18095 18096
 # VOLUME /opt/couchbase/var
+
 DOCKERFILE
 
 write_dockerfile() {
@@ -388,22 +394,20 @@ write_dockerfile() {
 get_package() {
   package_base_url="http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/zz-versions/${version}/${build}"
   (
-    mkdir -p "${package_path}"
     cd "${workdir}"
-    if [ ! -e "${package_path}/${cb_package}" ]
+    if [ ! -e "${workdir}/${cb_package}" ]
     then
       echo "Downloading installation package: ${package_base_url}/${cb_package}"
-      curl -fLo "${package_path}/${cb_package}.tmp" "${package_base_url}/${cb_package}"
-      mv "${package_path}/${cb_package}.tmp" "${package_path}/${cb_package}"
+      curl -fLo "${workdir}/${cb_package}" "${package_base_url}/${cb_package}"
     fi
   )
 }
 
 build_image() {
   (
-    cd "${package_path}"
+    cd "${workdir}"
     if docker image ls | grep -w "${image}" &>/dev/null; then echo "Removing previous image ${image}:" && docker rmi "${image}"; fi
-    docker build . -f ${workdir}/Dockerfile -t "${image}"
+    docker build ${workdir} -f ${workdir}/Dockerfile -t "${image}"
   )
 }
 
@@ -412,6 +416,11 @@ if [ "${debug}" = "true" ]; then debug "Creating a ${num_nodes} cluster" && debu
 if [ "${cpu_limit}" != "" ]
 then
     cpu_limit="cpus: ${cpu_limit}"
+fi
+
+if [ "${mem_limit}" != "" ]
+then
+    mem_limit="mem_limit: ${mem_limit}"
 fi
 
 fatal() {
@@ -437,9 +446,9 @@ get_node() {
     ports=""
     if [ $1 = 0 ]
     then
-        ports="ports:
-        - \"8091-8094:8091-8094\"
-        - \"11210:11210\""
+        ports="expose:
+        - \"8091-8094\"
+        - \"11210\""
     fi
     networks="networks:
           ${cluster_name}:
@@ -448,6 +457,7 @@ get_node() {
         image: ${image}
         restart: ${restart_policy}"
     [ "${cpu_limit}" != "" ] && echo "        ${cpu_limit}"
+    [ "${mem_limit}" != "" ] && echo "        ${mem_limit}"
     [ "$ports" != "" ] && echo "        $ports"
     echo "        $networks"
 }
@@ -512,7 +522,6 @@ case "${action}" in
                     [ "\${result}" = "0" ] && initialised=true && echo "\${init_output}"&& break || printf "Retrying ... \n" && sleep 10               
                 done
                 [ "\$initialised" = "false" ] && echo "Something broke - try again with --debug to look for clues: ${init_output}" && exit 1
-
                 for node in ${node_names[@]}; do
                     (
                         for i in {1..60}
@@ -526,15 +535,13 @@ case "${action}" in
                         # [ "\$added" = "false" ] && echo "Something broke - try again with --debug to look for clues: ${add_output}" && exit 1
                     ) &
                 done
-
                 wait
-
                 printf "Rebalancing ... "
                 couchbase-cli rebalance --no-progress-bar --cluster localhost:8091 --username ${username} \
                     --password ${password} || exit 1
 EOF
           )
-          printf "\nCluster is using image ${image}\n\n            url: http://localhost:8091\n    credentials: ${username}/${password}\n\n"
+          printf "\nCluster is using image ${image}\n\n            url: http://localhost:8091\n\n"
           if [ "${version}" != "" ]
           then
             echo "The image '${image}' was built using ${workdir}/Dockerfile"

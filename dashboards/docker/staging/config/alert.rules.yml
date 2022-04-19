@@ -1,0 +1,83 @@
+groups:
+  - name: alert.rules
+    rules:
+      - alert: PoolVMDown
+        expr: vm_health_ssh_status == 0
+        for: 1m
+        annotations:
+          title: "Server Pool VM {{ $labels.ipaddr }} SSH Failed"
+          description: "{{ $labels.ipaddr }} SSH failed with error: {{ $labels.ssh_error }}."
+        labels:
+          severity: "critical"
+      - alert: PoolVMHighDiskUsage
+        expr: disk_usage >= 95
+        for: 1m
+        annotations:
+          title: "Server Pool VM {{ $labels.ipaddr }} high disk usage"
+          description: "{{ $labels.ipaddr }} has disk usage of {{ $value }}%"
+        labels:
+          severity: "critical"
+      - alert: PoolVMHighMemUsage
+        expr: memory_usage >= 95
+        for: 1m
+        annotations:
+          title: "Server Pool VM {{ $labels.ipaddr }} high memory usage"
+          description: "{{ $labels.ipaddr }} has memory usage of {{ $value }}%"
+        labels:
+          severity: "critical"
+      - alert: PoolVMOSMismatch
+        expr: vm_health_os_match_state == 0
+        for: 1m
+        annotations:
+          title: "Pool VM {{ $labels.ipaddr }} OS mismatch"
+          description: "{{ $labels.ipaddr }} expected {{ $labels.pool_os }}, got {{ $labels.real_os }}"
+        labels:
+          severity: "critical"
+      # - alert: PoolVMOverdueReboot
+      #   expr: vm_health_booted_days > 60
+      #   for: 1m
+      #   annotations:
+      #     title: "Pool VM {{ $labels.ipaddr }} overdue reboot"
+      #     description: "{{ $labels.ipaddr }} was last rebooted {{ $value }} days ago"
+      #   labels:
+      #     severity: "critical"
+      - alert: PoolVMSlowSSHResponseTime
+        expr: vm_health_ssh_resp_time > 10
+        for: 1m
+        annotations:
+          title: "Pool VM {{ $labels.ipaddr }} slow SSH response time"
+          description: "{{ $labels.ipaddr }} took {{ $value }} seconds to SSH"
+        labels:
+          severity: "critical"
+      - alert: SlaveVMDown
+        expr: slaves_vm_health_ssh_status == 0
+        for: 1m
+        annotations:
+          title: "Slave VM {{ $labels.slave_ip }} SSH Failed"
+          description: "{{ $labels.slave_ip }} SSH failed with error: {{ $labels.ssh_error }}."
+        labels:
+          severity: "critical"
+      - alert: SlaveVMHighDiskUsage
+        expr: slaves_vm_health_disk_usage >= 95
+        for: 1m
+        annotations:
+          title: "Slave VM {{ $labels.slave_ip }} high disk usage"
+          description: "{{ $labels.slave_ip }} has disk usage of {{ $value }}%"
+        labels:
+          severity: "critical"
+      - alert: SlaveVMHighMemUsage
+        expr: slaves_vm_health_memory_usage >= 95
+        for: 1m
+        annotations:
+          title: "Slave VM {{ $labels.slave_ip }} high memory usage"
+          description: "{{ $labels.slave_ip }} has memory usage of {{ $value }}%"
+        labels:
+          severity: "critical"
+      - alert: SlaveVMHighDiskUsageData
+        expr: slaves_vm_health_disk_usage_data >= 95
+        for: 1m
+        annotations:
+          title: "Slave VM {{ $labels.slave_ip }} high disk usage on /data"
+          description: "{{ $labels.slave_ip }} has disk usage of {{ $value }}% on /data"
+        labels:
+          severity: "critical"

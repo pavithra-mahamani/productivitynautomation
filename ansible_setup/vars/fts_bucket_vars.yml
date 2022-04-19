@@ -1,0 +1,4 @@
+buckets:
+- { "name": "default", "ram":200, "replicas":2, "eviction": "fullEviction" }
+scope_collection:
+- { "bucket_name": "default", "scope_name": "scope1", "collection_name": "collection1" }

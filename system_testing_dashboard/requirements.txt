@@ -1,0 +1,5 @@
+Flask==1.1.2
+requests==2.25.1
+requests-cache==0.6.3
+couchbase==3.0.10
+python-dotenv==0.17.1

@@ -1,29 +1,60 @@
-Author: Blair Watt
+Author: Blair Watt, Ming Ho
 
-The script will now accept --version in the format x.x.x-yyyy e.g `./cluster_spin.sh up --version 6.6.0-7909`. It pulls packages from http://latestbuilds.build.couchbase.com - note, if you're running it on your local system you'll need to connect to the VPN when bringing clusters up with a specific version so the packages can be downloaded.
+This script is intended to bring up a docker network of containers for couchbase server.
 
-The containers will be running ubuntu:18.04 by default, but you can provide an optional --base-image image:tag pair specifying what base image to build the container on to change this (the package name will be derived from the image name:tag) It has been tested with:
-    amazonlinux:2
-    centos:7
-    centos:8
-    debian:9
-    debian:10
-    opensuse/leap:15
-    oraclelinux:7
-    oraclelinux:8
-    ubuntu:16.04
-  * ubuntu:18.04 (default)
-    ubuntu:20.04
+Before running this script.  SSH Key needs to be generated under files directory.  If you already have the sshkey, make sure it is copied there.
+    ssh-keygen -q -P ""
+    mkdir files/.ssh
+    cp -p ~/.ssh/id_rsa.pub files/.ssh/authorized_keys
 
-So, an invocation like `./cluster_spin.sh up --version 6.6.0-7909 --base-image oraclelinux:8` will get you to a cluster running on a set of containers based on oraclelinux:8, with the oel8 couchbase-server 6.6.0-7909 package installed.
+Usage: ./cluster_spin.sh [action] [options]
+
+    Actions:
+        up    provision new cluster
+        down  destroy existing cluster
+
+    Options:
+        -P --prefix        Cluster prefix/namespace (default: sandbox)
+        -u --user          Administrator username (default: Administrator)
+        -p --pass          Administrator password (default: password)
+        -i --image         Container image (default: couchbase:latest)
+        -v --version       Version and build number to install e.g. 7.0.0-3000 (not for use with --image)
+        -b --base-image    Base image to use when building with --version (default: ubuntu:18.04)
+        -e --edition       Edition: community/enterprise (default: enterprise, has no effect unless used with --version)
+        -s --services      Couchbase services to configure (default: data,index,query,eventing,fts)
+        -C --cpu-limit     Number of cores per container (default: unspecified)
+        -c --cidr          CIDR block (default: 172.18.0.0/16)
+        -M --memory-limit  Container memory limit
+        -n --nodes         List of nodes (default: master:172.18.0.2,node1:172.18.0.3,node2:172.18.0.4,node3:172.18.0.5)
+        -r --restart       Restart policy (no, always, on-failure, default: unless-stopped)
+        -w --workdir       Directory to save content (Dockerfile/docker-compose.yml and packages default: /tmp/cluster-setup-files)
+        -d --debug         Debug output
+
+    Example:
+        ./cluster_spin.sh up -P demo -v 7.0.1-5862 -b centos:7 -C 4 -M 4g
+
+        This brings up a cluster (named demo) of 4 containers using centos:7 image from docker.io.  Each container has 4 cores and a maximum of 4G memory allowance.  The container will install build 7.0.1-5862 from http://latestbuilds.build.couchbase.com.
+
+    Note:
+        If you're running it on your local system you'll need to connect to the VPN when bringing clusters up with a specific version so the packages can be downloaded.
+        If no base image is specified, the containers is brought up with ubuntu:18.04 as default.  Base-image (image:tag pair) options are:
+            amazonlinux:2
+            centos:7
+            centos:8
+            debian:9
+            debian:10
+            opensuse/leap:15
+            oraclelinux:7
+            oraclelinux:8
+          * ubuntu:18.04 (default)
+            ubuntu:20.04
 
 A little more is happening behind the scenes now (I'd say we outgrew the 'single bash script' idea some time ago, try not to look directly at it), but in a nutshell:
 
 1) If it exists, the existing container image ${prefix}_${clustername} (default: sandbox_cluster) is removed (to avoid situations where some step fails silently in the middle but we think everything's OK because a cluster still manages to come up on the previous image)
-2) If --version was specified:
-    - A Dockerfile is created in ${workdir} (workdir default = /tmp/cluster-setup-files, or if you'd prefer to keep packages somewhere permanent, use --workdir /foo to set a path)
-    - The relevant package for --base-image and --version is downloaded to the workdir
-    - The base image is built
+2) A Dockerfile is created in ${workdir} (workdir default = /tmp/cluster-setup-files, or if you'd prefer to keep packages somewhere permanent, use --workdir /foo to set a path)
+   The relevant package for --base-image and --version is downloaded to the workdir
+   The local image is built
 3) A docker-compose.yml is created in ${workdir}
 4) Containers are brought up
 5) Cluster is bootstrapped

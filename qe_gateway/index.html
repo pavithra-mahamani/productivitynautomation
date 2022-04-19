@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Couchbase QE, Perf & Build</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <div class="container">
+        <h1 id="title">Couchbase QE, Perf & Build</h1>
+        <h2>Dashboards</h2>
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-4  g-4">
+            <div class="col">
+                <a target="_blank" href="http://greenboard.hq.couchbase.com/">
+                    <div class="card h-100">
+                        <div class="card-header">Test results for latest server builds</div>
+                        <img src="img/greenboard.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://greenboard.hq.couchbase.com/" class="mt-auto btn btn-secondary">QE Functional testing dashboard</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="http://qe.service.couchbase.com:8080/">
+                    <div class="card h-100">
+                        <div class="card-header">Manage system testing clusters</div>
+                        <img src="img/systemtest_dashboard.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://qe.service.couchbase.com:8080/" class="mt-auto btn btn-secondary">QE System testing dashboard</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="http://showfast.sc.couchbase.com/">
+                    <div class="card h-100">
+                        <div class="card-header">Dashboard showing performace metrics</div>
+                        <img src="img/performance_dashboard.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://showfast.sc.couchbase.com/" class="mt-auto btn btn-secondary">Performance Dashboard</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="http://qe.service.couchbase.com:3000">
+                    <div class="card h-100">
+                        <div class="card-header">Metrics for server and mobile regression testing</div>
+                        <img src="img/observability_dashboards.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://qe.service.couchbase.com:3000" class="mt-auto btn btn-secondary">Observability Dashboards</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="https://sites.google.com/couchbase.com/hub/home-select-team/engineering/qe-performance-build">
+                    <div class="card h-100">
+                        <div class="card-header">QE, Performance & Build Hub</div>
+                        <img src="img/google_site.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title"></h5>
+                            <a target="_blank" href="https://sites.google.com/couchbase.com/hub/home-select-team/engineering/qe-performance-build" class="mt-auto btn btn-secondary">Newsletters</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="http://cleancode.service.couchbase.com/">
+                    <div class="card h-100">
+                        <div class="card-header">Continuous Code Quality</div>
+                        <img src="img/continuous_code_quality.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://cleancode.service.couchbase.com/" class="mt-auto btn btn-secondary">SCA</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="http://changelog.build.couchbase.com/">
+                    <div class="card h-100">
+                        <div class="card-header">Change Log</div>
+                        <img src="img/changelog.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://changelog.build.couchbase.com/" class="mt-auto btn btn-secondary">Change Log</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="https://hub.internal.couchbase.com/confluence/display/QA/Forum+posts+by+QE+Perf+Build+Teams">
+                    <div class="card h-100">
+                        <div class="card-header">Forum Posts</div>
+                        <img src="img/forum_posts.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="https://hub.internal.couchbase.com/confluence/display/QA/Forum+posts+by+QE+Perf+Build+Teams" class="mt-auto btn btn-secondary">Forum Posts</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="https://hub.internal.couchbase.com/confluence/display/QA/QE+Brown+Bag+Sessions+and+Open+Discussions">
+                    <div class="card h-100">
+                        <div class="card-header">Brown Bag Sessions</div>
+                        <img src="img/brownbags.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="https://hub.internal.couchbase.com/confluence/display/QA/QE+Brown+Bag+Sessions+and+Open+Discussions" class="mt-auto btn btn-secondary">Brown Bag Sessions</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="http://releases.service.couchbase.com/builds/releases/">
+                    <div class="card h-100">
+                        <div class="card-header">Latest Release Builds</div>
+                        <img src="img/release_builds.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://releases.service.couchbase.com/builds/releases/" class="mt-auto btn btn-secondary">Release Builds</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="http://releases.service.couchbase.com/builds/releases/">
+                    <div class="card h-100">
+                        <div class="card-header">Build Manifests</div>
+                        <img src="img/build_manifests.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://releases.service.couchbase.com/builds/releases/" class="mt-auto btn btn-secondary">Build Manifests</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+        <h2>Jenkins CI</h2>
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-4  g-4">
+            <div class="col">
+                <a target="_blank" href="http://qa.sc.couchbase.com">
+                    <div class="card h-100">
+                        <div class="card-header">QE Jenkins for Server</div>
+                        <img src="img/server_jenkins.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://qa.sc.couchbase.com" class="mt-auto btn btn-secondary">Server QE Jenkins</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="http://server.jenkins.couchbase.com/">
+                    <div class="card h-100">
+                        <div class="card-header">Build Jenkins for Server</div>
+                        <img src="img/performance_jenkins.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://server.jenkins.couchbase.com/" class="mt-auto btn btn-secondary">Server Build Jenkins</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="http://uberjenkins.sc.couchbase.com:8080/">
+                    <div class="card h-100">
+                        <div class="card-header">QE Jenkins for Mobile</div>
+                        <img src="img/mobile_qe_jenkins.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://uberjenkins.sc.couchbase.com:8080/" class="mt-auto btn btn-secondary">Mobile QE Jenkins</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="http://mobile.jenkins.couchbase.com/">
+                    <div class="card h-100">
+                        <div class="card-header">Build Jenkins for Mobile</div>
+                        <img src="img/mobile_build_jenkins.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://mobile.jenkins.couchbase.com/" class="mt-auto btn btn-secondary">Mobile Build Jenkins</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="http://sdkbuilds.sc.couchbase.com/">
+                    <div class="card h-100">
+                        <div class="card-header">QE Jenkins for SDK</div>
+                        <img src="img/sdkbuilds_jenkins.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://sdkbuilds.sc.couchbase.com/" class="mt-auto btn btn-secondary">SDK QE Jenkins</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="http://sdk.jenkins.couchbase.com/">
+                    <div class="card h-100">
+                        <div class="card-header">Build Jenkins for SDK</div>
+                        <img src="img/sdk_jenkins.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://sdk.jenkins.couchbase.com/" class="mt-auto btn btn-secondary">SDK Build+QE Jenkins</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="http://perf.jenkins.couchbase.com/">
+                    <div class="card h-100">
+                        <div class="card-header">Jenkins for Performance</div>
+                        <img src="img/performance_jenkins.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://perf.jenkins.couchbase.com/" class="mt-auto btn btn-secondary">Performance Jenkins</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div>
+
+            </div>
+            <div class="col">
+                <a target="_blank" href="http://172.23.109.231/job/centos-systest-launcher/">
+                    <div class="card h-100">
+                        <div class="card-header">Jenkins for System Testing for Longevity</div>
+                        <img src="img/systemtest_longevity_jenkins.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://172.23.109.231/job/centos-systest-launcher/" class="mt-auto btn btn-secondary">Launcher 1</a>
+                            <a target="_blank" href="http://172.23.109.231/job/centos-systest-launcher-2/" class="mt-auto btn btn-secondary">Launcher 2</a>
+                            <a target="_blank" href="http://172.23.109.231/job/centos-systest-launcher-3/" class="mt-auto btn btn-secondary">Launcher 3</a>
+                            <a target="_blank" href="https://github.com/couchbaselabs/sequoia-provision/blob/master/ansible/hosts" class="mt-auto btn btn-secondary">Hosts</a>
+                        </div>
+                        
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="http://qa.sc.couchbase.com/job/component_systest_launcher/">
+                    <div class="card h-100">
+                        <div class="card-header">Jenkins for System Testing at Component</div>
+                        <img src="img/systemtest_component_jenkins.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="http://qa.sc.couchbase.com/job/component_systest_launcher/" class="mt-auto btn btn-secondary">Launcher 1</a>
+                            <a target="_blank" href="http://qa.sc.couchbase.com/job/component_systest_launcher_2/" class="mt-auto btn btn-secondary">Launcher 2</a>
+                            <a target="_blank" href="http://qa.sc.couchbase.com/job/component_systest_launcher_3/" class="mt-auto btn btn-secondary">Launcher 3</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+        <h2>Tests</h2>
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-4  g-4">
+            <div class="col">
+                <a target="_blank" href="https://drive.google.com/drive/u/0/folders/1boqH4XAGFJ9hrAu0YxRhVd2bqKP3Kysi">
+                    <div class="card h-100">
+                        <div class="card-header">Server Functional Tests</div>
+                        <img src="img/tests_cc.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="https://drive.google.com/drive/u/0/folders/1boqH4XAGFJ9hrAu0YxRhVd2bqKP3Kysi" class="mt-auto btn btn-secondary">CheshireCat</a>
+                            <a target="_blank" href="https://drive.google.com/drive/u/0/folders/1FbD7dBMIx4l8jikxJqtfS_uK_6OvQHYH" class="mt-auto btn btn-secondary">MadHatter</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="https://hub.internal.couchbase.com/confluence/pages/viewpage.action?spaceKey=PM&title=Cheshire+Cat+System+testing">
+                    <div class="card h-100">
+                        <div class="card-header">Server System Tests</div>
+                        <img src="img/systemtests_cc.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="https://hub.internal.couchbase.com/confluence/pages/viewpage.action?spaceKey=PM&title=Cheshire+Cat+System+testing" class="mt-auto btn btn-secondary">CheshireCat</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="https://drive.google.com/drive/u/0/folders/0AP02geRTvkoLUk9PVA">
+                    <div class="card h-100">
+                        <div class="card-header">Mobile Tests</div>
+                        <img src="img/systemtests_cc.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="https://drive.google.com/drive/u/0/folders/1-3hGmJwmCZrmz-2vIFsboqPsAhBRX_K9" class="mt-auto btn btn-secondary">CBL</a>
+                            <a target="_blank" href="https://drive.google.com/drive/u/0/folders/1cjknrUplSFYF_tQGCeZOsCHHft9ZrHXt" class="mt-auto btn btn-secondary">SyncGateway</a>
+                            <a target="_blank" href="https://drive.google.com/drive/u/0/folders/0AP02geRTvkoLUk9PVA" class="mt-auto btn btn-secondary">All</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+        <h2>Cloud</h2>
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-4  g-4">
+            <div class="col">
+                <a target="_blank" href="https://drive.google.com/file/d/1v29jsJ4bcUgJI8tMOfDt1uwHS-P1NCED/view">
+                    <div class="card h-100">
+                        <div class="card-header">Cloud Testing</div>
+                        <img src="img/cloud_testing.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="https://docs.google.com/presentation/d/1Hky-VMKDq4NvzmAKFE1hrRKTiMYABShHLC_U0cJPJ7U/view" class="mt-auto btn btn-secondary">Slides</a>
+                            <a target="_blank" href="http://review.couchbase.org/c/testrunner/+/137296" class="mt-auto btn btn-secondary">Test Repository</a>
+                            <a target="_blank" href="https://drive.google.com/file/d/1v29jsJ4bcUgJI8tMOfDt1uwHS-P1NCED/view" class="mt-auto btn btn-secondary">Demo</a>
+                            <a target="_blank" href="https://docs.google.com/document/d/1972_l4lMH2ybL841UFbO21znfR3Vi7A3EXbav6ffHls/view" class="mt-auto btn btn-secondary">Strategy Doc</a>
+                            <a target="_blank" href="https://hub.internal.couchbase.com/confluence/pages/viewpage.action?spaceKey=QA&title=Cloud+Test+Runtime+Guide" class="mt-auto btn btn-secondary">Setup</a>
+                            <a target="_blank" href="http://qa.sc.couchbase.com/job/cloudtest-run/" class="mt-auto btn btn-secondary">Jenkins Job</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="col">
+                <a target="_blank" href="https://drive.google.com/file/d/1v29jsJ4bcUgJI8tMOfDt1uwHS-P1NCED/view">
+                    <div class="card h-100">
+                        <div class="card-header">DBaaS Manual Testing</div>
+                        <img src="img/cloud_dbaas_manual_testing.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="https://docs.google.com/document/d/13v7GDeZSvoih8TfnmrsZntDK8K9g6ZJbTflZAIlncqg/view" class="mt-auto btn btn-secondary">Phase 1</a>
+                            <a target="_blank" href="https://docs.google.com/document/d/1dgvPij1gsmDqHqIc5k00YxciMwLyfTTJHkUrLdg4VQI/view" class="mt-auto btn btn-secondary">Phase 2</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+        <h2>Interoperability</h2>
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-4  g-4">
+            <div class="col">
+                <a target="_blank" href="https://docs.google.com/presentation/d/121TrRcePZPAe63pw9lgJ78jstNQZ_xoWp9EUfgEczJ4/edit#slide=id.g7c65c320b4_1_241">
+                    <div class="card h-100">
+                        <div class="card-header">XDCR</div>
+                        <img src="img/interop_xdcr_testing.png" class="card-img-bottom">
+                        <div class="card-body d-flex flex-column">
+                            <a target="_blank" href="https://docs.google.com/presentation/d/121TrRcePZPAe63pw9lgJ78jstNQZ_xoWp9EUfgEczJ4/edit#slide=id.g7c65c320b4_1_241" class="mt-auto btn btn-secondary">Slides</a>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>

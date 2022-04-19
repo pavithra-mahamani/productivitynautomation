@@ -1,16 +1,21 @@
 {
   "clusters": {
     "static_vms": {
-      "host": "172.23.109.245",
+      "host": "172.23.121.84",
       "username": "Administrator",
       "password": "password"
+    },
+    "mobile_static_vms": {
+      "host": "172.23.104.162",
+      "username": "Administrator",
+      "password": "esabhcuoc"
     }
   },
   "queries": [
     {
       "name": "available_vms",
       "cluster": "static_vms",
-      "query": "SELECT COUNT(*) AS count, poolId as `pool` FROM `QE-server-pool` UNNEST poolId WHERE `QE-server-pool`.state = 'available' GROUP BY poolId",
+      "query": "SELECT poolId as `pool`, COUNT(*) AS count FROM (SELECT poolId FROM `QE-server-pool` WHERE IS_ARRAY(poolId)=FALSE and state='available' UNION ALL SELECT poolId FROM `QE-server-pool` UNNEST poolId where `QE-server-pool`.state = 'available'  ) AS pools group by poolId",
       "description": "Available VMs for each server pool",
       "value_key": "count",
       "labels": ["pool"]
@@ -18,7 +23,7 @@
     {
       "name": "busy_vms",
       "cluster": "static_vms",
-      "query": "SELECT COUNT(*) AS count, poolId as `pool` FROM `QE-server-pool` UNNEST poolId WHERE `QE-server-pool`.state != 'available' GROUP BY poolId",
+      "query": "SELECT poolId as `pool`, COUNT(*) AS count FROM (SELECT poolId FROM `QE-server-pool` WHERE IS_ARRAY(poolId)=FALSE and state='available' UNION ALL SELECT poolId FROM `QE-server-pool` UNNEST poolId where `QE-server-pool`.state != 'available') AS pools group by poolId",
       "description": "Busy VMs for each server pool",
       "value_key": "count",
       "labels": ["pool"]
@@ -26,7 +31,7 @@
     {
       "name": "vm_states",
       "cluster": "static_vms",
-      "query": "SELECT COUNT(*) AS count, state FROM `QE-server-pool` GROUP BY state",
+      "query": "SELECT COUNT(*) AS count, state FROM `QE-server-pool` WHERE state IS NOT MISSING GROUP BY state",
       "description": "Count of VMs in each state",
       "value_key": "count",
       "labels": ["state"]
@@ -66,7 +71,7 @@
     {
       "name": "available_vms_by_os_and_pool",
       "cluster": "static_vms",
-      "query": "SELECT COUNT(*) AS count, poolId AS `pool`, `QE-server-pool`.os FROM `QE-server-pool` UNNEST poolId WHERE `QE-server-pool`.state = 'available' GROUP BY poolId, `QE-server-pool`.os",
+      "query": "SELECT poolId as `pool`, os, COUNT(*) AS count FROM (SELECT poolId, os FROM `QE-server-pool` WHERE IS_ARRAY(poolId)=FALSE and state='available' UNION ALL SELECT poolId, `QE-server-pool`.os as os FROM `QE-server-pool` UNNEST poolId where `QE-server-pool`.state = 'available') AS pools GROUP BY poolId, os",
       "description": "OS by Pool",
       "value_key": "count",
       "labels": ["pool", "os"]
@@ -74,7 +79,7 @@
     {
       "name": "vms_by_state_and_pool",
       "cluster": "static_vms",
-      "query": "SELECT COUNT(*) AS count, poolId AS `pool`, `QE-server-pool`.state FROM `QE-server-pool` UNNEST poolId GROUP BY poolId, `QE-server-pool`.state",
+      "query": "SELECT poolId as `pool`, state, COUNT(*) AS count FROM (SELECT poolId, state FROM `QE-server-pool` WHERE IS_ARRAY(poolId)=FALSE UNION ALL SELECT poolId, `QE-server-pool`.state as state FROM `QE-server-pool` UNNEST poolId) AS pools GROUP BY poolId, state",
       "description": "State by Pool",
       "value_key": "count",
       "labels": ["pool", "state"]
@@ -82,7 +87,7 @@
     {
       "name": "vms_by_state_and_os",
       "cluster": "static_vms",
-      "query": "SELECT COUNT(*) AS count, state, os FROM `QE-server-pool` where os is not missing GROUP BY os, state",
+      "query": "SELECT COUNT(*) AS count, state, os FROM `QE-server-pool` where os is not missing and state is not missing GROUP BY os, state",
       "description": "State by OS",
       "value_key": "count",
       "labels": ["os", "state"]
@@ -90,10 +95,683 @@
     {
       "name": "busy_vms_by_os_and_pool",
       "cluster": "static_vms",
-      "query": "SELECT COUNT(*) AS count, poolId AS `pool`, `QE-server-pool`.os FROM `QE-server-pool` UNNEST poolId WHERE `QE-server-pool`.state != 'avaiable' GROUP BY poolId, `QE-server-pool`.os",
+      "query": "SELECT poolId as `pool`, os, COUNT(*) AS count FROM (SELECT poolId, os FROM `QE-server-pool` WHERE IS_ARRAY(poolId)=FALSE and state!='available' UNION ALL SELECT poolId, `QE-server-pool`.os as os FROM `QE-server-pool` UNNEST poolId where `QE-server-pool`.state != 'available') AS pools GROUP BY poolId, os",
       "description": "OS by Pool",
       "value_key": "count",
       "labels": ["pool", "os"]
+    },
+    {
+      "name": "mobile_available_vms",
+      "cluster": "mobile_static_vms",
+      "query": "SELECT poolId as `pool`, COUNT(*) AS count FROM (SELECT poolId FROM `QE-mobile-pool` WHERE IS_ARRAY(poolId)=FALSE and state='available' UNION ALL SELECT poolId FROM `QE-mobile-pool` UNNEST poolId where `QE-mobile-pool`.state = 'available'  ) AS pools group by poolId",
+      "description": "Available VMs for each server pool",
+      "value_key": "count",
+      "labels": ["pool"]
+    },
+    {
+      "name": "mobile_busy_vms",
+      "cluster": "mobile_static_vms",
+      "query": "SELECT poolId as `pool`, COUNT(*) AS count FROM (SELECT poolId FROM `QE-mobile-pool` WHERE IS_ARRAY(poolId)=FALSE and state='available' UNION ALL SELECT poolId FROM `QE-mobile-pool` UNNEST poolId where `QE-mobile-pool`.state != 'available') AS pools group by poolId",
+      "description": "Busy VMs for each server pool",
+      "value_key": "count",
+      "labels": ["pool"]
+    },
+    {
+      "name": "mobile_vm_states",
+      "cluster": "mobile_static_vms",
+      "query": "SELECT COUNT(*) AS count, state FROM `QE-mobile-pool` WHERE state is not missing GROUP BY state",
+      "description": "Count of VMs in each state",
+      "value_key": "count",
+      "labels": ["state"]
+    },
+    {
+      "name": "mobile_available_vms_by_os",
+      "cluster": "mobile_static_vms",
+      "query": "SELECT os, COUNT(*) AS count FROM `QE-mobile-pool` WHERE state = 'available' and os is not missing GROUP BY os",
+      "description": "Available VMs by OS",
+      "value_key": "count",
+      "labels": ["os"]
+    },
+    {
+      "name": "mobile_busy_vms_by_os",
+      "cluster": "mobile_static_vms",
+      "query": "SELECT os, COUNT(*) AS count FROM `QE-mobile-pool` WHERE state != 'available' and os is not missing GROUP BY os",
+      "description": "Busy VMs by OS",
+      "value_key": "count",
+      "labels": ["os"]
+    },
+    {
+      "name": "mobile_total_available_vms",
+      "cluster": "mobile_static_vms",
+      "query": "SELECT COUNT(*) AS count FROM `QE-mobile-pool` WHERE state = 'available'",
+      "description": "Available VMs",
+      "value_key": "count",
+      "labels": []
+    },
+    {
+      "name": "mobile_total_busy_vms",
+      "cluster": "mobile_static_vms",
+      "query": "SELECT COUNT(*) AS count FROM `QE-mobile-pool` WHERE state != 'available'",
+      "description": "Busy VMs",
+      "value_key": "count",
+      "labels": []
+    },
+    {
+      "name": "mobile_available_vms_by_os_and_pool",
+      "cluster": "mobile_static_vms",
+      "query": "SELECT poolId as `pool`, os, COUNT(*) AS count FROM (SELECT poolId, os FROM `QE-mobile-pool` WHERE IS_ARRAY(poolId)=FALSE and state='available' UNION ALL SELECT poolId, `QE-mobile-pool`.os as os FROM `QE-mobile-pool` UNNEST poolId where `QE-mobile-pool`.state = 'available') AS pools GROUP BY poolId, os",
+      "description": "OS by Pool",
+      "value_key": "count",
+      "labels": ["pool", "os"]
+    },
+    {
+      "name": "mobile_vms_by_state_and_pool",
+      "cluster": "mobile_static_vms",
+      "query": "SELECT poolId as `pool`, state, COUNT(*) AS count FROM (SELECT poolId, state FROM `QE-mobile-pool` WHERE IS_ARRAY(poolId)=FALSE UNION ALL SELECT poolId, `QE-mobile-pool`.state as state FROM `QE-mobile-pool` UNNEST poolId) AS pools GROUP BY poolId, state",
+      "description": "State by Pool",
+      "value_key": "count",
+      "labels": ["pool", "state"]
+    },
+    {
+      "name": "mobile_vms_by_state_and_os",
+      "cluster": "mobile_static_vms",
+      "query": "SELECT COUNT(*) AS count, state, os FROM `QE-mobile-pool` where os is not missing GROUP BY os, state",
+      "description": "State by OS",
+      "value_key": "count",
+      "labels": ["os", "state"]
+    },
+    {
+      "name": "mobile_busy_vms_by_os_and_pool",
+      "cluster": "mobile_static_vms",
+      "query": "SELECT poolId as `pool`, os, COUNT(*) AS count FROM (SELECT poolId, os FROM `QE-mobile-pool` WHERE IS_ARRAY(poolId)=FALSE and state!='available' UNION ALL SELECT poolId, `QE-mobile-pool`.os as os FROM `QE-mobile-pool` UNNEST poolId where `QE-mobile-pool`.state != 'available') AS pools GROUP BY poolId, os",
+      "description": "OS by Pool",
+      "value_key": "count",
+      "labels": ["pool", "os"]
+    }
+  ],
+  "csvs": {
+    "vm_health": "http://qa.sc.couchbase.com/view/ProductivityAutomation/job/pool_vm_health_for_dashboard/lastSuccessfulBuild/artifact/pool_vm_health_info.csv/",
+    "slaves_vm_health": "http://qa.sc.couchbase.com/view/ProductivityAutomation/job/vm_health_for_dashboard/lastSuccessfulBuild/artifact/vm_health_info.csv/",
+    "mobile_vm_health": "http://qa.sc.couchbase.com/view/ProductivityAutomation/job/mobilepool_vm_health_for_dashboard/lastSuccessfulBuild/artifact/pool_vm_health_info.csv"
+  },
+  "columns": [
+    {
+      "name": "memory_usage",
+      "csv": "vm_health",
+      "description": "Memory usage",
+      "column": "memory_use(%)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "disk_usage",
+      "csv": "vm_health",
+      "description": "Disk usage",
+      "column": "disk_use%",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "cpu_load_avg_5mins",
+      "csv": "vm_health",
+      "description": "CPU load average (5mins)",
+      "column": "cpu_load_avg_5mins",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_ssh_status",
+      "csv": "vm_health",
+      "description": "SSH Status",
+      "column": "ssh_status",
+      "labels": ["ipaddr", "ssh_error", "pool_state", "couchbase_version", "pool_ids"]
+    },
+    {
+      "name": "vm_health_cpus",
+      "csv": "vm_health",
+      "description": "CPUs",
+      "column": "cpus",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_memory_total",
+      "csv": "vm_health",
+      "description": "Memory Total",
+      "column": "memory_total(kB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_memory_free",
+      "csv": "vm_health",
+      "description": "Memory Free",
+      "column": "memory_free(kB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_memory_available",
+      "csv": "vm_health",
+      "description": "Memory Available",
+      "column": "memory_available(kB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_disk_size",
+      "csv": "vm_health",
+      "description": "Disk Size",
+      "column": "disk_size(MB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_disk_used",
+      "csv": "vm_health",
+      "description": "Disk Used",
+      "column": "disk_used(MB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_disk_avail",
+      "csv": "vm_health",
+      "description": "Disk Available",
+      "column": "disk_avail(MB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_users",
+      "csv": "vm_health",
+      "description": "Users",
+      "column": "users",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_cpu_load_avg_1min",
+      "csv": "vm_health",
+      "description": "CPU load average (1min)",
+      "column": "cpu_load_avg_1min",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_cpu_load_avg_15mins",
+      "csv": "vm_health",
+      "description": "CPU load average (15mins)",
+      "column": "cpu_load_avg_15mins",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_total_processes",
+      "csv": "vm_health",
+      "description": "Total Processes",
+      "column": "total_processes",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_couchbase_processes",
+      "csv": "vm_health",
+      "description": "Couchbase Processes",
+      "column": "couchbase_process",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "slaves_vm_health_memory_usage",
+      "csv": "slaves_vm_health",
+      "description": "Memory usage",
+      "column": "memory_use(%)",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_disk_usage",
+      "csv": "slaves_vm_health",
+      "description": "Disk usage",
+      "column": "disk_use%",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_cpu_load_avg_5mins",
+      "csv": "slaves_vm_health",
+      "description": "CPU load average (5mins)",
+      "column": "cpu_load_avg_5mins",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_cpus",
+      "csv": "slaves_vm_health",
+      "description": "CPUs",
+      "column": "cpus",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_memory_total",
+      "csv": "slaves_vm_health",
+      "description": "Memory Total",
+      "column": "memory_total(kB)",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_memory_free",
+      "csv": "slaves_vm_health",
+      "description": "Memory Free",
+      "column": "memory_free(kB)",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_memory_available",
+      "csv": "slaves_vm_health",
+      "description": "Memory Available",
+      "column": "memory_available(kB)",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_disk_size",
+      "csv": "slaves_vm_health",
+      "description": "Disk Size",
+      "column": "disk_size(MB)",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_disk_used",
+      "csv": "slaves_vm_health",
+      "description": "Disk Used",
+      "column": "disk_used(MB)",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_disk_avail",
+      "csv": "slaves_vm_health",
+      "description": "Disk Available",
+      "column": "disk_avail(MB)",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_users",
+      "csv": "slaves_vm_health",
+      "description": "Users",
+      "column": "users",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_cpu_load_avg_1min",
+      "csv": "slaves_vm_health",
+      "description": "CPU load average (1min)",
+      "column": "cpu_load_avg_1min",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_cpu_load_avg_15mins",
+      "csv": "slaves_vm_health",
+      "description": "CPU load average (15mins)",
+      "column": "cpu_load_avg_15mins",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_total_processes",
+      "csv": "slaves_vm_health",
+      "description": "Total Processes",
+      "column": "total_processes",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_ssh_status",
+      "csv": "slaves_vm_health",
+      "description": "SSH Status",
+      "column": "ssh_status",
+      "labels": ["ipaddr", "ssh_error"]
+    },
+    {
+      "name": "vm_health_os_match_state",
+      "csv": "vm_health",
+      "description": "OS Match State",
+      "column": "os_match_state",
+      "labels": ["ipaddr", "real_os", "pool_os", "pool_ids"]
+    },
+    {
+      "name": "vm_health_booted_days",
+      "csv": "vm_health",
+      "description": "Booted Days",
+      "column": "booted(days)",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "vm_health_ssh_resp_time",
+      "csv": "vm_health",
+      "description": "SSH Response Time",
+      "column": "ssh_resp_time(secs)",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "vm_health_cb_data_kv_status",
+      "csv": "vm_health",
+      "description": "KV Service Active",
+      "column": "cb_data_kv_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_cb_index_status",
+      "csv": "vm_health",
+      "description": "Index Service Active",
+      "column": "cb_index_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_cb_query_status",
+      "csv": "vm_health",
+      "description": "Query Service Active",
+      "column": "cb_query_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_cb_search_status",
+      "csv": "vm_health",
+      "description": "Search Service Active",
+      "column": "cb_search_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_cb_analytics_status",
+      "csv": "vm_health",
+      "description": "Analytics Service Active",
+      "column": "cb_analytics_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_cb_eventing_status",
+      "csv": "vm_health",
+      "description": "Eventing Service Active",
+      "column": "cb_eventing_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_cb_xdcr_status",
+      "csv": "vm_health",
+      "description": "XDCR Service Active",
+      "column": "cb_xdcr_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_proc_fd_ulimit",
+      "csv": "vm_health",
+      "description": "Proc fd ulimit",
+      "column": "proc_fd_ulimit",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "slaves_vm_health_proc_fd_ulimit",
+      "csv": "slaves_vm_health",
+      "description": "Proc fd ulimit",
+      "column": "proc_fd_ulimit",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_iptables_rules_count",
+      "csv": "vm_health",
+      "description": "iptables rules count",
+      "column": "iptables_rules_count",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "vm_health_swap_total",
+      "csv": "vm_health",
+      "description": "Swap Total",
+      "column": "swap_total(kB)",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "mobile_memory_usage",
+      "csv": "mobile_vm_health",
+      "description": "Memory usage",
+      "column": "memory_use(%)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_disk_usage",
+      "csv": "mobile_vm_health",
+      "description": "Disk usage",
+      "column": "disk_use%",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_cpu_load_avg_5mins",
+      "csv": "mobile_vm_health",
+      "description": "CPU load average (5mins)",
+      "column": "cpu_load_avg_5mins",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_ssh_status",
+      "csv": "mobile_vm_health",
+      "description": "SSH Status",
+      "column": "ssh_status",
+      "labels": ["ipaddr", "ssh_error", "pool_state", "couchbase_version", "pool_ids"]
+    },
+    {
+      "name": "mobile_vm_health_cpus",
+      "csv": "mobile_vm_health",
+      "description": "CPUs",
+      "column": "cpus",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_memory_total",
+      "csv": "mobile_vm_health",
+      "description": "Memory Total",
+      "column": "memory_total(kB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_memory_free",
+      "csv": "mobile_vm_health",
+      "description": "Memory Free",
+      "column": "memory_free(kB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_memory_available",
+      "csv": "mobile_vm_health",
+      "description": "Memory Available",
+      "column": "memory_available(kB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_disk_size",
+      "csv": "mobile_vm_health",
+      "description": "Disk Size",
+      "column": "disk_size(MB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_disk_used",
+      "csv": "mobile_vm_health",
+      "description": "Disk Used",
+      "column": "disk_used(MB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_disk_avail",
+      "csv": "mobile_vm_health",
+      "description": "Disk Available",
+      "column": "disk_avail(MB)",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_users",
+      "csv": "mobile_vm_health",
+      "description": "Users",
+      "column": "users",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_cpu_load_avg_1min",
+      "csv": "mobile_vm_health",
+      "description": "CPU load average (1min)",
+      "column": "cpu_load_avg_1min",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_cpu_load_avg_15mins",
+      "csv": "mobile_vm_health",
+      "description": "CPU load average (15mins)",
+      "column": "cpu_load_avg_15mins",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_total_processes",
+      "csv": "mobile_vm_health",
+      "description": "Total Processes",
+      "column": "total_processes",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_couchbase_processes",
+      "csv": "mobile_vm_health",
+      "description": "Couchbase Processes",
+      "column": "couchbase_process",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_os_match_state",
+      "csv": "mobile_vm_health",
+      "description": "OS Match State",
+      "column": "os_match_state",
+      "labels": ["ipaddr", "real_os", "pool_os", "pool_ids"]
+    },
+    {
+      "name": "mobile_vm_health_booted_days",
+      "csv": "mobile_vm_health",
+      "description": "Booted Days",
+      "column": "booted(days)",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "mobile_vm_health_ssh_resp_time",
+      "csv": "mobile_vm_health",
+      "description": "SSH Response Time",
+      "column": "ssh_resp_time(secs)",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "mobile_vm_health_cb_data_kv_status",
+      "csv": "mobile_vm_health",
+      "description": "KV Service Active",
+      "column": "cb_data_kv_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_cb_index_status",
+      "csv": "mobile_vm_health",
+      "description": "Index Service Active",
+      "column": "cb_index_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_cb_query_status",
+      "csv": "mobile_vm_health",
+      "description": "Query Service Active",
+      "column": "cb_query_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_cb_search_status",
+      "csv": "mobile_vm_health",
+      "description": "Search Service Active",
+      "column": "cb_search_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_cb_analytics_status",
+      "csv": "mobile_vm_health",
+      "description": "Analytics Service Active",
+      "column": "cb_analytics_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_cb_eventing_status",
+      "csv": "mobile_vm_health",
+      "description": "Eventing Service Active",
+      "column": "cb_eventing_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_cb_xdcr_status",
+      "csv": "mobile_vm_health",
+      "description": "XDCR Service Active",
+      "column": "cb_xdcr_status",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "mobile_vm_health_proc_fd_ulimit",
+      "csv": "mobile_vm_health",
+      "description": "Proc fd ulimit",
+      "column": "proc_fd_ulimit",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "mobile_vm_health_iptables_rules_count",
+      "csv": "mobile_vm_health",
+      "description": "iptables rules count",
+      "column": "iptables_rules_count",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "mobile_vm_health_swap_total",
+      "csv": "mobile_vm_health",
+      "description": "Swap Total",
+      "column": "swap_total(kB)",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "mobile_vm_health_mac_address_match",
+      "csv": "mobile_vm_health",
+      "description": "Mac Address Match State",
+      "column": "mac_address_match",
+      "labels": ["ipaddr"]
+    },
+    {
+      "name": "vm_health_mac_address_match",
+      "csv": "vm_health",
+      "description": "Mac Address Match State",
+      "column": "mac_address_match",
+      "labels": ["ipaddr", "pool_ids"]
+    },
+    {
+      "name": "slaves_vm_health_disk_size_data",
+      "csv": "slaves_vm_health",
+      "description": "Disk Size /data",
+      "column": "disk_size_data(MB)",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_disk_used_data",
+      "csv": "slaves_vm_health",
+      "description": "Disk Used /data",
+      "column": "disk_used_data(MB)",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_disk_avail_data",
+      "csv": "slaves_vm_health",
+      "description": "Disk Available /data",
+      "column": "disk_avail_data(MB)",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
+    },
+    {
+      "name": "slaves_vm_health_disk_usage_data",
+      "csv": "slaves_vm_health",
+      "description": "Disk usage /data",
+      "column": "disk_use_data%",
+      "labels": ["ipaddr"],
+      "rename": { "ipaddr": "slave_ip" }
     }
   ]
 }

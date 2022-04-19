@@ -1,0 +1,18 @@
+---
+- name: Setup user
+  hosts: couchbase_main
+  tasks:
+   - include_vars: user_vars.yml
+   - name: Create user
+     uri:
+       url: http://localhost:8091/settings/rbac/users/local/{{ item.id }}
+       user: "{{ admin_user }}"
+       password: "{{ admin_password }}"
+       method: PUT
+       body_format: form-urlencoded
+       body:
+         password: "{{ item.password }}"
+         roles: "{{ item.roles }}"
+       status_code: [200, 202]
+     with_items:
+       - "{{ users }}"

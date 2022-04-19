@@ -1,0 +1,18 @@
+global:
+  resolve_timeout: 1m
+  smtp_from: qa@couchbase.com
+  smtp_smarthost: couchbase-com.mail.protection.outlook.com:25
+
+route:
+  group_by: ["alertname"]
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 24h
+  receiver: "qe-infra-email"
+  matchers:
+   - alertname =~ PoolVMDown|PoolVMOSMismatch|PoolVMHighDiskUsage|SlaveVMHighDiskUsage|SlaveVMHighDiskUsageData
+
+receivers:
+  - name: "qe-infra-email"
+    email_configs:
+      - to: jake.rawsthorne@couchbase.com,jagadesh.munta@couchbase.com,qe-infra@couchbase.com
